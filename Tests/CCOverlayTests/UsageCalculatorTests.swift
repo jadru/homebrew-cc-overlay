@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-@testable import Amarillo
+@testable import CCOverlay
 
 final class UsageCalculatorTests: XCTestCase {
 

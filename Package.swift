@@ -2,17 +2,25 @@
 import PackageDescription
 
 let package = Package(
-    name: "Amarillo",
+    name: "CC-Overlay",
     platforms: [.macOS(.v26)],
+    products: [
+        .executable(name: "cc-overlay", targets: ["CCOverlay"])
+    ],
     targets: [
         .executableTarget(
-            name: "Amarillo",
-            path: "Sources/Amarillo"
+            name: "CCOverlay",
+            path: "Sources/CCOverlay",
+            exclude: ["Info.plist"],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate",
+                    "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist",
+                    "-Xlinker", "Sources/CCOverlay/Info.plist",
+                ]),
+            ]
         ),
-        .testTarget(
-            name: "AmarilloTests",
-            dependencies: ["Amarillo"],
-            path: "Tests/AmarilloTests"
-        ),
+        .testTarget(name: "CCOverlayTests", dependencies: ["CCOverlay"], path: "Tests/CCOverlayTests"),
     ]
 )
