@@ -4,7 +4,6 @@ import SwiftUI
 struct MenuBarView: View {
     let usageService: UsageDataService
     @Bindable var settings: AppSettings
-    let sessionMonitor: SessionMonitor
     var onToggleOverlay: (() -> Void)?
     var onOpenSettings: (() -> Void)?
 
@@ -15,7 +14,6 @@ struct MenuBarView: View {
                 primaryGaugeCard
                 costCard
                 tokenBreakdownCard
-                activeSessionsCard
                 controlsSection
                 footerSection
             }
@@ -237,118 +235,6 @@ struct MenuBarView: View {
         }
         .padding(14)
         .glassEffect(.regular, in: .rect(cornerRadius: 16))
-    }
-
-    // MARK: - Active Sessions
-
-    @ViewBuilder
-    private var activeSessionsCard: some View {
-        if sessionMonitor.hasActiveSessions {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Active Sessions")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    HStack(spacing: 3) {
-                        Circle().fill(.green).frame(width: 5, height: 5)
-                        Text("\(sessionMonitor.activeSessionCount)")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    }
-                    .foregroundStyle(.secondary)
-                }
-
-                ForEach(sessionMonitor.activeSessions) { session in
-                    if session.parentAppBundleId != nil {
-                        Button {
-                            activateParentApp(session)
-                        } label: {
-                            activeSessionRow(session)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        activeSessionRow(session)
-                    }
-                }
-            }
-            .padding(14)
-            .glassEffect(.regular, in: .rect(cornerRadius: 16))
-        }
-    }
-
-    @ViewBuilder
-    private func activeSessionRow(_ session: ActiveSession) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(session.displayName)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                Spacer()
-                Text(formatDuration(session.duration))
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
-
-            HStack(spacing: 8) {
-                if let appName = session.parentAppName {
-                    Label {
-                        Text(appName)
-                            .lineLimit(1)
-                    } icon: {
-                        Image(systemName: "macwindow")
-                            .font(.system(size: 9))
-                    }
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                }
-
-                if let branch = session.gitBranch {
-                    Label {
-                        Text(branch)
-                            .lineLimit(1)
-                    } icon: {
-                        Image(systemName: "arrow.triangle.branch")
-                            .font(.system(size: 9))
-                    }
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                }
-
-                if let count = session.messageCount {
-                    Label {
-                        Text("\(count) msgs")
-                    } icon: {
-                        Image(systemName: "message")
-                            .font(.system(size: 9))
-                    }
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                }
-
-                if let model = session.model {
-                    Text(model)
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.quaternary)
-                }
-            }
-        }
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
-    }
-
-    private func activateParentApp(_ session: ActiveSession) {
-        guard let bundleId = session.parentAppBundleId else { return }
-        NSRunningApplication.runningApplications(withBundleIdentifier: bundleId)
-            .first?.activate()
-    }
-
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        let mins = Int(seconds) / 60
-        let hrs = mins / 60
-        if hrs > 0 {
-            return "\(hrs)h \(mins % 60)m"
-        }
-        return "\(mins)m"
     }
 
     // MARK: - Controls

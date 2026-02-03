@@ -37,6 +37,12 @@ final class SessionMonitor {
         scanTimer = nil
     }
 
+    func reset() {
+        stopMonitoring()
+        activeSessions = []
+        lastScan = nil
+    }
+
     func scan() async {
         let output = await runPSAsync()
         let processes = Self.parseProcessOutput(output)
@@ -103,8 +109,11 @@ final class SessionMonitor {
 
         // Must contain /bin/claude or end with /claude followed by a space/flags
         guard trimmed.contains("/claude ") || trimmed.hasSuffix("/claude") else { return nil }
-        // Filter out grep and ps helper processes
+        // Filter out grep, ps helper processes, and MCP sub-processes
         guard !trimmed.contains("grep") else { return nil }
+        guard !trimmed.contains("--claude-in-chrome-mcp") else { return nil }
+        // Filter out Claude.app (desktop app, not Claude Code CLI)
+        guard !trimmed.contains("Claude.app") else { return nil }
 
         // Parse PID and PPID (first two whitespace-separated fields)
         let components = trimmed.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
