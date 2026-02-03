@@ -77,6 +77,36 @@ final class AppSettings {
         set { withMutation(keyPath: \.launchAtLogin) { UserDefaults.standard.set(newValue, forKey: "launchAtLogin") } }
     }
 
+    var glassTintIntensity: Double {
+        get {
+            access(keyPath: \.glassTintIntensity)
+            let val = UserDefaults.standard.double(forKey: "glassTintIntensity")
+            return val == 0 ? 0.25 : val
+        }
+        set { withMutation(keyPath: \.glassTintIntensity) { UserDefaults.standard.set(newValue, forKey: "glassTintIntensity") } }
+    }
+
+    // MARK: - Alert Settings
+
+    var costAlertEnabled: Bool {
+        get { access(keyPath: \.costAlertEnabled); return UserDefaults.standard.bool(forKey: "costAlertEnabled") }
+        set { withMutation(keyPath: \.costAlertEnabled) { UserDefaults.standard.set(newValue, forKey: "costAlertEnabled") } }
+    }
+
+    // MARK: - Hotkey Settings
+
+    var globalHotkeyEnabled: Bool {
+        get { access(keyPath: \.globalHotkeyEnabled); return UserDefaults.standard.bool(forKey: "globalHotkeyEnabled") }
+        set { withMutation(keyPath: \.globalHotkeyEnabled) { UserDefaults.standard.set(newValue, forKey: "globalHotkeyEnabled") } }
+    }
+
+    // MARK: - Focus Filter
+
+    var overlayAutoHide: Bool {
+        get { access(keyPath: \.overlayAutoHide); return UserDefaults.standard.bool(forKey: "overlayAutoHide") }
+        set { withMutation(keyPath: \.overlayAutoHide) { UserDefaults.standard.set(newValue, forKey: "overlayAutoHide") } }
+    }
+
     /// Weighted cost limit for the current plan.
     var weightedCostLimit: Double {
         planTier == .custom ? customWeightedLimit : planTier.weightedCostLimit
@@ -88,6 +118,10 @@ final class AppSettings {
             "showOverlay": true,
             "overlayOpacity": 1.0,
             "refreshInterval": 60.0,
+            "glassTintIntensity": 0.25,
+            "costAlertEnabled": true,
+            "globalHotkeyEnabled": true,
+            "overlayAutoHide": true,
         ])
     }
 }

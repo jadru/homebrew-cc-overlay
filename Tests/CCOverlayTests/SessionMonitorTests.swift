@@ -1,8 +1,9 @@
 import Testing
 import Foundation
-@testable import Amarillo
+@testable import CCOverlay
 
 @Suite("SessionMonitor Tests")
+@MainActor
 struct SessionMonitorTests {
 
     // MARK: - Process Line Parsing

@@ -3,10 +3,14 @@ import SwiftUI
 struct OverlayView: View {
     let usageService: UsageDataService
     let settings: AppSettings
-    let sessionMonitor: SessionMonitor
     var onSizeChange: ((CGSize) -> Void)?
 
     @State private var isExpanded = false
+    @State private var isHovered = false
+    @State private var isSettingsPreview = false
+    @State private var collapseTask: Task<Void, Never>?
+    @State private var previewTask: Task<Void, Never>?
+    @State private var hasAppeared = false
 
     private var remainPct: Double {
         if usageService.hasAPIData {
@@ -30,36 +34,75 @@ struct OverlayView: View {
 
     var body: some View {
         contentCard
+            .fixedSize()
+            .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
+                onSizeChange?(newSize)
+            }
             .onHover { hovering in
                 guard !settings.clickThrough else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                    isExpanded = hovering
+                isHovered = hovering
+                collapseTask?.cancel()
+                if hovering {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        isExpanded = true
+                    }
+                } else if !isSettingsPreview {
+                    collapseTask = Task {
+                        try? await Task.sleep(for: .milliseconds(150))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.snappy(duration: 0.25)) {
+                            isExpanded = false
+                        }
+                    }
                 }
             }
-            .onGeometryChange(for: CGSize.self) { proxy in
-                proxy.size
-            } action: { size in
-                onSizeChange?(size)
+            .onAppear {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    hasAppeared = true
+                }
             }
+            .onChange(of: settings.glassTintIntensity) { _, _ in expandForPreview() }
+            .onChange(of: settings.overlayOpacity) { _, _ in expandForPreview() }
+    }
+
+    // MARK: - Settings Preview
+
+    private func expandForPreview() {
+        guard hasAppeared else { return }
+        previewTask?.cancel()
+        collapseTask?.cancel()
+        isSettingsPreview = true
+        withAnimation(.snappy(duration: 0.25)) {
+            isExpanded = true
+        }
+        previewTask = Task {
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            isSettingsPreview = false
+            if !isHovered {
+                withAnimation(.snappy(duration: 0.25)) {
+                    isExpanded = false
+                }
+            }
+        }
     }
 
     // MARK: - Card
 
     private var contentCard: some View {
         VStack(spacing: isExpanded ? 8 : 0) {
-            // Pill header — always visible
             pillHeader
 
-            // Expanded details — unfold below the pill
             if isExpanded {
                 expandedDetails
-                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(.horizontal, isExpanded ? 14 : 10)
         .padding(.vertical, isExpanded ? 12 : 6)
+        .frame(maxWidth: 260)
         .glassEffect(
-            .regular.tint(tintColor.opacity(0.25)),
+            .regular.tint(tintColor.opacity(settings.glassTintIntensity)),
             in: .rect(cornerRadius: isExpanded ? 20 : 50)
         )
     }
@@ -81,9 +124,37 @@ struct OverlayView: View {
                 Text("left")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
-                    .transition(.opacity)
+            } else if let resetsAt = governingResetsAt, resetsAt > Date() {
+                resetCountdown(resetsAt)
             }
         }
+    }
+
+    private var governingResetsAt: Date? {
+        guard usageService.hasAPIData else { return nil }
+        return usageService.oauthUsage.governingResetsAt
+    }
+
+    @ViewBuilder
+    private func resetCountdown(_ resetsAt: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let remaining = resetsAt.timeIntervalSince(context.date)
+            if remaining > 0 {
+                Text(formatCompactDuration(remaining))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func formatCompactDuration(_ interval: TimeInterval) -> String {
+        let totalMinutes = Int(interval) / 60
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours > 0 {
+            return "\(hours)h\(String(format: "%02d", minutes))m"
+        }
+        return "\(minutes)m"
     }
 
     // MARK: - Expanded Details
@@ -111,16 +182,6 @@ struct OverlayView: View {
             .frame(width: 56, height: 56)
             .padding(.top, 2)
 
-            // Active sessions
-            if sessionMonitor.hasActiveSessions {
-                HStack(spacing: 3) {
-                    Circle().fill(.green).frame(width: 4, height: 4)
-                    Text("\(sessionMonitor.activeSessionCount) active")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             // Rate limit windows
             if usageService.hasAPIData {
                 let usage = usageService.oauthUsage
@@ -147,4 +208,5 @@ struct OverlayView: View {
                 )
         }
     }
+
 }
