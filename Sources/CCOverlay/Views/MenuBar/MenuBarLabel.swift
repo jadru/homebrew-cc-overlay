@@ -3,7 +3,6 @@ import SwiftUI
 struct MenuBarLabel: View {
     let usageService: UsageDataService
     let settings: AppSettings
-    let sessionMonitor: SessionMonitor
 
     private var remainPct: Double {
         if usageService.hasAPIData {
@@ -25,7 +24,8 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            miniGauge
+            Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                .symbolRenderingMode(.hierarchical)
 
             if hasData {
                 Text(NumberFormatting.formatPercentage(remainPct))
@@ -39,13 +39,6 @@ struct MenuBarLabel: View {
                 }
             }
 
-            if sessionMonitor.hasActiveSessions {
-                HStack(spacing: 2) {
-                    Circle().fill(.green).frame(width: 5, height: 5)
-                    Text("\(sessionMonitor.activeSessionCount)")
-                        .font(.system(.caption2, design: .monospaced))
-                }
-            }
         }
     }
 
