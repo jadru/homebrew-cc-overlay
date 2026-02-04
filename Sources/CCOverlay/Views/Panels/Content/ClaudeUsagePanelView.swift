@@ -20,7 +20,7 @@ struct ClaudeUsagePanelView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 gaugeSection
                 costSection
                 tokenSection
@@ -28,7 +28,7 @@ struct ClaudeUsagePanelView: View {
                     rateLimitSection
                 }
             }
-            .padding(14)
+            .padding(12)
         }
     }
 
@@ -36,40 +36,64 @@ struct ClaudeUsagePanelView: View {
 
     @ViewBuilder
     private var gaugeSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 6)
+                    .stroke(Color.secondary.opacity(0.08), lineWidth: 5)
 
                 Circle()
                     .trim(from: 0, to: remainPct / 100)
-                    .stroke(tintColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .stroke(
+                        tintColor.gradient,
+                        style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                    )
                     .rotationEffect(.degrees(-90))
                     .animation(.easeInOut(duration: 0.5), value: remainPct)
 
-                VStack(spacing: 2) {
+                VStack(spacing: 1) {
                     Text(NumberFormatting.formatPercentage(remainPct))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(tintColor)
 
                     Text("remaining")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(.quaternary)
                 }
             }
-            .frame(width: 72, height: 72)
+            .frame(width: 68, height: 68)
 
-            if let resetsAt = usageService.oauthUsage.governingResetsAt, resetsAt > Date() {
-                Label {
-                    Text("Resets \(resetsAt, style: .relative)")
-                        .font(.system(size: 10))
-                } icon: {
+            Text("Session Limit")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .textCase(.uppercase)
+                .tracking(0.5)
+
+            if let resetsAt = usageService.oauthUsage.primaryResetsAt, resetsAt > Date() {
+                HStack(spacing: 3) {
                     Image(systemName: "clock")
+                        .font(.system(size: 8))
+                    Text("Resets \(resetsAt, style: .relative)")
                         .font(.system(size: 9))
                 }
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.quaternary)
+            }
+
+            if usageService.hasAPIData && usageService.oauthUsage.isWeeklyNearLimit {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.orange)
+                    Text("Weekly limit \(Int(min(usageService.oauthUsage.sevenDay.utilization, 100)))%")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.orange)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .glassEffect(.regular.tint(.orange.opacity(0.1)), in: .capsule)
             }
         }
-        .padding(10)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 14))
     }
@@ -84,47 +108,54 @@ struct ClaudeUsagePanelView: View {
         VStack(spacing: 8) {
             HStack {
                 Text("Estimated Cost")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                    .tracking(0.3)
                 Spacer()
             }
 
             HStack(spacing: 0) {
-                VStack(spacing: 2) {
-                    Text(NumberFormatting.formatDollarCost(fiveHourCost.totalCost))
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    Text("5h window")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
+                costColumn(
+                    NumberFormatting.formatDollarCost(fiveHourCost.totalCost),
+                    label: "5h window"
+                )
 
                 Rectangle()
-                    .fill(Color.secondary.opacity(0.15))
-                    .frame(width: 1, height: 28)
+                    .fill(Color.secondary.opacity(0.1))
+                    .frame(width: 0.5, height: 26)
 
-                VStack(spacing: 2) {
-                    Text(NumberFormatting.formatDollarCost(dailyCost.totalCost))
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    Text("today")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
+                costColumn(
+                    NumberFormatting.formatDollarCost(dailyCost.totalCost),
+                    label: "today"
+                )
             }
 
             if fiveHourCost.totalCost > 0 {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     costChip("In", fiveHourCost.inputCost, .blue)
                     costChip("Out", fiveHourCost.outputCost, .purple)
                     costChip("CW", fiveHourCost.cacheWriteCost, .orange)
                     costChip("CR", fiveHourCost.cacheReadCost, .green)
                 }
+                .padding(.top, 2)
             }
         }
         .padding(10)
         .frame(maxWidth: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 14))
+    }
+
+    @ViewBuilder
+    private func costColumn(_ value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(.quaternary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Tokens
@@ -147,11 +178,13 @@ struct ClaudeUsagePanelView: View {
     @ViewBuilder
     private var rateLimitSection: some View {
         let usage = usageService.oauthUsage
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ratePill("5h", Int(min(usage.fiveHour.utilization, 100)))
             ratePill("7d", Int(min(usage.sevenDay.utilization, 100)))
+                .opacity(usage.isWeeklyNearLimit ? 1.0 : 0.4)
             if let sonnet = usage.sevenDaySonnet {
                 ratePill("Sonnet", Int(min(sonnet.utilization, 100)))
+                    .opacity(usage.isWeeklyNearLimit ? 1.0 : 0.4)
             }
         }
         .frame(maxWidth: .infinity)
@@ -162,10 +195,10 @@ struct ClaudeUsagePanelView: View {
     @ViewBuilder
     private func costChip(_ label: String, _ amount: Double, _ color: Color) -> some View {
         HStack(spacing: 3) {
-            Circle().fill(color).frame(width: 5, height: 5)
+            Circle().fill(color).frame(width: 4, height: 4)
             Text("\(label) \(NumberFormatting.formatDollarCost(amount))")
                 .font(.system(size: 8, weight: .medium, design: .monospaced))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.quaternary)
         }
     }
 

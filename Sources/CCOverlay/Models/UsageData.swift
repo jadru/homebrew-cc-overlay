@@ -125,25 +125,29 @@ struct OAuthUsageStatus: Sendable {
         fetchedAt: .distantPast
     )
 
-    /// The most restrictive (highest) utilization across all windows.
-    /// This matches how Claude Code determines the displayed percentage.
+    /// Primary display percentage: always the 5-hour session window.
     var usedPercentage: Double {
-        min(max(fiveHour.utilization, sevenDay.utilization), 100.0)
+        min(fiveHour.utilization, 100.0)
     }
 
     var remainingPercentage: Double {
         100.0 - usedPercentage
     }
 
-    /// Which window is currently the most restrictive.
-    var governingWindow: String {
-        sevenDay.utilization >= fiveHour.utilization ? "seven_day" : "five_hour"
+    /// The primary display window is always the session window.
+    var primaryWindow: String { "five_hour" }
+
+    /// Reset time for the primary (5-hour session) window.
+    var primaryResetsAt: Date? {
+        fiveHour.resetsAt
     }
 
-    /// Reset time for the governing (most restrictive) window.
-    var governingResetsAt: Date? {
-        sevenDay.utilization >= fiveHour.utilization
-            ? sevenDay.resetsAt : fiveHour.resetsAt
+    /// Threshold at which the weekly limit becomes prominent.
+    static let weeklyWarningThreshold: Double = 70.0
+
+    /// True when the weekly limit is nearing exhaustion.
+    var isWeeklyNearLimit: Bool {
+        sevenDay.utilization >= Self.weeklyWarningThreshold
     }
 
     var isAvailable: Bool {

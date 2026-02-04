@@ -3,13 +3,12 @@ import SwiftUI
 struct PillView: View {
     let usageService: UsageDataService
     let settings: AppSettings
+    let config: PanelConfiguration
     var onSizeChange: ((CGSize) -> Void)?
 
     @State private var isExpanded = false
     @State private var isHovered = false
-    @State private var isSettingsPreview = false
     @State private var collapseTask: Task<Void, Never>?
-    @State private var previewTask: Task<Void, Never>?
     @State private var hasAppeared = false
 
     private var remainPct: Double {
@@ -37,14 +36,14 @@ struct PillView: View {
                 onSizeChange?(newSize)
             }
             .onHover { hovering in
-                guard !settings.clickThrough else { return }
+                guard !config.clickThrough else { return }
                 isHovered = hovering
                 collapseTask?.cancel()
                 if hovering {
                     withAnimation(.snappy(duration: 0.25)) {
                         isExpanded = true
                     }
-                } else if !isSettingsPreview {
+                } else {
                     collapseTask = Task {
                         try? await Task.sleep(for: .milliseconds(150))
                         guard !Task.isCancelled else { return }
@@ -60,24 +59,6 @@ struct PillView: View {
                     hasAppeared = true
                 }
             }
-            .onChange(of: settings.glassTintIntensity) { _, _ in expandForPreview() }
-            .onChange(of: settings.overlayOpacity) { _, _ in expandForPreview() }
-    }
-
-    private func expandForPreview() {
-        guard hasAppeared else { return }
-        previewTask?.cancel()
-        collapseTask?.cancel()
-        isSettingsPreview = true
-        withAnimation(.snappy(duration: 0.25)) { isExpanded = true }
-        previewTask = Task {
-            try? await Task.sleep(for: .seconds(5))
-            guard !Task.isCancelled else { return }
-            isSettingsPreview = false
-            if !isHovered {
-                withAnimation(.snappy(duration: 0.25)) { isExpanded = false }
-            }
-        }
     }
 
     private var contentCard: some View {
@@ -89,7 +70,7 @@ struct PillView: View {
         .padding(.vertical, isExpanded ? 12 : 6)
         .frame(maxWidth: 260)
         .glassEffect(
-            .regular.tint(tintColor.opacity(settings.glassTintIntensity)),
+            .regular.tint(tintColor.opacity(config.glassTintIntensity)),
             in: .rect(cornerRadius: isExpanded ? 20 : 50)
         )
     }
@@ -105,15 +86,15 @@ struct PillView: View {
                 Text("left")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
-            } else if let resetsAt = governingResetsAt, resetsAt > Date() {
+            } else if let resetsAt = sessionResetsAt, resetsAt > Date() {
                 resetCountdown(resetsAt)
             }
         }
     }
 
-    private var governingResetsAt: Date? {
+    private var sessionResetsAt: Date? {
         guard usageService.hasAPIData else { return nil }
-        return usageService.oauthUsage.governingResetsAt
+        return usageService.oauthUsage.primaryResetsAt
     }
 
     @ViewBuilder
@@ -155,7 +136,17 @@ struct PillView: View {
                 let usage = usageService.oauthUsage
                 HStack(spacing: 6) {
                     ratePill("5h", Int(min(usage.fiveHour.utilization, 100)))
-                    ratePill("7d", Int(min(usage.sevenDay.utilization, 100)))
+                    if usage.isWeeklyNearLimit {
+                        HStack(spacing: 2) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 7))
+                                .foregroundStyle(.orange)
+                            ratePill("7d", Int(min(usage.sevenDay.utilization, 100)))
+                        }
+                    } else {
+                        ratePill("7d", Int(min(usage.sevenDay.utilization, 100)))
+                            .opacity(0.5)
+                    }
                 }
             }
         }

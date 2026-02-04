@@ -24,13 +24,21 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                .symbolRenderingMode(.hierarchical)
+            switch settings.menuBarIndicatorStyle {
+            case .pieChart:
+                miniGauge
+            case .barChart:
+                verticalBar
+            case .percentage:
+                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                    .symbolRenderingMode(.hierarchical)
+                if hasData {
+                    Text(NumberFormatting.formatPercentage(remainPct))
+                        .font(.system(.caption, design: .monospaced))
+                }
+            }
 
             if hasData {
-                Text(NumberFormatting.formatPercentage(remainPct))
-                    .font(.system(.caption, design: .monospaced))
-
                 let cost = usageService.aggregatedUsage.fiveHourCost.totalCost
                 if cost > 0 {
                     Text(NumberFormatting.formatDollarCompact(cost))
@@ -38,9 +46,10 @@ struct MenuBarLabel: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
         }
     }
+
+    // MARK: - Pie Chart (Donut Gauge)
 
     private var miniGauge: some View {
         ZStack {
@@ -53,5 +62,19 @@ struct MenuBarLabel: View {
                 .rotationEffect(.degrees(-90))
         }
         .frame(width: 12, height: 12)
+    }
+
+    // MARK: - Vertical Bar
+
+    private var verticalBar: some View {
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Color.secondary.opacity(0.3))
+
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(hasData ? tintColor : .secondary)
+                .frame(height: hasData ? 14 * (remainPct / 100) : 14)
+        }
+        .frame(width: 4, height: 14)
     }
 }
