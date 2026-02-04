@@ -3,31 +3,31 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var overlayWindowController: OverlayWindowController?
     private var settingsWindow: NSWindow?
     private var settingsHostingView: NSHostingView<SettingsView>?
     private var hotkeyManager: HotkeyManager?
+
+    private(set) var panelManager: PanelManager?
+    private(set) var panelConfigStore: PanelConfigStore?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
     }
 
-    func showOverlay(usageService: UsageDataService, settings: AppSettings) {
-        if overlayWindowController == nil {
-            overlayWindowController = OverlayWindowController(
-                usageService: usageService,
-                settings: settings
-            )
+    func setupPanels(settings: AppSettings, usageService: UsageDataService) {
+        let configStore = PanelConfigStore()
+        let manager = PanelManager(
+            configStore: configStore,
+            settings: settings,
+            usageService: usageService
+        )
+
+        self.panelConfigStore = configStore
+        self.panelManager = manager
+
+        if settings.showOverlay {
+            manager.showAllVisiblePanels()
         }
-        overlayWindowController?.showOverlay()
-    }
-
-    func hideOverlay() {
-        overlayWindowController?.hideOverlay()
-    }
-
-    func refreshOverlayVisibility() {
-        overlayWindowController?.refreshVisibility()
     }
 
     func showSettings(settings: AppSettings, usageService: UsageDataService) {
@@ -37,11 +37,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let settingsView = SettingsView(settings: settings, usageService: usageService)
+        let settingsView = SettingsView(
+            settings: settings,
+            usageService: usageService,
+            panelConfigStore: panelConfigStore
+        )
         let hostingView = NSHostingView(rootView: settingsView)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 580),
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 620),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
