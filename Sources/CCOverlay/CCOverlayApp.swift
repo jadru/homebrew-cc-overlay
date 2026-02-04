@@ -33,6 +33,9 @@ struct CCOverlayApp: App {
             .onChange(of: usageService.usedPercentage) { _, newValue in
                 costAlertManager.check(usedPercentage: newValue, settings: settings)
             }
+            .onChange(of: usageService.oauthUsage.sevenDay.utilization) { _, weeklyPct in
+                costAlertManager.checkWeekly(utilization: weeklyPct, settings: settings)
+            }
             .onChange(of: settings.overlayAutoHide) { _, _ in
                 appDelegate.refreshOverlayVisibility()
             }
