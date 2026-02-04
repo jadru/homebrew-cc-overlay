@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct OverlayView: View {
+struct PillView: View {
     let usageService: UsageDataService
     let settings: AppSettings
     var onSizeChange: ((CGSize) -> Void)?
@@ -18,8 +18,6 @@ struct OverlayView: View {
         }
         return 100.0 - usageService.aggregatedUsage.usagePercentage(limit: settings.weightedCostLimit)
     }
-
-    private var usedPct: Double { 100.0 - remainPct }
 
     private var fiveHourCost: Double {
         usageService.aggregatedUsage.fiveHourCost.totalCost
@@ -66,37 +64,26 @@ struct OverlayView: View {
             .onChange(of: settings.overlayOpacity) { _, _ in expandForPreview() }
     }
 
-    // MARK: - Settings Preview
-
     private func expandForPreview() {
         guard hasAppeared else { return }
         previewTask?.cancel()
         collapseTask?.cancel()
         isSettingsPreview = true
-        withAnimation(.snappy(duration: 0.25)) {
-            isExpanded = true
-        }
+        withAnimation(.snappy(duration: 0.25)) { isExpanded = true }
         previewTask = Task {
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled else { return }
             isSettingsPreview = false
             if !isHovered {
-                withAnimation(.snappy(duration: 0.25)) {
-                    isExpanded = false
-                }
+                withAnimation(.snappy(duration: 0.25)) { isExpanded = false }
             }
         }
     }
 
-    // MARK: - Card
-
     private var contentCard: some View {
         VStack(spacing: isExpanded ? 8 : 0) {
             pillHeader
-
-            if isExpanded {
-                expandedDetails
-            }
+            if isExpanded { expandedDetails }
         }
         .padding(.horizontal, isExpanded ? 14 : 10)
         .padding(.vertical, isExpanded ? 12 : 6)
@@ -107,19 +94,13 @@ struct OverlayView: View {
         )
     }
 
-    // MARK: - Pill Header
-
     private var pillHeader: some View {
         HStack(spacing: 5) {
-            Circle()
-                .fill(tintColor)
-                .frame(width: 6, height: 6)
-
+            Circle().fill(tintColor).frame(width: 6, height: 6)
             Text(NumberFormatting.formatPercentage(remainPct))
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.primary)
-
             if isExpanded {
                 Text("left")
                     .font(.system(size: 10, weight: .medium))
@@ -151,30 +132,18 @@ struct OverlayView: View {
         let totalMinutes = Int(interval) / 60
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        if hours > 0 {
-            return "\(hours)h\(String(format: "%02d", minutes))m"
-        }
-        return "\(minutes)m"
+        return hours > 0 ? "\(hours)h\(String(format: "%02d", minutes))m" : "\(minutes)m"
     }
-
-    // MARK: - Expanded Details
 
     private var expandedDetails: some View {
         VStack(spacing: 8) {
-            // Gauge ring
             ZStack {
-                Circle()
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 4)
-
+                Circle().stroke(Color.secondary.opacity(0.12), lineWidth: 4)
                 Circle()
                     .trim(from: 0, to: remainPct / 100)
-                    .stroke(
-                        tintColor,
-                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
-                    )
+                    .stroke(tintColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.easeInOut(duration: 0.6), value: remainPct)
-
                 Text(NumberFormatting.formatDollarCompact(fiveHourCost))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -182,7 +151,6 @@ struct OverlayView: View {
             .frame(width: 56, height: 56)
             .padding(.top, 2)
 
-            // Rate limit windows
             if usageService.hasAPIData {
                 let usage = usageService.oauthUsage
                 HStack(spacing: 6) {
@@ -203,20 +171,13 @@ struct OverlayView: View {
         }
     }
 
-    // MARK: - Helpers
-
     @ViewBuilder
     private func ratePill(_ label: String, _ pct: Int) -> some View {
         HStack(spacing: 2) {
-            Text(label)
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.tertiary)
+            Text(label).font(.system(size: 8, weight: .medium)).foregroundStyle(.tertiary)
             Text("\(pct)%")
                 .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .foregroundStyle(
-                    pct >= 90 ? .red : pct >= 70 ? .orange : .secondary
-                )
+                .foregroundStyle(pct >= 90 ? .red : pct >= 70 ? .orange : .secondary)
         }
     }
-
 }
