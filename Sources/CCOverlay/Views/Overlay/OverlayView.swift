@@ -124,15 +124,15 @@ struct OverlayView: View {
                 Text("left")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
-            } else if let resetsAt = governingResetsAt, resetsAt > Date() {
+            } else if let resetsAt = sessionResetsAt, resetsAt > Date() {
                 resetCountdown(resetsAt)
             }
         }
     }
 
-    private var governingResetsAt: Date? {
+    private var sessionResetsAt: Date? {
         guard usageService.hasAPIData else { return nil }
-        return usageService.oauthUsage.governingResetsAt
+        return usageService.oauthUsage.primaryResetsAt
     }
 
     @ViewBuilder
@@ -187,7 +187,17 @@ struct OverlayView: View {
                 let usage = usageService.oauthUsage
                 HStack(spacing: 6) {
                     ratePill("5h", Int(min(usage.fiveHour.utilization, 100)))
-                    ratePill("7d", Int(min(usage.sevenDay.utilization, 100)))
+                    if usage.isWeeklyNearLimit {
+                        HStack(spacing: 2) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 7))
+                                .foregroundStyle(.orange)
+                            ratePill("7d", Int(min(usage.sevenDay.utilization, 100)))
+                        }
+                    } else {
+                        ratePill("7d", Int(min(usage.sevenDay.utilization, 100)))
+                            .opacity(0.5)
+                    }
                 }
             }
         }

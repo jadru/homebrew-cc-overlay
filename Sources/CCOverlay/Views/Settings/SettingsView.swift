@@ -10,6 +10,12 @@ struct SettingsView: View {
             Section("Display") {
                 Toggle("Show floating overlay", isOn: $settings.showOverlay)
 
+                Picker("Menu bar indicator", selection: $settings.menuBarIndicatorStyle) {
+                    ForEach(MenuBarIndicatorStyle.allCases) { style in
+                        Text(style.rawValue).tag(style)
+                    }
+                }
+
                 Picker("Overlay position", selection: $settings.overlayPosition) {
                     ForEach(OverlayPosition.allCases) { position in
                         Text(position.rawValue).tag(position)

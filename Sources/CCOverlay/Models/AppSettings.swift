@@ -86,6 +86,21 @@ final class AppSettings {
         set { withMutation(keyPath: \.glassTintIntensity) { UserDefaults.standard.set(newValue, forKey: "glassTintIntensity") } }
     }
 
+    // MARK: - Menu Bar Indicator
+
+    var menuBarIndicatorStyle: MenuBarIndicatorStyle {
+        get {
+            access(keyPath: \.menuBarIndicatorStyle)
+            let raw = UserDefaults.standard.string(forKey: "menuBarIndicatorStyle") ?? MenuBarIndicatorStyle.percentage.rawValue
+            return MenuBarIndicatorStyle(rawValue: raw) ?? .percentage
+        }
+        set {
+            withMutation(keyPath: \.menuBarIndicatorStyle) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: "menuBarIndicatorStyle")
+            }
+        }
+    }
+
     // MARK: - Alert Settings
 
     var costAlertEnabled: Bool {
@@ -122,6 +137,7 @@ final class AppSettings {
             "costAlertEnabled": true,
             "globalHotkeyEnabled": true,
             "overlayAutoHide": true,
+            "menuBarIndicatorStyle": MenuBarIndicatorStyle.percentage.rawValue,
         ])
     }
 }

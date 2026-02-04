@@ -43,6 +43,16 @@ enum TokenCostWeight {
     static let cacheRead: Double = 0.1
 }
 
+// MARK: - Menu Bar Indicator Style
+
+enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
+    case pieChart = "Pie Chart"
+    case barChart = "Bar Chart"
+    case percentage = "Percentage"
+
+    var id: String { rawValue }
+}
+
 // MARK: - Overlay Position
 
 enum OverlayPosition: String, CaseIterable, Identifiable, Sendable {
