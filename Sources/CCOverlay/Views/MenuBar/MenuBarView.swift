@@ -73,9 +73,22 @@ struct MenuBarView: View {
         let tint = usageTintColor(remainPct)
 
         VStack(spacing: 10) {
-            Text(windowLabel(usage.governingWindow))
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+            VStack(spacing: 2) {
+                Text("Session Limit")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                if usage.isWeeklyNearLimit {
+                    HStack(spacing: 3) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.orange)
+                        Text("Weekly at \(Int(min(usage.sevenDay.utilization, 100)))%")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
 
             ZStack {
                 Circle()
@@ -101,13 +114,15 @@ struct MenuBarView: View {
             HStack(spacing: 8) {
                 windowPill("5h", usage.fiveHour)
                 windowPill("7d", usage.sevenDay)
+                    .opacity(usage.isWeeklyNearLimit ? 1.0 : 0.5)
                 if let sonnet = usage.sevenDaySonnet {
                     windowPill("Sonnet", sonnet)
+                        .opacity(usage.isWeeklyNearLimit ? 1.0 : 0.5)
                 }
             }
 
             HStack(spacing: 8) {
-                if let resetsAt = usage.governingResetsAt {
+                if let resetsAt = usage.primaryResetsAt {
                     Label {
                         Text("Resets \(resetsAt, style: .relative)")
                             .font(.system(size: 10))
@@ -320,14 +335,6 @@ struct MenuBarView: View {
         if remainPct <= 30 { return .orange }
         if remainPct <= 60 { return .yellow }
         return .green
-    }
-
-    private func windowLabel(_ window: String) -> String {
-        switch window {
-        case "five_hour": return "Session Limit"
-        case "seven_day": return "Weekly Limit"
-        default: return "Usage"
-        }
     }
 
     private func formatPlanName(_ type: String) -> String {
