@@ -4,17 +4,28 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     let usageService: UsageDataService
+    var panelConfigStore: PanelConfigStore?
 
     var body: some View {
+        TabView {
+            generalTab
+                .tabItem { Label("General", systemImage: "gear") }
+
+            if let store = panelConfigStore {
+                PanelSettingsTab(configStore: store)
+                    .tabItem { Label("Panels", systemImage: "square.on.square") }
+            }
+        }
+        .frame(width: 500, height: 620)
+    }
+
+    // MARK: - General Tab
+
+    @ViewBuilder
+    private var generalTab: some View {
         Form {
             Section("Display") {
                 Toggle("Show floating overlay", isOn: $settings.showOverlay)
-
-                Picker("Overlay position", selection: $settings.overlayPosition) {
-                    ForEach(OverlayPosition.allCases) { position in
-                        Text(position.rawValue).tag(position)
-                    }
-                }
 
                 Toggle("Click-through mode", isOn: $settings.clickThrough)
 
@@ -125,7 +136,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 600)
     }
 
     @ViewBuilder

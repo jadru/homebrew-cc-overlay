@@ -9,19 +9,6 @@ final class AppSettings {
         set { withMutation(keyPath: \.showOverlay) { UserDefaults.standard.set(newValue, forKey: "showOverlay") } }
     }
 
-    var overlayPosition: OverlayPosition {
-        get {
-            access(keyPath: \.overlayPosition)
-            let raw = UserDefaults.standard.string(forKey: "overlayPosition") ?? OverlayPosition.topRight.rawValue
-            return OverlayPosition(rawValue: raw) ?? .topRight
-        }
-        set {
-            withMutation(keyPath: \.overlayPosition) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: "overlayPosition")
-            }
-        }
-    }
-
     var clickThrough: Bool {
         get { access(keyPath: \.clickThrough); return UserDefaults.standard.bool(forKey: "clickThrough") }
         set { withMutation(keyPath: \.clickThrough) { UserDefaults.standard.set(newValue, forKey: "clickThrough") } }
