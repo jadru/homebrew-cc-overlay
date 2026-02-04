@@ -107,6 +107,7 @@ final class PanelManager {
                     PillView(
                         usageService: usageService,
                         settings: settings,
+                        config: config,
                         onSizeChange: { [weak self] size in
                             Task { @MainActor in
                                 self?.controllers[controllerId]?.updatePillSize(size)

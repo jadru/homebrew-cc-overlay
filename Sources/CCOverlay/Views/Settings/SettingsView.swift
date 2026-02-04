@@ -33,22 +33,7 @@ struct SettingsView: View {
                     }
                 }
 
-
-                Toggle("Click-through mode", isOn: $settings.clickThrough)
-
-                HStack {
-                    Text("Opacity: \(Int(settings.overlayOpacity * 100))%")
-                    Slider(value: $settings.overlayOpacity, in: 0.3...1.0)
-                }
-
-                HStack {
-                    Text("Glass intensity: \(Int(settings.glassTintIntensity * 100))%")
-                    Slider(value: $settings.glassTintIntensity, in: 0.05...0.60, step: 0.01)
-                }
-
                 Toggle("Global hotkey (\u{2318}\u{21E7}A)", isOn: $settings.globalHotkeyEnabled)
-
-                Toggle("Only show with dev tools", isOn: $settings.overlayAutoHide)
             }
 
             Section("Alerts") {

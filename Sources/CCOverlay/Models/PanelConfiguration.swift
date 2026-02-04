@@ -26,6 +26,14 @@ enum PanelContentType: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    var panelDescription: String {
+        switch self {
+        case .pill: return "Compact floating status"
+        case .claudeUsage: return "Usage dashboard with cost & tokens"
+        case .tokenPricing: return "Model pricing reference"
+        }
+    }
+
     var defaultSize: CGSize {
         switch self {
         case .pill: return CGSize(width: 120, height: 30)
