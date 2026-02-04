@@ -43,17 +43,6 @@ enum TokenCostWeight {
     static let cacheRead: Double = 0.1
 }
 
-// MARK: - Overlay Position
-
-enum OverlayPosition: String, CaseIterable, Identifiable, Sendable {
-    case topRight = "Top Right"
-    case topLeft = "Top Left"
-    case bottomRight = "Bottom Right"
-    case bottomLeft = "Bottom Left"
-
-    var id: String { rawValue }
-}
-
 // MARK: - App Constants
 
 enum AppConstants {

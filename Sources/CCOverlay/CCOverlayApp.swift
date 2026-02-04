@@ -22,9 +22,7 @@ struct CCOverlayApp: App {
             .onAppear {
                 usageService.startMonitoring(interval: settings.refreshInterval)
 
-                if settings.showOverlay {
-                    appDelegate.showOverlay(usageService: usageService, settings: settings)
-                }
+                appDelegate.setupPanels(settings: settings, usageService: usageService)
 
                 appDelegate.setupHotkey(settings: settings) {
                     toggleOverlay()
@@ -32,9 +30,6 @@ struct CCOverlayApp: App {
             }
             .onChange(of: usageService.usedPercentage) { _, newValue in
                 costAlertManager.check(usedPercentage: newValue, settings: settings)
-            }
-            .onChange(of: settings.overlayAutoHide) { _, _ in
-                appDelegate.refreshOverlayVisibility()
             }
             .onChange(of: settings.globalHotkeyEnabled) { _, _ in
                 appDelegate.updateHotkey(settings: settings) {
@@ -50,9 +45,9 @@ struct CCOverlayApp: App {
     private func toggleOverlay() {
         settings.showOverlay.toggle()
         if settings.showOverlay {
-            appDelegate.showOverlay(usageService: usageService, settings: settings)
+            appDelegate.panelManager?.showAllVisiblePanels()
         } else {
-            appDelegate.hideOverlay()
+            appDelegate.panelManager?.hideAllPanels()
         }
     }
 }
