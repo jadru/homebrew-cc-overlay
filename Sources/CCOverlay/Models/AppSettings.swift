@@ -9,20 +9,6 @@ final class AppSettings {
         set { withMutation(keyPath: \.showOverlay) { UserDefaults.standard.set(newValue, forKey: "showOverlay") } }
     }
 
-    var clickThrough: Bool {
-        get { access(keyPath: \.clickThrough); return UserDefaults.standard.bool(forKey: "clickThrough") }
-        set { withMutation(keyPath: \.clickThrough) { UserDefaults.standard.set(newValue, forKey: "clickThrough") } }
-    }
-
-    var overlayOpacity: Double {
-        get {
-            access(keyPath: \.overlayOpacity)
-            let val = UserDefaults.standard.double(forKey: "overlayOpacity")
-            return val == 0 ? 1.0 : val
-        }
-        set { withMutation(keyPath: \.overlayOpacity) { UserDefaults.standard.set(newValue, forKey: "overlayOpacity") } }
-    }
-
     var refreshInterval: TimeInterval {
         get {
             access(keyPath: \.refreshInterval)
@@ -64,15 +50,6 @@ final class AppSettings {
         set { withMutation(keyPath: \.launchAtLogin) { UserDefaults.standard.set(newValue, forKey: "launchAtLogin") } }
     }
 
-    var glassTintIntensity: Double {
-        get {
-            access(keyPath: \.glassTintIntensity)
-            let val = UserDefaults.standard.double(forKey: "glassTintIntensity")
-            return val == 0 ? 0.25 : val
-        }
-        set { withMutation(keyPath: \.glassTintIntensity) { UserDefaults.standard.set(newValue, forKey: "glassTintIntensity") } }
-    }
-
     // MARK: - Menu Bar Indicator
 
     var menuBarIndicatorStyle: MenuBarIndicatorStyle {
@@ -102,13 +79,6 @@ final class AppSettings {
         set { withMutation(keyPath: \.globalHotkeyEnabled) { UserDefaults.standard.set(newValue, forKey: "globalHotkeyEnabled") } }
     }
 
-    // MARK: - Focus Filter
-
-    var overlayAutoHide: Bool {
-        get { access(keyPath: \.overlayAutoHide); return UserDefaults.standard.bool(forKey: "overlayAutoHide") }
-        set { withMutation(keyPath: \.overlayAutoHide) { UserDefaults.standard.set(newValue, forKey: "overlayAutoHide") } }
-    }
-
     /// Weighted cost limit for the current plan.
     var weightedCostLimit: Double {
         planTier == .custom ? customWeightedLimit : planTier.weightedCostLimit
@@ -118,12 +88,9 @@ final class AppSettings {
         // Register defaults
         UserDefaults.standard.register(defaults: [
             "showOverlay": true,
-            "overlayOpacity": 1.0,
             "refreshInterval": 60.0,
-            "glassTintIntensity": 0.25,
             "costAlertEnabled": true,
             "globalHotkeyEnabled": true,
-            "overlayAutoHide": true,
             "menuBarIndicatorStyle": MenuBarIndicatorStyle.percentage.rawValue,
         ])
     }
