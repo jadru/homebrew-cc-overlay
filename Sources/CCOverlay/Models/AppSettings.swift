@@ -79,6 +79,35 @@ final class AppSettings {
         set { withMutation(keyPath: \.globalHotkeyEnabled) { UserDefaults.standard.set(newValue, forKey: "globalHotkeyEnabled") } }
     }
 
+    // MARK: - Overlay (Pill) Settings
+
+    var pillAlwaysExpanded: Bool {
+        get { access(keyPath: \.pillAlwaysExpanded); return UserDefaults.standard.bool(forKey: "pillAlwaysExpanded") }
+        set { withMutation(keyPath: \.pillAlwaysExpanded) { UserDefaults.standard.set(newValue, forKey: "pillAlwaysExpanded") } }
+    }
+
+    var pillShowDailyCost: Bool {
+        get {
+            access(keyPath: \.pillShowDailyCost)
+            return UserDefaults.standard.object(forKey: "pillShowDailyCost") as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.pillShowDailyCost) { UserDefaults.standard.set(newValue, forKey: "pillShowDailyCost") } }
+    }
+
+    var pillOpacity: Double {
+        get {
+            access(keyPath: \.pillOpacity)
+            let val = UserDefaults.standard.double(forKey: "pillOpacity")
+            return val == 0 ? 1.0 : val
+        }
+        set { withMutation(keyPath: \.pillOpacity) { UserDefaults.standard.set(newValue, forKey: "pillOpacity") } }
+    }
+
+    var pillClickThrough: Bool {
+        get { access(keyPath: \.pillClickThrough); return UserDefaults.standard.bool(forKey: "pillClickThrough") }
+        set { withMutation(keyPath: \.pillClickThrough) { UserDefaults.standard.set(newValue, forKey: "pillClickThrough") } }
+    }
+
     /// Weighted cost limit for the current plan.
     var weightedCostLimit: Double {
         planTier == .custom ? customWeightedLimit : planTier.weightedCostLimit
@@ -92,6 +121,10 @@ final class AppSettings {
             "costAlertEnabled": true,
             "globalHotkeyEnabled": true,
             "menuBarIndicatorStyle": MenuBarIndicatorStyle.percentage.rawValue,
+            "pillAlwaysExpanded": false,
+            "pillShowDailyCost": true,
+            "pillOpacity": 1.0,
+            "pillClickThrough": false,
         ])
     }
 }

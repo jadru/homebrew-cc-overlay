@@ -3,63 +3,37 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var settingsWindow: NSWindow?
-    private var settingsHostingView: NSHostingView<SettingsView>?
     private var hotkeyManager: HotkeyManager?
+    private let windowCoordinator = WindowCoordinator()
 
-    private(set) var panelManager: PanelManager?
-    private(set) var panelConfigStore: PanelConfigStore?
+    private(set) var overlayManager: OverlayManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
     }
 
-    func setupPanels(settings: AppSettings, usageService: UsageDataService) {
-        let configStore = PanelConfigStore()
-        let manager = PanelManager(
-            configStore: configStore,
+    func setupOverlay(settings: AppSettings, usageService: UsageDataService) {
+        print("[AppDelegate] setupOverlay called, overlayManager exists: \(overlayManager != nil)")
+        guard overlayManager == nil else { return }
+
+        let manager = OverlayManager(
             settings: settings,
             usageService: usageService
         )
 
-        self.panelConfigStore = configStore
-        self.panelManager = manager
+        self.overlayManager = manager
+        print("[AppDelegate] showOverlay setting: \(settings.showOverlay)")
 
         if settings.showOverlay {
-            manager.showAllVisiblePanels()
+            manager.showOverlay()
         }
     }
 
     func showSettings(settings: AppSettings, usageService: UsageDataService) {
-        if let window = settingsWindow {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let settingsView = SettingsView(
+        windowCoordinator.showSettings(
             settings: settings,
-            usageService: usageService,
-            panelConfigStore: panelConfigStore
+            usageService: usageService
         )
-        let hostingView = NSHostingView(rootView: settingsView)
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 620),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "CC-Overlay Settings"
-        window.contentView = hostingView
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-
-        NSApp.activate(ignoringOtherApps: true)
-
-        self.settingsWindow = window
-        self.settingsHostingView = hostingView
     }
 
     func setupHotkey(settings: AppSettings, toggleOverlay: @escaping @MainActor () -> Void) {

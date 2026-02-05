@@ -25,6 +25,7 @@ struct TokenBreakdownView: View {
                     Text("")
                     Text(NumberFormatting.formatTokenCount(usage.totalTokens))
                         .font(.system(.caption, design: .monospaced).weight(.medium))
+                        .contentTransition(.numericText())
                 }
 
                 GridRow {
@@ -35,9 +36,12 @@ struct TokenBreakdownView: View {
                     Text(NumberFormatting.formatWeightedCost(usage.weightedCost))
                         .font(.system(.caption, design: .monospaced).weight(.semibold))
                         .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(NumberFormatting.formatTokenCount(usage.totalTokens)) total tokens, \(NumberFormatting.formatWeightedCost(usage.weightedCost)) weighted cost")
     }
 
     @ViewBuilder
@@ -61,6 +65,8 @@ struct TokenBreakdownView: View {
             Text(NumberFormatting.formatTokenCount(count))
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
+                .contentTransition(.numericText())
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: count)
         }
     }
 }
