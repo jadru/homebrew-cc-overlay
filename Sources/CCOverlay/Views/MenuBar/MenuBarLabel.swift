@@ -16,10 +16,7 @@ struct MenuBarLabel: View {
     }
 
     private var tintColor: Color {
-        if remainPct <= 10 { return .red }
-        if remainPct <= 30 { return .orange }
-        if remainPct <= 60 { return .yellow }
-        return .green
+        Color.usageTint(for: remainPct)
     }
 
     var body: some View {
@@ -35,6 +32,8 @@ struct MenuBarLabel: View {
                 if hasData {
                     Text(NumberFormatting.formatPercentage(remainPct))
                         .font(.system(.caption, design: .monospaced))
+                        .contentTransition(.numericText(countsDown: true))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remainPct)
                 }
             }
 
@@ -44,9 +43,12 @@ struct MenuBarLabel: View {
                     Text(NumberFormatting.formatDollarCompact(cost))
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: cost)
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: tintColor)
     }
 
     // MARK: - Pie Chart (Donut Gauge)
@@ -60,6 +62,7 @@ struct MenuBarLabel: View {
                 .trim(from: 0, to: hasData ? remainPct / 100 : 1.0)
                 .stroke(hasData ? tintColor : .secondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: remainPct)
         }
         .frame(width: 12, height: 12)
     }
@@ -74,6 +77,7 @@ struct MenuBarLabel: View {
             RoundedRectangle(cornerRadius: 1.5)
                 .fill(hasData ? tintColor : .secondary)
                 .frame(height: hasData ? 14 * (remainPct / 100) : 14)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: remainPct)
         }
         .frame(width: 4, height: 14)
     }
