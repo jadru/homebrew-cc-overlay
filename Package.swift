@@ -7,6 +7,9 @@ let package = Package(
     products: [
         .executable(name: "cc-overlay", targets: ["CCOverlay"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
+    ],
     targets: [
         .executableTarget(
             name: "CCOverlay",
@@ -21,6 +24,13 @@ let package = Package(
                 ]),
             ]
         ),
-        .testTarget(name: "CCOverlayTests", dependencies: ["CCOverlay"], path: "Tests/CCOverlayTests"),
+        .testTarget(
+            name: "CCOverlayTests",
+            dependencies: [
+                "CCOverlay",
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            path: "Tests/CCOverlayTests"
+        ),
     ]
 )

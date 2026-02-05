@@ -6,6 +6,7 @@ struct CCOverlayApp: App {
     @State private var usageService = UsageDataService()
     @State private var settings = AppSettings()
     @State private var costAlertManager = CostAlertManager()
+    @State private var hasInitialized = false
 
     var body: some Scene {
         MenuBarExtra {
@@ -20,13 +21,7 @@ struct CCOverlayApp: App {
                 }
             )
             .onAppear {
-                usageService.startMonitoring(interval: settings.refreshInterval)
-
-                appDelegate.setupPanels(settings: settings, usageService: usageService)
-
-                appDelegate.setupHotkey(settings: settings) {
-                    toggleOverlay()
-                }
+                initializeApp()
             }
             .onChange(of: usageService.usedPercentage) { _, newValue in
                 costAlertManager.check(usedPercentage: newValue, settings: settings)
@@ -39,8 +34,17 @@ struct CCOverlayApp: App {
                     toggleOverlay()
                 }
             }
+            .onChange(of: settings.pillOpacity) { _, _ in
+                appDelegate.overlayManager?.updateFromSettings()
+            }
+            .onChange(of: settings.pillClickThrough) { _, _ in
+                appDelegate.overlayManager?.updateFromSettings()
+            }
         } label: {
             MenuBarLabel(usageService: usageService, settings: settings)
+                .task {
+                    initializeApp()
+                }
         }
         .menuBarExtraStyle(.window)
     }
@@ -48,9 +52,23 @@ struct CCOverlayApp: App {
     private func toggleOverlay() {
         settings.showOverlay.toggle()
         if settings.showOverlay {
-            appDelegate.panelManager?.showAllVisiblePanels()
+            appDelegate.overlayManager?.showOverlay()
         } else {
-            appDelegate.panelManager?.hideAllPanels()
+            appDelegate.overlayManager?.hideOverlay()
+        }
+    }
+
+    private func initializeApp() {
+        guard !hasInitialized else { return }
+        hasInitialized = true
+
+        print("[CCOverlayApp] Initializing app...")
+        usageService.startMonitoring(interval: settings.refreshInterval)
+
+        appDelegate.setupOverlay(settings: settings, usageService: usageService)
+
+        appDelegate.setupHotkey(settings: settings) {
+            toggleOverlay()
         }
     }
 }

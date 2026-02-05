@@ -7,19 +7,20 @@ struct MenuBarView: View {
     var onToggleOverlay: (() -> Void)?
     var onOpenSettings: (() -> Void)?
 
+    @State private var showRefreshSuccess = false
+    @State private var refreshRotation: Double = 0
+
     var body: some View {
-        GlassEffectContainer {
-            VStack(spacing: 14) {
-                headerSection
-                primaryGaugeCard
-                costCard
-                tokenBreakdownCard
-                controlsSection
-                footerSection
-            }
-            .padding(16)
-            .frame(width: 300)
+        VStack(spacing: 14) {
+            headerSection
+            primaryGaugeCard
+            costCard
+            tokenBreakdownCard
+            controlsSection
+            footerSection
         }
+        .padding(16)
+        .frame(width: 300)
     }
 
     // MARK: - Header
@@ -47,10 +48,32 @@ struct MenuBarView: View {
             Button(action: { usageService.refresh() }) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12))
+                    .foregroundStyle(showRefreshSuccess ? .green : .primary)
+                    .rotationEffect(.degrees(refreshRotation))
             }
             .buttonStyle(.borderless)
             .disabled(usageService.isLoading)
             .glassEffect(.regular.interactive(), in: .circle)
+            .onChange(of: usageService.isLoading) { _, isLoading in
+                if isLoading {
+                    withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                        refreshRotation = 360
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        refreshRotation = 0
+                    }
+                }
+            }
+            .onChange(of: usageService.lastRefresh) { _, newValue in
+                guard newValue != nil, usageService.error == nil else { return }
+                withAnimation(.easeIn(duration: 0.15)) {
+                    showRefreshSuccess = true
+                }
+                withAnimation(.easeOut(duration: 0.3).delay(0.5)) {
+                    showRefreshSuccess = false
+                }
+            }
         }
     }
 
@@ -68,174 +91,50 @@ struct MenuBarView: View {
     @ViewBuilder
     private var apiGaugeCard: some View {
         let usage = usageService.oauthUsage
-        let usedPct = usage.usedPercentage
-        let remainPct = 100.0 - usedPct
-        let tint = usageTintColor(remainPct)
+        let remainPct = 100.0 - usage.usedPercentage
 
-        VStack(spacing: 10) {
-            VStack(spacing: 2) {
-                Text("Session Limit")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                if usage.isWeeklyNearLimit {
-                    HStack(spacing: 3) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 8))
-                            .foregroundStyle(.orange)
-                        Text("Weekly at \(Int(min(usage.sevenDay.utilization, 100)))%")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.orange)
-                    }
-                }
-            }
-
-            ZStack {
-                Circle()
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 8)
-
-                Circle()
-                    .trim(from: 0, to: remainPct / 100)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.5), value: remainPct)
-
-                VStack(spacing: 2) {
-                    Text(NumberFormatting.formatPercentage(remainPct))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-
-                    Text("remaining")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .frame(width: 88, height: 88)
-
-            HStack(spacing: 8) {
-                windowPill("5h", usage.fiveHour)
-                windowPill("7d", usage.sevenDay)
-                    .opacity(usage.isWeeklyNearLimit ? 1.0 : 0.5)
-                if let sonnet = usage.sevenDaySonnet {
-                    windowPill("Sonnet", sonnet)
-                        .opacity(usage.isWeeklyNearLimit ? 1.0 : 0.5)
-                }
-            }
-
-            HStack(spacing: 8) {
-                if let resetsAt = usage.primaryResetsAt {
-                    Label {
-                        Text("Resets \(resetsAt, style: .relative)")
-                            .font(.system(size: 10))
-                    } icon: {
-                        Image(systemName: "clock")
-                            .font(.system(size: 9))
-                    }
-                    .foregroundStyle(.tertiary)
-                }
-
-                Spacer()
-
-                HStack(spacing: 3) {
-                    Circle().fill(.green).frame(width: 4, height: 4)
-                    Text("Live").font(.system(size: 9, weight: .medium))
-                }
-                .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        GaugeCardView(
+            remainingPercentage: remainPct,
+            resetsAt: usage.primaryResetsAt,
+            weeklyWarningPercentage: usage.isWeeklyNearLimit ? Int(min(usage.sevenDay.utilization, 100)) : nil,
+            showLiveIndicator: true,
+            rateLimitBuckets: makeRateLimitBuckets(from: usage),
+            size: .standard
+        )
     }
 
     @ViewBuilder
     private var localGaugeCard: some View {
         let usedPct = usageService.aggregatedUsage.usagePercentage(limit: settings.weightedCostLimit)
         let remainPct = 100.0 - usedPct
-        let tint = usageTintColor(remainPct)
 
-        VStack(spacing: 10) {
-            Text("5-Hour Window (estimated)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+        GaugeCardView(
+            remainingPercentage: remainPct,
+            size: .standard,
+            title: "5-Hour Window (estimated)"
+        )
+    }
 
-            ZStack {
-                Circle()
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 8)
-
-                Circle()
-                    .trim(from: 0, to: remainPct / 100)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-
-                VStack(spacing: 2) {
-                    Text(NumberFormatting.formatPercentage(remainPct))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-
-                    Text("remaining")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .frame(width: 88, height: 88)
+    private func makeRateLimitBuckets(from usage: OAuthUsageStatus) -> [GaugeCardView.RateLimitBucket] {
+        var buckets: [GaugeCardView.RateLimitBucket] = [
+            .init(label: "5h", percentage: Int(min(usage.fiveHour.utilization, 100))),
+            .init(label: "7d", percentage: Int(min(usage.sevenDay.utilization, 100)), dimmed: !usage.isWeeklyNearLimit)
+        ]
+        if let sonnet = usage.sevenDaySonnet {
+            buckets.append(.init(label: "Sonnet", percentage: Int(min(sonnet.utilization, 100)), dimmed: !usage.isWeeklyNearLimit))
         }
-        .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        return buckets
     }
 
     // MARK: - Cost Card
 
     @ViewBuilder
     private var costCard: some View {
-        let fiveHourCost = usageService.aggregatedUsage.fiveHourCost
-        let dailyCost = usageService.aggregatedUsage.dailyCost
-
-        VStack(spacing: 8) {
-            HStack {
-                Text("Estimated Cost")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Image(systemName: "dollarsign.circle")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 0) {
-                VStack(spacing: 3) {
-                    Text(NumberFormatting.formatDollarCost(fiveHourCost.totalCost))
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    Text("5h window")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.15))
-                    .frame(width: 1, height: 32)
-
-                VStack(spacing: 3) {
-                    Text(NumberFormatting.formatDollarCost(dailyCost.totalCost))
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    Text("today")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-
-            if fiveHourCost.totalCost > 0 {
-                HStack(spacing: 12) {
-                    costChip("In", fiveHourCost.inputCost, .blue)
-                    costChip("Out", fiveHourCost.outputCost, .purple)
-                    costChip("CW", fiveHourCost.cacheWriteCost, .orange)
-                    costChip("CR", fiveHourCost.cacheReadCost, .green)
-                }
-            }
-        }
-        .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        CostCardView(
+            fiveHourCost: usageService.aggregatedUsage.fiveHourCost,
+            dailyCost: usageService.aggregatedUsage.dailyCost,
+            size: .standard
+        )
     }
 
     // MARK: - Token Breakdown
@@ -292,50 +191,16 @@ struct MenuBarView: View {
             }
 
             if let error = usageService.error {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.red)
+                ErrorBannerView(
+                    error: AppError.from(error),
+                    onRetry: { usageService.refresh() },
+                    compact: true
+                )
             }
         }
     }
 
     // MARK: - Helpers
-
-    @ViewBuilder
-    private func windowPill(_ label: String, _ bucket: UsageBucket) -> some View {
-        let pct = Int(min(bucket.utilization, 100))
-        HStack(spacing: 3) {
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-            Text("\(pct)%")
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundStyle(
-                    bucket.utilization >= 90 ? .red :
-                    bucket.utilization >= 70 ? .orange : .secondary
-                )
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .glassEffect(.regular, in: .capsule)
-    }
-
-    @ViewBuilder
-    private func costChip(_ label: String, _ amount: Double, _ color: Color) -> some View {
-        HStack(spacing: 3) {
-            Circle().fill(color).frame(width: 5, height: 5)
-            Text("\(label) \(NumberFormatting.formatDollarCost(amount))")
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    private func usageTintColor(_ remainPct: Double) -> Color {
-        if remainPct <= 10 { return .red }
-        if remainPct <= 30 { return .orange }
-        if remainPct <= 60 { return .yellow }
-        return .green
-    }
 
     private func formatPlanName(_ type: String) -> String {
         switch type {
