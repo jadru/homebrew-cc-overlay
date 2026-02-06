@@ -40,7 +40,7 @@ struct CostChipView: View {
     }
 }
 
-/// A horizontal stack of cost chips for the four token types.
+/// A horizontal stack of cost chips for input and output token types.
 struct CostBreakdownChips: View {
     let inputCost: Double
     let outputCost: Double
@@ -52,8 +52,6 @@ struct CostBreakdownChips: View {
         HStack(spacing: size == .compact ? 8 : 12) {
             CostChipView(label: "In", amount: inputCost, color: .blue, size: size)
             CostChipView(label: "Out", amount: outputCost, color: .purple, size: size)
-            CostChipView(label: "CW", amount: cacheWriteCost, color: .orange, size: size)
-            CostChipView(label: "CR", amount: cacheReadCost, color: .green, size: size)
         }
     }
 }
