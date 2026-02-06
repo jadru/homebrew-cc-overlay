@@ -46,7 +46,7 @@ struct RatePillView: View {
     }
 
     private var tintColor: Color {
-        Color.rateLimitTint(for: Double(percentage))
+        Color.usageTint(for: Double(percentage))
     }
 
     var body: some View {
@@ -70,7 +70,7 @@ struct RatePillView: View {
         .glassEffect(.regular, in: .capsule)
         .animation(.easeInOut(duration: 0.3), value: tintColor)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label) window at \(percentage) percent")
+        .accessibilityLabel("\(label) window \(percentage) percent remaining")
     }
 }
 

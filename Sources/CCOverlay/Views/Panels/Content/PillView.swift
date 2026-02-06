@@ -196,12 +196,12 @@ struct PillView: View {
         return HStack(spacing: 6) {
             RatePillView(
                 label: "5h",
-                percentage: Int(min(usage.fiveHour.utilization, 100)),
+                percentage: 100 - Int(min(usage.fiveHour.utilization, 100)),
                 size: .compact
             )
             RatePillView(
                 label: "7d",
-                percentage: Int(min(usage.sevenDay.utilization, 100)),
+                percentage: 100 - Int(min(usage.sevenDay.utilization, 100)),
                 showWarningIcon: usage.isWeeklyNearLimit,
                 size: .compact
             )
