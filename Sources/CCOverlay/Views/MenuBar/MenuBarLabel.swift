@@ -19,6 +19,14 @@ struct MenuBarLabel: View {
         Color.usageTint(for: remainPct)
     }
 
+    private var isWeeklyWarning: Bool {
+        let usage = usageService.oauthUsage
+        guard usage.isAvailable else { return false }
+        if usage.isWeeklyNearLimit { return true }
+        if let sonnet = usage.sevenDaySonnet, sonnet.utilization >= 70 { return true }
+        return false
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             switch settings.menuBarIndicatorStyle {
@@ -37,6 +45,13 @@ struct MenuBarLabel: View {
                 }
             }
 
+            if isWeeklyWarning {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.orange)
+                    .transition(.opacity)
+            }
+
             if hasData {
                 let cost = usageService.aggregatedUsage.fiveHourCost.totalCost
                 if cost > 0 {
@@ -49,6 +64,7 @@ struct MenuBarLabel: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: tintColor)
+        .animation(.easeInOut(duration: 0.3), value: isWeeklyWarning)
     }
 
     // MARK: - Pie Chart (Donut Gauge)
