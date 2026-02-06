@@ -117,11 +117,11 @@ struct MenuBarView: View {
 
     private func makeRateLimitBuckets(from usage: OAuthUsageStatus) -> [GaugeCardView.RateLimitBucket] {
         var buckets: [GaugeCardView.RateLimitBucket] = [
-            .init(label: "5h", percentage: Int(min(usage.fiveHour.utilization, 100))),
-            .init(label: "7d", percentage: Int(min(usage.sevenDay.utilization, 100)), dimmed: !usage.isWeeklyNearLimit)
+            .init(label: "5h", percentage: 100 - Int(min(usage.fiveHour.utilization, 100))),
+            .init(label: "7d", percentage: 100 - Int(min(usage.sevenDay.utilization, 100)), dimmed: !usage.isWeeklyNearLimit)
         ]
         if let sonnet = usage.sevenDaySonnet {
-            buckets.append(.init(label: "Sonnet", percentage: Int(min(sonnet.utilization, 100)), dimmed: !usage.isWeeklyNearLimit))
+            buckets.append(.init(label: "Sonnet", percentage: 100 - Int(min(sonnet.utilization, 100)), dimmed: !usage.isWeeklyNearLimit))
         }
         return buckets
     }
@@ -173,6 +173,8 @@ struct MenuBarView: View {
             } label: {
                 Label("Settings", systemImage: "gear")
                     .font(.system(size: 11))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
             }
             .buttonStyle(.borderless)
             .glassEffect(.regular.interactive(), in: .capsule)
