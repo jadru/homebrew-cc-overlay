@@ -37,10 +37,21 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           SHA256=$(awk '{print $1}' sha256.txt)
-          sed -i '' "s|url \".*\"|url \"https://github.com/jadru/homebrew-cc-overlay/releases/download/v${VERSION}/cc-overlay-v${VERSION}-macos.tar.gz\"|" Formula/cc-overlay.rb
+          sed -i '' "s|url \".*\"|url \"https://github.com/jadru/cc-overlay/releases/download/v${VERSION}/cc-overlay-v${VERSION}-macos.tar.gz\"|" Formula/cc-overlay.rb
           sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/cc-overlay.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/cc-overlay.rb
           git commit -m "formula: cc-overlay ${VERSION}"
           git push origin HEAD:main
+
+      - name: Sync formula to Homebrew tap
+        run: |
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/jadru/homebrew-cc-overlay.git /tmp/tap
+          cp Formula/cc-overlay.rb /tmp/tap/Formula/cc-overlay.rb
+          cd /tmp/tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/cc-overlay.rb
+          git diff --cached --quiet || git commit -m "formula: cc-overlay ${VERSION}"
+          git push origin main

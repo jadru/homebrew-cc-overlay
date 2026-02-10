@@ -20,7 +20,7 @@ macOS menu bar app that monitors your Claude Code usage in real time.
 ### Homebrew
 
 ```bash
-brew tap jadru/tap
+brew tap jadru/cc-overlay
 brew install cc-overlay
 brew services start cc-overlay
 ```
