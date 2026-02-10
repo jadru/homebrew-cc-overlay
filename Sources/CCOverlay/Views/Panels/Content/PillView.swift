@@ -159,6 +159,11 @@ struct PillView: View {
                 rateLimitSection
             }
 
+            // Enterprise seat remaining
+            if let eq = usageService.enterpriseQuota, eq.isAvailable {
+                enterpriseSeatSection(eq)
+            }
+
             // Daily cost (optional)
             if settings.pillShowDailyCost && dailyCost > 0 {
                 dailyCostSection
@@ -228,6 +233,37 @@ struct PillView: View {
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
                     .animation(.spring(response: 0.4, dampingFraction: 0.8), value: dailyCost)
+            }
+        }
+    }
+
+    // MARK: - Enterprise Seat
+
+    private func enterpriseSeatSection(_ quota: EnterpriseQuota) -> some View {
+        let remaining = quota.individualLimit.remainingDollars
+        let remainPctSeat = quota.primaryRemainingPercentage
+
+        return VStack(spacing: 6) {
+            Rectangle()
+                .fill(Color.secondary.opacity(0.1))
+                .frame(height: 0.5)
+                .padding(.horizontal, 8)
+
+            HStack {
+                Image(systemName: "building.2")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+                Text("Seat")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+
+                Spacer()
+
+                Text("\(NumberFormatting.formatDollarCompact(remaining)) left")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.usageTint(for: remainPctSeat))
+                    .contentTransition(.numericText())
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remaining)
             }
         }
     }

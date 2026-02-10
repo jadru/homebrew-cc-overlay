@@ -17,7 +17,7 @@ final class MenuBarViewModel {
 
     var planDisplayName: String {
         if let plan = usageService.detectedPlan {
-            return formatPlanName(plan)
+            return PlanTier.displayName(for: plan)
         }
         return settings.planTier.rawValue
     }
@@ -102,6 +102,16 @@ final class MenuBarViewModel {
         usageService.aggregatedUsage.fiveHourWindow
     }
 
+    // MARK: - Enterprise Section
+
+    var isEnterprisePlan: Bool {
+        usageService.isEnterprisePlan
+    }
+
+    var enterpriseQuota: EnterpriseQuota? {
+        usageService.enterpriseQuota
+    }
+
     // MARK: - Controls
 
     var showOverlay: Bool {
@@ -113,16 +123,5 @@ final class MenuBarViewModel {
 
     func refresh() {
         usageService.refresh()
-    }
-
-    // MARK: - Helpers
-
-    private func formatPlanName(_ type: String) -> String {
-        switch type {
-        case "max_5": return "Max ($100/mo)"
-        case "max_20": return "Max ($200/mo)"
-        case "pro": return "Pro ($20/mo)"
-        default: return type
-        }
     }
 }

@@ -15,6 +15,7 @@ enum PlanTier: String, CaseIterable, Identifiable, Sendable {
     case pro = "Pro ($20/mo)"
     case max5 = "Max ($100/mo)"
     case max20 = "Max ($200/mo)"
+    case enterprise = "Enterprise"
     case custom = "Custom"
 
     var id: String { rawValue }
@@ -27,7 +28,19 @@ enum PlanTier: String, CaseIterable, Identifiable, Sendable {
         case .pro: return 5_000_000
         case .max5: return 25_000_000
         case .max20: return 100_000_000
+        case .enterprise: return 100_000_000
         case .custom: return 5_000_000
+        }
+    }
+
+    /// Map an API subscription type string to a display name.
+    static func displayName(for subscriptionType: String) -> String {
+        switch subscriptionType {
+        case "max_5": return "Max ($100/mo)"
+        case "max_20": return "Max ($200/mo)"
+        case "pro": return "Pro ($20/mo)"
+        case let s where s.hasPrefix("enterprise"): return "Enterprise"
+        default: return subscriptionType
         }
     }
 }

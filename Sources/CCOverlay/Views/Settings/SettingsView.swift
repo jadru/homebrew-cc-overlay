@@ -92,7 +92,7 @@ struct SettingsView: View {
 
                 if let plan = usageService.detectedPlan {
                     LabeledContent("Plan") {
-                        Text(formatPlanName(plan))
+                        Text(PlanTier.displayName(for: plan))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -102,6 +102,11 @@ struct SettingsView: View {
 
                 if let sonnet = usage.sevenDaySonnet {
                     bucketRow("Weekly (Sonnet)", sonnet)
+                }
+
+                if let enterprise = usage.enterpriseQuota, enterprise.isAvailable {
+                    Divider()
+                    enterpriseSettingsRows(enterprise)
                 }
 
                 LabeledContent("Extra Usage") {
@@ -194,12 +199,46 @@ struct SettingsView: View {
         }
     }
 
-    private func formatPlanName(_ type: String) -> String {
-        switch type {
-        case "max_5": return "Max ($100/mo)"
-        case "max_20": return "Max ($200/mo)"
-        case "pro": return "Pro ($20/mo)"
-        default: return type
+    // MARK: - Enterprise Settings
+
+    @ViewBuilder
+    private func enterpriseSettingsRows(_ quota: EnterpriseQuota) -> some View {
+        if let orgName = quota.organizationName {
+            LabeledContent("Organization") {
+                Text(orgName).foregroundStyle(.secondary)
+            }
+        }
+
+        LabeledContent("Seat Tier") {
+            Text(quota.seatTier.displayName).foregroundStyle(.secondary)
+        }
+
+        spendingLimitRow("Individual Cap", quota.individualLimit)
+
+        if quota.seatTierLimit.capDollars > 0 {
+            spendingLimitRow("Tier Cap", quota.seatTierLimit)
+        }
+
+        if quota.organizationLimit.capDollars > 0 {
+            spendingLimitRow("Org Cap", quota.organizationLimit)
+        }
+    }
+
+    @ViewBuilder
+    private func spendingLimitRow(_ label: String, _ limit: SpendingLimit) -> some View {
+        LabeledContent(label) {
+            HStack(spacing: 6) {
+                Text("\(NumberFormatting.formatDollarCost(limit.usedDollars)) / \(NumberFormatting.formatDollarCost(limit.capDollars))")
+                    .foregroundStyle(
+                        limit.utilizationPercentage >= 90 ? .red :
+                        limit.utilizationPercentage >= 70 ? .orange : .secondary
+                    )
+                if let resetsAt = limit.resetsAt {
+                    Text("resets \(resetsAt, style: .relative)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
     }
 }

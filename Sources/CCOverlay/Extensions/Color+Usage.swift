@@ -19,4 +19,15 @@ extension Color {
         if utilization >= 70 { return .orange }
         return .secondary
     }
+
+    /// Returns a 6-stage tint color for chart utilization display.
+    /// - Parameter utilization: The utilization percentage (0-100)
+    static func chartTint(for utilization: Double) -> Color {
+        if utilization >= 90 { return .red }
+        if utilization >= 75 { return Color(red: 1.0, green: 0.3, blue: 0.0) }
+        if utilization >= 55 { return .orange }
+        if utilization >= 35 { return .yellow }
+        if utilization >= 15 { return .mint }
+        return .green
+    }
 }
