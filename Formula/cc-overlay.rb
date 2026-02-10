@@ -5,7 +5,7 @@ class CcOverlay < Formula
   sha256 "PLACEHOLDER"
   license "MIT"
 
-  depends_on :macos => :sequoia
+  depends_on :macos => :tahoe
 
   def install
     bin.install "cc-overlay"
