@@ -13,6 +13,8 @@ protocol UsageDataServiceProtocol: AnyObject {
     var usedPercentage: Double { get }
     var remainingPercentage: Double { get }
     var hasAPIData: Bool { get }
+    var enterpriseQuota: EnterpriseQuota? { get }
+    var isEnterprisePlan: Bool { get }
 
     func startMonitoring(interval: TimeInterval)
     func stopMonitoring()

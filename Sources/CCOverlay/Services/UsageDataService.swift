@@ -36,6 +36,15 @@ final class UsageDataService {
         oauthUsage.isAvailable
     }
 
+    var enterpriseQuota: EnterpriseQuota? {
+        oauthUsage.enterpriseQuota
+    }
+
+    var isEnterprisePlan: Bool {
+        guard let plan = detectedPlan else { return false }
+        return plan.hasPrefix("enterprise")
+    }
+
     func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
         refresh()
 

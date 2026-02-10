@@ -115,6 +115,7 @@ struct OAuthUsageStatus: Sendable {
     let sevenDay: UsageBucket
     let sevenDaySonnet: UsageBucket?
     let extraUsageEnabled: Bool
+    let enterpriseQuota: EnterpriseQuota?
     let fetchedAt: Date
 
     static let empty = OAuthUsageStatus(
@@ -122,6 +123,7 @@ struct OAuthUsageStatus: Sendable {
         sevenDay: .zero,
         sevenDaySonnet: nil,
         extraUsageEnabled: false,
+        enterpriseQuota: nil,
         fetchedAt: .distantPast
     )
 
@@ -152,5 +154,61 @@ struct OAuthUsageStatus: Sendable {
 
     var isAvailable: Bool {
         fetchedAt != .distantPast
+    }
+}
+
+// MARK: - Enterprise Spending Limits
+
+struct SpendingLimit: Sendable {
+    let capDollars: Double
+    let usedDollars: Double
+    let periodLabel: String
+    let resetsAt: Date?
+
+    var remainingDollars: Double { max(capDollars - usedDollars, 0) }
+
+    var utilizationPercentage: Double {
+        guard capDollars > 0 else { return 0 }
+        return min(usedDollars / capDollars * 100.0, 100.0)
+    }
+
+    static let zero = SpendingLimit(capDollars: 0, usedDollars: 0, periodLabel: "Monthly", resetsAt: nil)
+}
+
+enum EnterpriseSeatTier: String, Sendable {
+    case standard = "standard"
+    case premium = "premium"
+    case unknown = "unknown"
+
+    var displayName: String {
+        switch self {
+        case .standard: return "Standard"
+        case .premium: return "Premium"
+        case .unknown: return "Seat"
+        }
+    }
+}
+
+struct EnterpriseQuota: Sendable {
+    let organizationName: String?
+    let seatTier: EnterpriseSeatTier
+    let organizationLimit: SpendingLimit
+    let seatTierLimit: SpendingLimit
+    let individualLimit: SpendingLimit
+
+    static let empty = EnterpriseQuota(
+        organizationName: nil,
+        seatTier: .unknown,
+        organizationLimit: .zero,
+        seatTierLimit: .zero,
+        individualLimit: .zero
+    )
+
+    var isAvailable: Bool {
+        individualLimit.capDollars > 0 || organizationLimit.capDollars > 0
+    }
+
+    var primaryRemainingPercentage: Double {
+        100.0 - individualLimit.utilizationPercentage
     }
 }

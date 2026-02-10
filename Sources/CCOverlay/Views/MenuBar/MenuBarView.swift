@@ -4,7 +4,6 @@ import SwiftUI
 struct MenuBarView: View {
     let usageService: UsageDataService
     @Bindable var settings: AppSettings
-    var onToggleOverlay: (() -> Void)?
     var onOpenSettings: (() -> Void)?
 
     @State private var showRefreshSuccess = false
@@ -14,6 +13,7 @@ struct MenuBarView: View {
         VStack(spacing: 14) {
             headerSection
             primaryGaugeCard
+            enterpriseQuotaCard
             costCard
             tokenBreakdownCard
             controlsSection
@@ -33,7 +33,7 @@ struct MenuBarView: View {
                     .font(.system(size: 15, weight: .semibold))
 
                 if let plan = usageService.detectedPlan {
-                    Text(formatPlanName(plan))
+                    Text(PlanTier.displayName(for: plan))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 } else {
@@ -53,6 +53,8 @@ struct MenuBarView: View {
             }
             .buttonStyle(.borderless)
             .disabled(usageService.isLoading)
+            .focusable(false)
+            .accessibilityHidden(true)
             .glassEffect(.regular.interactive(), in: .circle)
             .onChange(of: usageService.isLoading) { _, isLoading in
                 if isLoading {
@@ -126,6 +128,15 @@ struct MenuBarView: View {
         return buckets
     }
 
+    // MARK: - Enterprise Quota
+
+    @ViewBuilder
+    private var enterpriseQuotaCard: some View {
+        if let quota = usageService.oauthUsage.enterpriseQuota, quota.isAvailable {
+            EnterpriseQuotaCardView(quota: quota, size: .standard)
+        }
+    }
+
     // MARK: - Cost Card
 
     @ViewBuilder
@@ -156,16 +167,6 @@ struct MenuBarView: View {
     @ViewBuilder
     private var controlsSection: some View {
         HStack {
-            Toggle("Overlay", isOn: Binding(
-                get: { settings.showOverlay },
-                set: {
-                    settings.showOverlay = $0
-                    onToggleOverlay?()
-                }
-            ))
-            .toggleStyle(.switch)
-            .controlSize(.small)
-
             Spacer()
 
             Button {
@@ -202,14 +203,4 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: - Helpers
-
-    private func formatPlanName(_ type: String) -> String {
-        switch type {
-        case "max_5": return "Max ($100/mo)"
-        case "max_20": return "Max ($200/mo)"
-        case "pro": return "Pro ($20/mo)"
-        default: return type
-        }
-    }
 }

@@ -13,9 +13,6 @@ struct CCOverlayApp: App {
             MenuBarView(
                 usageService: usageService,
                 settings: settings,
-                onToggleOverlay: {
-                    toggleOverlay()
-                },
                 onOpenSettings: {
                     appDelegate.showSettings(settings: settings, usageService: usageService)
                 }

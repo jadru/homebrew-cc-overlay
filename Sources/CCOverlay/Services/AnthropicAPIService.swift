@@ -87,11 +87,14 @@ actor AnthropicAPIService {
             extraUsageEnabled = false
         }
 
+        let enterpriseQuota = parseEnterpriseQuota(json["enterprise"])
+
         return OAuthUsageStatus(
             fiveHour: fiveHour,
             sevenDay: sevenDay,
             sevenDaySonnet: sevenDaySonnet,
             extraUsageEnabled: extraUsageEnabled,
+            enterpriseQuota: enterpriseQuota,
             fetchedAt: fetchedAt
         )
     }
@@ -110,6 +113,50 @@ actor AnthropicAPIService {
         }()
 
         return UsageBucket(utilization: utilization, resetsAt: resetsAt)
+    }
+
+    nonisolated private func parseEnterpriseQuota(_ value: Any?) -> EnterpriseQuota? {
+        guard let dict = value as? [String: Any] else { return nil }
+
+        let orgName = dict["organization_name"] as? String
+        let seatTierRaw = dict["seat_tier"] as? String ?? "unknown"
+        let seatTier = EnterpriseSeatTier(rawValue: seatTierRaw) ?? .unknown
+
+        let orgLimit = parseSpendingLimit(dict["organization_limit"])
+        let tierLimit = parseSpendingLimit(dict["seat_tier_limit"])
+        let individualLimit = parseSpendingLimit(dict["individual_limit"])
+
+        return EnterpriseQuota(
+            organizationName: orgName,
+            seatTier: seatTier,
+            organizationLimit: orgLimit,
+            seatTierLimit: tierLimit,
+            individualLimit: individualLimit
+        )
+    }
+
+    nonisolated private func parseSpendingLimit(_ value: Any?) -> SpendingLimit {
+        guard let dict = value as? [String: Any] else { return .zero }
+
+        let cap = dict["cap_dollars"] as? Double ?? 0
+        let used = dict["used_dollars"] as? Double ?? 0
+        let period = (dict["period"] as? String)?.capitalized ?? "Monthly"
+
+        let resetsAt: Date? = {
+            guard let str = dict["resets_at"] as? String else { return nil }
+            let fmt = ISO8601DateFormatter()
+            fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fmt.date(from: str) { return date }
+            fmt.formatOptions = [.withInternetDateTime]
+            return fmt.date(from: str)
+        }()
+
+        return SpendingLimit(
+            capDollars: cap,
+            usedDollars: used,
+            periodLabel: period,
+            resetsAt: resetsAt
+        )
     }
 
     enum APIError: LocalizedError {
