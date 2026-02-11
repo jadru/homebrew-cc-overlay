@@ -55,7 +55,7 @@ struct MenuBarView: View {
             .disabled(usageService.isLoading)
             .focusable(false)
             .accessibilityHidden(true)
-            .glassEffect(.regular.interactive(), in: .circle)
+            .compatGlassCircle(interactive: true)
             .onChange(of: usageService.isLoading) { _, isLoading in
                 if isLoading {
                     withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
@@ -159,7 +159,7 @@ struct MenuBarView: View {
             )
         }
         .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .compatGlassRoundedRect(cornerRadius: 16)
     }
 
     // MARK: - Controls
@@ -178,7 +178,7 @@ struct MenuBarView: View {
                     .padding(.vertical, 2)
             }
             .buttonStyle(.borderless)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .compatGlassCapsule(interactive: true)
         }
     }
 

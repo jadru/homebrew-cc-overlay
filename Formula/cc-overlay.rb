@@ -5,7 +5,7 @@ class CcOverlay < Formula
   sha256 "483d66a2647ffef412994e2af1afb243d3cd806aa4d391ed8ed0e6be08f62485"
   license "MIT"
 
-  depends_on :macos => :tahoe
+  depends_on :macos => :sequoia
 
   def install
     bin.install "cc-overlay"

@@ -67,7 +67,7 @@ struct RatePillView: View {
         }
         .padding(.horizontal, size.horizontalPadding)
         .padding(.vertical, size.verticalPadding)
-        .glassEffect(.regular, in: .capsule)
+        .compatGlassCapsule()
         .animation(.easeInOut(duration: 0.3), value: tintColor)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label) window \(percentage) percent remaining")
