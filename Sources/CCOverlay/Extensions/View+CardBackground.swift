@@ -9,7 +9,7 @@ struct CardBackgroundModifier: ViewModifier {
     func body(content: Content) -> some View {
         if useGlass {
             content
-                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+                .compatGlassRoundedRect(cornerRadius: cornerRadius)
         } else {
             content
                 .background(

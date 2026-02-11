@@ -29,7 +29,7 @@ brew services start cc-overlay
 
 ### 소스에서 빌드
 
-**Swift 6.2** 및 **macOS 26** (Tahoe) SDK 필요.
+**Swift 6.0+** 및 **macOS 15+** (Sequoia) SDK 필요.
 
 ```bash
 git clone https://github.com/jadru/cc-overlay.git

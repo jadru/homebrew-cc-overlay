@@ -37,7 +37,7 @@ struct ErrorBannerView: View {
                             .font(.system(size: 10, weight: .medium))
                     }
                     .buttonStyle(.borderless)
-                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .compatGlassCapsule(interactive: true)
                 }
 
                 if let onDismiss {
@@ -52,9 +52,9 @@ struct ErrorBannerView: View {
         }
         .padding(.horizontal, compact ? 10 : 12)
         .padding(.vertical, compact ? 8 : 10)
-        .glassEffect(
-            .regular.tint(.red.opacity(isHovered ? 0.08 : 0.05)),
-            in: .rect(cornerRadius: compact ? 10 : 12)
+        .compatGlassRoundedRect(
+            cornerRadius: compact ? 10 : 12,
+            tint: .red.opacity(isHovered ? 0.08 : 0.05)
         )
         .onHover { isHovered = $0 }
         .accessibilityElement(children: .combine)

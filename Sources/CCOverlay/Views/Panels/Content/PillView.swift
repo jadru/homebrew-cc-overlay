@@ -90,9 +90,9 @@ struct PillView: View {
         .padding(.horizontal, isExpanded ? 16 : 10)
         .padding(.vertical, isExpanded ? 14 : 6)
         .frame(maxWidth: 260)
-        .glassEffect(
-            .regular.tint(tintColor.opacity(0.25)),
-            in: .rect(cornerRadius: isExpanded ? 20 : 50)
+        .compatGlassRoundedRect(
+            cornerRadius: isExpanded ? 20 : 50,
+            tint: tintColor.opacity(0.25)
         )
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isExpanded)
     }
