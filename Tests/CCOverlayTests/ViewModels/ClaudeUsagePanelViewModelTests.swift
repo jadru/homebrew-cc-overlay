@@ -155,26 +155,26 @@ struct AppErrorTests {
     }
 }
 
-@Suite("RateLimitBucketInfo Tests")
-struct RateLimitBucketInfoTests {
+@Suite("GaugeCardView.RateLimitBucket Tests")
+struct RateLimitBucketTests {
 
-    @Test("Bucket has correct ID")
-    func bucketHasCorrectId() {
-        let bucket = RateLimitBucketInfo(label: "5h", percentage: 45)
+    @Test("Bucket has correct label")
+    func bucketHasCorrectLabel() {
+        let bucket = GaugeCardView.RateLimitBucket(label: "5h", percentage: 45)
 
-        #expect(bucket.id == "5h")
+        #expect(bucket.label == "5h")
     }
 
     @Test("Bucket dimmed default is false")
     func bucketDimmedDefaultIsFalse() {
-        let bucket = RateLimitBucketInfo(label: "7d", percentage: 30)
+        let bucket = GaugeCardView.RateLimitBucket(label: "7d", percentage: 30)
 
         #expect(bucket.dimmed == false)
     }
 
     @Test("Bucket can be dimmed")
     func bucketCanBeDimmed() {
-        let bucket = RateLimitBucketInfo(label: "7d", percentage: 30, dimmed: true)
+        let bucket = GaugeCardView.RateLimitBucket(label: "7d", percentage: 30, dimmed: true)
 
         #expect(bucket.dimmed == true)
     }

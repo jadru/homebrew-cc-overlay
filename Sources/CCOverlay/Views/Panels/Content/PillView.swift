@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PillView: View {
-    let usageService: UsageDataService
+    let multiService: MultiProviderUsageService
     let settings: AppSettings
     var onSizeChange: ((CGSize) -> Void)?
 
@@ -9,19 +9,21 @@ struct PillView: View {
     @State private var isHovered = false
     @State private var collapseTask: Task<Void, Never>?
 
+    private var activeProviders: [CLIProvider] {
+        multiService.activeProviders
+    }
+
+    /// The most critical provider data (lowest remaining %).
+    private var criticalData: ProviderUsageData {
+        activeProviders
+            .map { multiService.usageData(for: $0) }
+            .filter { $0.isAvailable }
+            .min { $0.remainingPercentage < $1.remainingPercentage }
+            ?? .empty(for: .claudeCode)
+    }
+
     private var remainPct: Double {
-        if usageService.hasAPIData {
-            return usageService.remainingPercentage
-        }
-        return 100.0 - usageService.aggregatedUsage.usagePercentage(limit: settings.weightedCostLimit)
-    }
-
-    private var fiveHourCost: Double {
-        usageService.aggregatedUsage.fiveHourCost.totalCost
-    }
-
-    private var dailyCost: Double {
-        usageService.aggregatedUsage.dailyCost.totalCost
+        criticalData.remainingPercentage
     }
 
     private var tintColor: Color {
@@ -38,13 +40,11 @@ struct PillView: View {
                 handleHover(hovering)
             }
             .onAppear {
-                // Always expanded mode: start expanded
                 if settings.pillAlwaysExpanded {
                     isExpanded = true
                 }
             }
             .onChange(of: settings.pillAlwaysExpanded) { _, alwaysExpanded in
-                // React to setting change
                 withAnimation(.snappy(duration: 0.25)) {
                     isExpanded = alwaysExpanded
                 }
@@ -52,10 +52,7 @@ struct PillView: View {
     }
 
     private func handleHover(_ hovering: Bool) {
-        // Click-through mode: ignore hover
         guard !settings.pillClickThrough else { return }
-
-        // Always expanded mode: ignore hover (stay expanded)
         guard !settings.pillAlwaysExpanded else { return }
 
         isHovered = hovering
@@ -89,7 +86,7 @@ struct PillView: View {
         }
         .padding(.horizontal, isExpanded ? 16 : 10)
         .padding(.vertical, isExpanded ? 14 : 6)
-        .frame(maxWidth: 260)
+        .frame(maxWidth: activeProviders.count > 1 && isExpanded ? 400 : 260)
         .compatGlassRoundedRect(
             cornerRadius: isExpanded ? 20 : 50,
             tint: tintColor.opacity(0.25)
@@ -97,33 +94,52 @@ struct PillView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isExpanded)
     }
 
+    // MARK: - Header
+
     private var pillHeader: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(tintColor)
-                .frame(width: 6, height: 6)
-                .animation(.easeInOut(duration: 0.3), value: tintColor)
+        HStack(spacing: activeProviders.count > 1 ? 8 : 5) {
+            if activeProviders.count > 1 {
+                // Dual provider: show each provider's dot + percentage + time
+                ForEach(activeProviders) { provider in
+                    let data = multiService.usageData(for: provider)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.usageTint(for: data.remainingPercentage))
+                            .frame(width: 6, height: 6)
+                            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
 
-            Text(NumberFormatting.formatPercentage(remainPct))
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.primary)
-                .contentTransition(.numericText(countsDown: true))
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remainPct)
+                        Text(NumberFormatting.formatPercentage(data.remainingPercentage))
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                            .contentTransition(.numericText(countsDown: true))
+                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
 
-            if isExpanded {
-                Text("left")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            } else if let resetsAt = sessionResetsAt, resetsAt > Date() {
-                resetCountdown(resetsAt)
+                        if let resetsAt = data.resetsAt, resetsAt > Date() {
+                            resetCountdown(resetsAt)
+                        }
+                    }
+                }
+            } else {
+                // Single provider: dot + percentage + time
+                let data = criticalData
+                Circle()
+                    .fill(Color.usageTint(for: data.remainingPercentage))
+                    .frame(width: 6, height: 6)
+                    .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+
+                Text(NumberFormatting.formatPercentage(remainPct))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remainPct)
+
+                if let resetsAt = data.resetsAt, resetsAt > Date() {
+                    resetCountdown(resetsAt)
+                }
             }
         }
-    }
-
-    private var sessionResetsAt: Date? {
-        guard usageService.hasAPIData else { return nil }
-        return usageService.oauthUsage.primaryResetsAt
     }
 
     @ViewBuilder
@@ -151,31 +167,141 @@ struct PillView: View {
 
     private var expandedDetails: some View {
         VStack(spacing: 12) {
-            // Gauge with 5-hour cost
+            if activeProviders.count > 1 {
+                dualProviderGauges
+            } else {
+                singleProviderGauge
+            }
+
+            // Daily cost (optional, aggregated across all providers)
+            if settings.pillShowDailyCost {
+                let totalDailyCost = activeProviders.reduce(0.0) { sum, provider in
+                    sum + (multiService.usageData(for: provider).estimatedCost?.dailyCost ?? 0)
+                }
+                if totalDailyCost > 0 {
+                    dailyCostSection(cost: totalDailyCost)
+                }
+            }
+        }
+    }
+
+    // MARK: - Dual Provider (side-by-side)
+
+    private var dualProviderGauges: some View {
+        HStack(spacing: 12) {
+            ForEach(activeProviders) { provider in
+                let data = multiService.usageData(for: provider)
+                providerMiniGauge(data: data)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+            }
+        }
+    }
+
+    private func providerMiniGauge(data: ProviderUsageData) -> some View {
+        let displayBuckets: [RateBucket] = {
+            let buckets = data.rateLimitBuckets
+            guard buckets.count > 2 else { return buckets }
+            // In dual mode, limit to 2 pills. Prioritize warning buckets.
+            let warned = buckets.filter { $0.isWarning }
+            if warned.count >= 2 { return Array(warned.prefix(2)) }
+            if warned.count == 1 {
+                let first = buckets[0]
+                return first.id == warned[0].id
+                    ? [first, buckets[1]]
+                    : [first, warned[0]]
+            }
+            return Array(buckets.prefix(2))
+        }()
+
+        let barTint = Color.usageTint(for: data.remainingPercentage)
+
+        return VStack(spacing: 6) {
+            // Provider label + percentage
+            HStack(spacing: 3) {
+                Image(systemName: data.provider.iconName)
+                    .font(.system(size: 8))
+                Text(data.provider == .claudeCode ? "CC" : "CX")
+                    .font(.system(size: 9, weight: .semibold))
+
+                Spacer()
+
+                Text(NumberFormatting.formatPercentage(data.remainingPercentage))
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(barTint)
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
+            }
+            .foregroundStyle(.tertiary)
+
+            // Horizontal progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.1))
+                    Capsule()
+                        .fill(barTint)
+                        .frame(width: max(geo.size.width * data.remainingPercentage / 100, 0))
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: data.remainingPercentage)
+                }
+            }
+            .frame(height: 5)
+            .clipShape(Capsule())
+
+            // Cost/percentage + window label
+            HStack(spacing: 0) {
+                if let cost = data.estimatedCost {
+                    Text(NumberFormatting.formatDollarCompact(cost.windowCost))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                    Text(" · ")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.quaternary)
+                }
+                Text(data.primaryWindowLabel)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.quaternary)
+
+                Spacer()
+            }
+
+            // Rate limit pills (max 2 in dual mode)
+            if !displayBuckets.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(displayBuckets) { bucket in
+                        RatePillView(
+                            label: bucket.label,
+                            percentage: 100 - Int(min(bucket.utilization, 100)),
+                            size: .compact
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Single Provider
+
+    private var singleProviderGauge: some View {
+        VStack(spacing: 12) {
             gaugeSection
 
-            // Rate limit pills
-            if usageService.hasAPIData {
+            if criticalData.isAvailable, !criticalData.rateLimitBuckets.isEmpty {
                 rateLimitSection
             }
 
-            // Enterprise seat remaining
-            if let eq = usageService.enterpriseQuota, eq.isAvailable {
+            if let eq = criticalData.enterpriseQuota, eq.isAvailable {
                 enterpriseSeatSection(eq)
-            }
-
-            // Daily cost (optional)
-            if settings.pillShowDailyCost && dailyCost > 0 {
-                dailyCostSection
             }
         }
     }
 
     private var gaugeSection: some View {
-        ZStack {
+        return ZStack {
             Circle()
                 .stroke(Color.secondary.opacity(0.1), lineWidth: 5)
-
             Circle()
                 .trim(from: 0, to: remainPct / 100)
                 .stroke(tintColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
@@ -183,12 +309,19 @@ struct PillView: View {
                 .animation(.spring(response: 0.6, dampingFraction: 0.8), value: remainPct)
 
             VStack(spacing: 2) {
-                Text(NumberFormatting.formatDollarCompact(fiveHourCost))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .contentTransition(.numericText())
+                if let cost = criticalData.estimatedCost {
+                    Text(NumberFormatting.formatDollarCompact(cost.windowCost))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                } else {
+                    Text(NumberFormatting.formatPercentage(remainPct))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText(countsDown: true))
+                }
 
-                Text("5h")
+                Text(criticalData.estimatedCost != nil ? criticalData.primaryWindowLabel : "remaining")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.quaternary)
             }
@@ -197,24 +330,20 @@ struct PillView: View {
     }
 
     private var rateLimitSection: some View {
-        let usage = usageService.oauthUsage
-        return HStack(spacing: 6) {
-            RatePillView(
-                label: "5h",
-                percentage: 100 - Int(min(usage.fiveHour.utilization, 100)),
-                size: .compact
-            )
-            RatePillView(
-                label: "7d",
-                percentage: 100 - Int(min(usage.sevenDay.utilization, 100)),
-                showWarningIcon: usage.isWeeklyNearLimit,
-                size: .compact
-            )
-            .opacity(usage.isWeeklyNearLimit ? 1.0 : 0.5)
+        HStack(spacing: 8) {
+            ForEach(criticalData.rateLimitBuckets) { bucket in
+                RatePillView(
+                    label: bucket.label,
+                    percentage: 100 - Int(min(bucket.utilization, 100)),
+                    showWarningIcon: bucket.isWarning,
+                    size: .compact
+                )
+                .opacity(bucket.isWarning ? 1.0 : 0.5)
+            }
         }
     }
 
-    private var dailyCostSection: some View {
+    private func dailyCostSection(cost: Double) -> some View {
         VStack(spacing: 6) {
             Rectangle()
                 .fill(Color.secondary.opacity(0.1))
@@ -228,11 +357,11 @@ struct PillView: View {
 
                 Spacer()
 
-                Text(NumberFormatting.formatDollarCost(dailyCost))
+                Text(NumberFormatting.formatDollarCost(cost))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: dailyCost)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: cost)
             }
         }
     }

@@ -7,12 +7,12 @@ final class OverlayManager {
     private var window: NSPanel?
     private var hostingView: NSHostingView<AnyView>?
     private let settings: AppSettings
-    private let usageService: UsageDataService
+    private let multiService: MultiProviderUsageService
     private var focusObserver: Any?
 
-    init(settings: AppSettings, usageService: UsageDataService) {
+    init(settings: AppSettings, multiService: MultiProviderUsageService) {
         self.settings = settings
-        self.usageService = usageService
+        self.multiService = multiService
     }
 
     // MARK: - Public API
@@ -83,7 +83,7 @@ final class OverlayManager {
 
         // Build pill content
         let pillView = PillView(
-            usageService: usageService,
+            multiService: multiService,
             settings: settings,
             onSizeChange: { [weak panel] size in
                 Task { @MainActor in

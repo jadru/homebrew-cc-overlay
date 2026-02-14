@@ -14,7 +14,7 @@ struct RatePillView: View {
 
         var labelFont: Font {
             switch self {
-            case .compact: return .system(size: 8, weight: .medium)
+            case .compact: return .system(size: 9, weight: .medium)
             case .regular: return .system(size: 9, weight: .medium)
             case .large: return .system(size: 10)
             }
@@ -22,7 +22,7 @@ struct RatePillView: View {
 
         var percentFont: Font {
             switch self {
-            case .compact: return .system(size: 8, weight: .semibold, design: .monospaced)
+            case .compact: return .system(size: 9, weight: .semibold, design: .monospaced)
             case .regular: return .system(size: 9, weight: .semibold, design: .monospaced)
             case .large: return .system(size: 10, weight: .semibold, design: .monospaced)
             }
@@ -30,14 +30,14 @@ struct RatePillView: View {
 
         var spacing: CGFloat {
             switch self {
-            case .compact: return 2
+            case .compact: return 3
             case .regular, .large: return 3
             }
         }
 
         var horizontalPadding: CGFloat {
             switch self {
-            case .compact: return 6
+            case .compact: return 7
             case .regular, .large: return 8
             }
         }
@@ -65,6 +65,7 @@ struct RatePillView: View {
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: percentage)
         }
+        .fixedSize()
         .padding(.horizontal, size.horizontalPadding)
         .padding(.vertical, size.verticalPadding)
         .compatGlassCapsule()

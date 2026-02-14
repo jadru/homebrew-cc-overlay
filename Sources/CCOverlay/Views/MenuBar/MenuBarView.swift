@@ -2,184 +2,147 @@ import AppKit
 import SwiftUI
 
 struct MenuBarView: View {
-    let usageService: UsageDataService
+    let multiService: MultiProviderUsageService
     @Bindable var settings: AppSettings
     var onOpenSettings: (() -> Void)?
 
+    @State private var selectedProvider: CLIProvider?
     @State private var showRefreshSuccess = false
     @State private var refreshRotation: Double = 0
 
+    private var activeProviderSet: Set<CLIProvider> {
+        Set(multiService.activeProviders)
+    }
+
     var body: some View {
-        VStack(spacing: 14) {
-            headerSection
-            primaryGaugeCard
-            enterpriseQuotaCard
-            costCard
-            tokenBreakdownCard
-            controlsSection
+        HStack(spacing: 0) {
+            ProviderTabSidebar(
+                providers: CLIProvider.allCases,
+                activeProviders: activeProviderSet,
+                selectedProvider: $selectedProvider,
+                onSettingsTapped: { onOpenSettings?() }
+            )
+
+            Divider()
+                .padding(.vertical, 8)
+
+            contentArea
+        }
+        .frame(width: 340)
+        .onAppear {
+            if selectedProvider == nil {
+                selectedProvider = multiService.activeProviders.first ?? CLIProvider.allCases.first
+            }
+        }
+        .onChange(of: multiService.activeProviders) { _, newProviders in
+            if let current = selectedProvider, !CLIProvider.allCases.contains(current) {
+                selectedProvider = newProviders.first ?? CLIProvider.allCases.first
+            }
+        }
+    }
+
+    // MARK: - Content Area
+
+    @ViewBuilder
+    private var contentArea: some View {
+        VStack(spacing: 12) {
+            contentHeader
+
+            if let provider = selectedProvider {
+                let data = multiService.usageData(for: provider)
+                ProviderSectionView(
+                    data: data,
+                    settings: settings
+                )
+            } else {
+                noProvidersView
+            }
+
             footerSection
         }
-        .padding(16)
-        .frame(width: 300)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .padding(.horizontal, 14)
     }
 
-    // MARK: - Header
+    // MARK: - Content Header
 
     @ViewBuilder
-    private var headerSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Claude Code")
-                    .font(.system(size: 15, weight: .semibold))
-
-                if let plan = usageService.detectedPlan {
-                    Text(PlanTier.displayName(for: plan))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(settings.planTier.rawValue)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            Button(action: { usageService.refresh() }) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12))
-                    .foregroundStyle(showRefreshSuccess ? .green : .primary)
-                    .rotationEffect(.degrees(refreshRotation))
-            }
-            .buttonStyle(.borderless)
-            .disabled(usageService.isLoading)
-            .focusable(false)
-            .accessibilityHidden(true)
-            .compatGlassCircle(interactive: true)
-            .onChange(of: usageService.isLoading) { _, isLoading in
-                if isLoading {
-                    withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
-                        refreshRotation = 360
-                    }
-                } else {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        refreshRotation = 0
+    private var contentHeader: some View {
+        if let provider = selectedProvider {
+            let data = multiService.usageData(for: provider)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(provider.rawValue)
+                        .font(.system(size: 15, weight: .semibold))
+                    if let plan = data.planName {
+                        Text(plan)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                     }
                 }
+
+                Spacer()
+
+                refreshButton
             }
-            .onChange(of: usageService.lastRefresh) { _, newValue in
-                guard newValue != nil, usageService.error == nil else { return }
-                withAnimation(.easeIn(duration: 0.15)) {
-                    showRefreshSuccess = true
+        }
+    }
+
+    // MARK: - Refresh Button
+
+    @ViewBuilder
+    private var refreshButton: some View {
+        Button(action: { multiService.refresh() }) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 12))
+                .foregroundStyle(showRefreshSuccess ? .green : .primary)
+                .rotationEffect(.degrees(refreshRotation))
+        }
+        .buttonStyle(.borderless)
+        .focusable(false)
+        .accessibilityHidden(true)
+        .compatGlassCircle(interactive: true)
+        .onChange(of: multiService.isLoading) { _, isLoading in
+            if isLoading {
+                withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                    refreshRotation = 360
                 }
-                withAnimation(.easeOut(duration: 0.3).delay(0.5)) {
-                    showRefreshSuccess = false
+            } else {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    refreshRotation = 0
                 }
             }
         }
-    }
-
-    // MARK: - Primary Gauge
-
-    @ViewBuilder
-    private var primaryGaugeCard: some View {
-        if usageService.hasAPIData {
-            apiGaugeCard
-        } else {
-            localGaugeCard
-        }
-    }
-
-    @ViewBuilder
-    private var apiGaugeCard: some View {
-        let usage = usageService.oauthUsage
-        let remainPct = 100.0 - usage.usedPercentage
-
-        GaugeCardView(
-            remainingPercentage: remainPct,
-            resetsAt: usage.primaryResetsAt,
-            weeklyWarningPercentage: usage.isWeeklyNearLimit ? Int(min(usage.sevenDay.utilization, 100)) : nil,
-            showLiveIndicator: true,
-            rateLimitBuckets: makeRateLimitBuckets(from: usage),
-            size: .standard
-        )
-    }
-
-    @ViewBuilder
-    private var localGaugeCard: some View {
-        let usedPct = usageService.aggregatedUsage.usagePercentage(limit: settings.weightedCostLimit)
-        let remainPct = 100.0 - usedPct
-
-        GaugeCardView(
-            remainingPercentage: remainPct,
-            size: .standard,
-            title: "5-Hour Window (estimated)"
-        )
-    }
-
-    private func makeRateLimitBuckets(from usage: OAuthUsageStatus) -> [GaugeCardView.RateLimitBucket] {
-        var buckets: [GaugeCardView.RateLimitBucket] = [
-            .init(label: "5h", percentage: 100 - Int(min(usage.fiveHour.utilization, 100))),
-            .init(label: "7d", percentage: 100 - Int(min(usage.sevenDay.utilization, 100)), dimmed: !usage.isWeeklyNearLimit)
-        ]
-        if let sonnet = usage.sevenDaySonnet {
-            buckets.append(.init(label: "Sonnet", percentage: 100 - Int(min(sonnet.utilization, 100)), dimmed: !usage.isWeeklyNearLimit))
-        }
-        return buckets
-    }
-
-    // MARK: - Enterprise Quota
-
-    @ViewBuilder
-    private var enterpriseQuotaCard: some View {
-        if let quota = usageService.oauthUsage.enterpriseQuota, quota.isAvailable {
-            EnterpriseQuotaCardView(quota: quota, size: .standard)
-        }
-    }
-
-    // MARK: - Cost Card
-
-    @ViewBuilder
-    private var costCard: some View {
-        CostCardView(
-            fiveHourCost: usageService.aggregatedUsage.fiveHourCost,
-            dailyCost: usageService.aggregatedUsage.dailyCost,
-            size: .standard
-        )
-    }
-
-    // MARK: - Token Breakdown
-
-    @ViewBuilder
-    private var tokenBreakdownCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            TokenBreakdownView(
-                usage: usageService.aggregatedUsage.fiveHourWindow,
-                title: "5-Hour Tokens"
-            )
-        }
-        .padding(14)
-        .compatGlassRoundedRect(cornerRadius: 16)
-    }
-
-    // MARK: - Controls
-
-    @ViewBuilder
-    private var controlsSection: some View {
-        HStack {
-            Spacer()
-
-            Button {
-                onOpenSettings?()
-            } label: {
-                Label("Settings", systemImage: "gear")
-                    .font(.system(size: 11))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
+        .onChange(of: multiService.lastRefresh) { _, newValue in
+            guard newValue != nil, multiService.error == nil else { return }
+            withAnimation(.easeIn(duration: 0.15)) {
+                showRefreshSuccess = true
             }
-            .buttonStyle(.borderless)
-            .compatGlassCapsule(interactive: true)
+            withAnimation(.easeOut(duration: 0.3).delay(0.5)) {
+                showRefreshSuccess = false
+            }
         }
+    }
+
+    // MARK: - No Providers
+
+    @ViewBuilder
+    private var noProvidersView: some View {
+        Spacer()
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 24))
+                .foregroundStyle(.tertiary)
+            Text("No CLI providers detected")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text("Install Claude Code or Codex CLI to get started")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        Spacer()
     }
 
     // MARK: - Footer
@@ -187,20 +150,19 @@ struct MenuBarView: View {
     @ViewBuilder
     private var footerSection: some View {
         VStack(spacing: 4) {
-            if let lastRefresh = usageService.lastRefresh {
+            if let lastRefresh = multiService.lastRefresh {
                 Text("Updated \(lastRefresh, style: .relative) ago")
                     .font(.system(size: 10))
                     .foregroundStyle(.quaternary)
             }
 
-            if let error = usageService.error {
+            if let error = multiService.error {
                 ErrorBannerView(
                     error: AppError.from(error),
-                    onRetry: { usageService.refresh() },
-                    compact: true
+                    onRetry: { multiService.refresh() },
+                    compact: false
                 )
             }
         }
     }
-
 }
