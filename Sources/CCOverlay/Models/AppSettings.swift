@@ -113,6 +113,33 @@ final class AppSettings {
         planTier == .custom ? customWeightedLimit : planTier.weightedCostLimit
     }
 
+    // MARK: - Provider Settings
+
+    var claudeCodeEnabled: Bool {
+        get {
+            access(keyPath: \.claudeCodeEnabled)
+            return UserDefaults.standard.object(forKey: "claudeCodeEnabled") as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.claudeCodeEnabled) { UserDefaults.standard.set(newValue, forKey: "claudeCodeEnabled") } }
+    }
+
+    var codexEnabled: Bool {
+        get {
+            access(keyPath: \.codexEnabled)
+            return UserDefaults.standard.object(forKey: "codexEnabled") as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.codexEnabled) { UserDefaults.standard.set(newValue, forKey: "codexEnabled") } }
+    }
+
+    var codexAPIKey: String? {
+        get {
+            access(keyPath: \.codexAPIKey)
+            let val = UserDefaults.standard.string(forKey: "codexAPIKey")
+            return (val?.isEmpty ?? true) ? nil : val
+        }
+        set { withMutation(keyPath: \.codexAPIKey) { UserDefaults.standard.set(newValue, forKey: "codexAPIKey") } }
+    }
+
     init() {
         // Register defaults
         UserDefaults.standard.register(defaults: [
@@ -125,6 +152,8 @@ final class AppSettings {
             "pillShowDailyCost": true,
             "pillOpacity": 1.0,
             "pillClickThrough": false,
+            "claudeCodeEnabled": true,
+            "codexEnabled": true,
         ])
     }
 }

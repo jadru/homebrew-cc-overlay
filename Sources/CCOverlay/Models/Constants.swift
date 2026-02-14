@@ -1,5 +1,21 @@
 import Foundation
 
+// MARK: - CLI Provider
+
+enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
+    case claudeCode = "Claude Code"
+    case codex = "Codex"
+
+    var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .claudeCode: return "brain"
+        case .codex: return "terminal.fill"
+        }
+    }
+}
+
 // MARK: - Billing Mode
 
 enum BillingMode: String, CaseIterable, Identifiable, Sendable {
@@ -73,6 +89,11 @@ enum AppConstants {
     static let claudeProjectsPath: String = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return "\(home)/.claude/projects"
+    }()
+
+    static let codexConfigPath: String = {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/.codex"
     }()
 
     static let defaultRefreshInterval: TimeInterval = 60

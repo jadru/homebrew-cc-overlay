@@ -14,7 +14,7 @@ let package = Package(
         .executableTarget(
             name: "CCOverlay",
             path: "Sources/CCOverlay",
-            exclude: ["Info.plist"],
+            exclude: ["Info.plist", "cc-overlay.entitlements"],
             linkerSettings: [
                 .unsafeFlags([
                     "-Xlinker", "-sectcreate",

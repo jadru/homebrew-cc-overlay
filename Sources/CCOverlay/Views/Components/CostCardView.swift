@@ -5,6 +5,8 @@ struct CostCardView: View {
     let fiveHourCost: CostBreakdown
     let dailyCost: CostBreakdown
     var size: Size = .standard
+    var windowLabel: String = "5h window"
+    var dailyLabel: String = "today"
 
     enum Size {
         case compact  // For ClaudeUsagePanelView
@@ -104,7 +106,7 @@ struct CostCardView: View {
         HStack(spacing: 0) {
             costColumn(
                 value: NumberFormatting.formatDollarCost(fiveHourCost.totalCost),
-                label: "5h window"
+                label: windowLabel
             )
 
             Rectangle()
@@ -113,7 +115,7 @@ struct CostCardView: View {
 
             costColumn(
                 value: NumberFormatting.formatDollarCost(dailyCost.totalCost),
-                label: "today"
+                label: dailyLabel
             )
         }
     }

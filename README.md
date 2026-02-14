@@ -2,15 +2,19 @@
 
 > [한국어](README_KO.md) | [Release Notes](RELEASE_NOTES.md) ([한국어](RELEASE_NOTES_KO.md))
 
-macOS menu bar app that monitors your Claude Code usage in real time.
+macOS menu bar app that monitors your **Claude Code** and **Codex CLI** usage in real time.
 
 <!-- TODO: screenshot -->
 
 ## Features
 
-- **Real-time usage tracking** — 5-hour and weekly rate limit utilization from Anthropic API or local JSONL logs
+- **Multi-provider monitoring** — Track Claude Code and OpenAI Codex CLI usage simultaneously
+- **Automatic CLI detection** — Detects installed CLIs and their credentials; shows only what's available
+- **Real-time usage tracking** — 5-hour and weekly rate limit utilization from Anthropic/OpenAI APIs or local JSONL logs
 - **Floating overlay pill** — Always-on-top glassmorphism widget; expands on hover for detailed usage breakdown
+- **Provider tab sidebar** — Switch between providers in the menu bar dropdown
 - **Enterprise quota support** — 3-tier spending limit display (individual seat / seat tier / organization)
+- **Codex credits display** — Plan type, credit balance, and rate window breakdown
 - **Menu bar indicators** — Pie chart, bar chart, or percentage style — configurable
 - **Token cost breakdown** — Input, output, cache-write, cache-read with per-model pricing
 - **Active session monitoring** — Detects running Claude Code sessions and their parent apps (VS Code, Cursor, Terminal, etc.)
@@ -44,24 +48,26 @@ Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to s
 
 ### Data sources
 
-| Source | How it works |
-|--------|-------------|
-| **Anthropic API** | OAuth token from `~/.claude/credentials.json` — live 5-hour / weekly buckets, Enterprise quota |
-| **Local JSONL** | Falls back to `~/.claude/projects/**/usage.jsonl` — estimated from logged token counts |
+| Source | Provider | How it works |
+|--------|----------|-------------|
+| **Anthropic API** | Claude Code | OAuth token from `~/.claude/credentials.json` — live 5-hour / weekly buckets, Enterprise quota |
+| **OpenAI API** | Codex CLI | OAuth or API key — daily/weekly rate limits, credit balance |
+| **Local JSONL** | Claude Code | Falls back to `~/.claude/projects/**/usage.jsonl` — estimated from logged token counts |
 
 ### Menu bar dropdown
 
-The dropdown panel shows:
+The dropdown panel shows a **provider tab sidebar** (when multiple providers are detected) with per-provider views:
 
 - **Gauge card** — Circular progress with remaining percentage
-- **Enterprise quota card** — Individual/tier/org spending limits (Enterprise plans only)
-- **Cost card** — 5-hour and daily cost estimates
+- **Enterprise quota card** — Individual/tier/org spending limits (Claude Code Enterprise only)
+- **Credits card** — Plan type and credit balance (Codex only)
+- **Cost card** — 5-hour / daily cost estimates
 - **Token breakdown** — Weighted token counts by type
-- **Rate limit pills** — 5h / 7d / Sonnet bucket utilization
+- **Rate limit pills** — 5h / 7d / Sonnet bucket utilization (Claude Code) or daily/weekly windows (Codex)
 
 ### Floating pill
 
-The overlay pill shows a compact remaining percentage that expands on hover to reveal:
+The overlay pill shows a compact remaining percentage for the **most critical provider** (closest to limits). Expands on hover to reveal:
 
 - Circular gauge with 5-hour cost
 - Rate limit utilization pills
@@ -77,7 +83,7 @@ All settings persist via `UserDefaults` and are accessible from the Settings win
 | Show overlay | On | Toggle floating pill |
 | Always expanded | Off | Keep pill expanded without hover |
 | Show daily cost | Off | Show daily cost in expanded pill |
-| Opacity | 100% | Overlay window opacity (50–100%) |
+| Opacity | 100% | Overlay window opacity (50-100%) |
 | Click-through | Off | Mouse events pass through overlay |
 | Menu bar indicator | Pie Chart | Pie chart, bar chart, or percentage |
 | Global hotkey | On | `Cmd+Shift+A` to toggle overlay |
@@ -85,6 +91,9 @@ All settings persist via `UserDefaults` and are accessible from the Settings win
 | Plan tier | Pro | For local JSONL mode (Pro/Max/Enterprise/Custom) |
 | Refresh interval | 1 min | How often usage data is refreshed |
 | Launch at login | Off | Start with macOS |
+| Claude Code enabled | On | Monitor Claude Code usage |
+| Codex enabled | On | Monitor Codex CLI usage |
+| Codex API key | — | Manual API key for Codex (if not using OAuth) |
 
 ### Model pricing
 

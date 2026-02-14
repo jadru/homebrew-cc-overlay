@@ -13,7 +13,7 @@ final class WindowCoordinator {
 
     func showSettings(
         settings: AppSettings,
-        usageService: UsageDataService
+        multiService: MultiProviderUsageService
     ) {
         if let window = settingsWindow {
             window.makeKeyAndOrderFront(nil)
@@ -23,7 +23,7 @@ final class WindowCoordinator {
 
         let settingsView = SettingsView(
             settings: settings,
-            usageService: usageService
+            multiService: multiService
         )
         let hostingView = NSHostingView(rootView: settingsView)
 

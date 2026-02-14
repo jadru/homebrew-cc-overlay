@@ -12,13 +12,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
     }
 
-    func setupOverlay(settings: AppSettings, usageService: UsageDataService) {
+    func setupOverlay(settings: AppSettings, multiService: MultiProviderUsageService) {
         print("[AppDelegate] setupOverlay called, overlayManager exists: \(overlayManager != nil)")
         guard overlayManager == nil else { return }
 
         let manager = OverlayManager(
             settings: settings,
-            usageService: usageService
+            multiService: multiService
         )
 
         self.overlayManager = manager
@@ -29,10 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func showSettings(settings: AppSettings, usageService: UsageDataService) {
+    func showSettings(settings: AppSettings, multiService: MultiProviderUsageService) {
         windowCoordinator.showSettings(
             settings: settings,
-            usageService: usageService
+            multiService: multiService
         )
     }
 

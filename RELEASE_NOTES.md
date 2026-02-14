@@ -1,36 +1,39 @@
-# v0.2.0
+# v0.5.0
 
-## Enterprise Quota & Pricing Update
+## Multi-Provider: Codex CLI Support
 
 > [한국어](RELEASE_NOTES_KO.md)
 
 ### New Features
 
-- **Enterprise plan quota display** — When your subscription is Enterprise-based, CC-Overlay now shows a 3-tier spending limit breakdown:
-  - **Individual seat** cap (primary, emphasized)
-  - **Seat tier** cap (Standard / Premium aggregate)
-  - **Organization** cap (full org aggregate)
-  - Each limit shows used/cap dollars, color-coded utilization, and reset countdown
-- **Enterprise quota card** in the menu bar dropdown panel
-- **Enterprise seat remaining** in the floating pill (expanded state) and menu bar label
-- **Enterprise settings section** showing organization name, seat tier, and all spending limits
+- **Multi-provider architecture** — CC-Overlay now monitors both **Claude Code** and **OpenAI Codex CLI** usage simultaneously
+- **Automatic CLI detection** — Detects installed CLIs (Claude Code via `~/.claude`, Codex via Homebrew/npm/`~/.local/bin`) and their OAuth credentials
+- **Codex CLI integration** — Real-time usage monitoring via OpenAI API: rate limits, credit balance, cost estimates
+- **Provider tab sidebar** — Switch between Claude Code and Codex views in the menu bar dropdown
+- **Provider badges** — Visual status indicators for each provider (active, unavailable, warning)
+- **Codex credits card** — Displays plan type, credit balance, and extra usage status
+- **Codex rate windows card** — Daily/weekly rate limit breakdown with reset timers
+- **Provider-specific settings** — Enable/disable each provider independently; manual Codex API key option
 
 ### Improvements
 
-- **Updated model pricing** — Accurate per-MTok rates for the latest models:
-  - Added Opus 4.5/4.6 ($5/$25) and Opus 4.0/4.1 ($15/$75) as separate entries
-  - Added Haiku 4.5 ($1/$5)
-- **Consolidated `formatPlanName`** — Removed 3 duplicate helper functions, replaced with single `PlanTier.displayName(for:)` static method
-- **CI/CD hardening** — SHA-256 verification step in release workflow, improved Homebrew tap sync with `TAP_TOKEN` support
+- **Normalized usage model** — `ProviderUsageData` provides a unified data structure for any CLI provider
+- **Critical provider tracking** — Floating pill and menu bar automatically show the provider closest to its limits
+- **Backward-compatible** — Existing Claude Code-only users see no UI changes; Codex features appear only when detected
 
 ### Internal
 
-- Added `SpendingLimit`, `EnterpriseSeatTier`, `EnterpriseQuota` data models
-- Extended `AnthropicAPIService` to parse enterprise quota from OAuth API response
-- Extended `UsageDataService`, `UsageDataServiceProtocol`, `MenuBarViewModel` with enterprise properties
-- New `EnterpriseQuotaCardView` component with 3 preview states
+- Added `CLIProvider` enum (`.claudeCode`, `.codex`) and `BillingMode` enum
+- Added `ProviderUsageData`, `RateBucket`, `CostSummary`, `CreditsDisplayInfo`, `DetailedRateWindow` models
+- New `MultiProviderUsageService` coordinator managing per-provider services
+- New `ClaudeCodeProviderService` wrapping existing `UsageDataService`
+- New Codex service layer: `CodexDetector`, `CodexOAuthService`, `CodexProviderService`, `OpenAIAPIService`, `OpenAICostCalculator`
+- New UI components: `ProviderTabSidebar`, `ProviderBadge`, `ProviderSectionView`, `CreditsInfoCardView`, `RateWindowsCardView`
+- Added `cc-overlay.entitlements` for network client capability
+- Removed bundled `CC-Overlay.app` binary from source tree
 
 ### Files Changed
 
-- Modified: 14 files
-- Added: 1 file (`EnterpriseQuotaCardView.swift`)
+- Modified: 17 files
+- Added: 10 files
+- Deleted: 2 files

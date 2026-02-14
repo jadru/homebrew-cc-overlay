@@ -1,14 +1,29 @@
 class CcOverlay < Formula
-  desc "Claude Code usage overlay for macOS menu bar"
+  desc "Claude Code & Codex CLI usage overlay for macOS menu bar"
   homepage "https://github.com/jadru/homebrew-cc-overlay"
-  url "https://github.com/jadru/cc-overlay/releases/download/v0.3.0/cc-overlay-v0.3.0-macos.tar.gz"
-  sha256 "fe39da30f506af03ca5f515368eebcaebbf5b5460511b26a4a62f4e159147b19"
+  url "https://github.com/jadru/cc-overlay/releases/download/v0.5.0/cc-overlay-v0.5.0-macos.tar.gz"
+  sha256 "PLACEHOLDER_SHA256"
   license "MIT"
 
   depends_on :macos => :sequoia
 
   def install
     bin.install "cc-overlay"
+    # Entitlements for outbound network access (prevents repeated macOS permission dialogs)
+    entitlements = buildpath/"cc-overlay.entitlements"
+    entitlements.write <<~XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+          <key>com.apple.security.network.client</key>
+          <true/>
+      </dict>
+      </plist>
+    XML
+    system "codesign", "--force", "--sign", "-",
+           "--entitlements", entitlements,
+           "--timestamp=none", bin/"cc-overlay"
   end
 
   service do

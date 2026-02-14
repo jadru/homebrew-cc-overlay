@@ -3,10 +3,11 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var settings: AppSettings
-    let usageService: UsageDataService
+    let multiService: MultiProviderUsageService
 
     var body: some View {
         Form {
+            providersSection
             overlaySection
             displaySection
             alertsSection
@@ -15,7 +16,88 @@ struct SettingsView: View {
             startupSection
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 620)
+        .frame(width: 500, height: 700)
+    }
+
+    // MARK: - Providers Section
+
+    @ViewBuilder
+    private var providersSection: some View {
+        Section("Providers") {
+            ForEach(CLIProvider.allCases) { provider in
+                let isActive = multiService.activeProviders.contains(provider)
+
+                LabeledContent {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(isActive ? .green : .red)
+                            .frame(width: 6, height: 6)
+                        Text(isActive ? "Active" : "Not detected")
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: provider.iconName)
+                            .font(.system(size: 12))
+                        Text(provider.rawValue)
+                    }
+                }
+            }
+
+            Toggle("Enable Claude Code", isOn: $settings.claudeCodeEnabled)
+            Toggle("Enable Codex", isOn: $settings.codexEnabled)
+
+            LabeledContent("Codex API Key") {
+                SecureField("sk-...", text: Binding(
+                    get: { settings.codexAPIKey ?? "" },
+                    set: { settings.codexAPIKey = $0.isEmpty ? nil : $0 }
+                ))
+                .frame(width: 200)
+                .textFieldStyle(.roundedBorder)
+            }
+
+            Text("API key is read from: OPENAI_API_KEY env > ~/.codex/config.toml > manual entry above")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+
+            // Codex auth status indicator
+            codexAuthStatusRow
+        }
+    }
+
+    @ViewBuilder
+    private var codexAuthStatusRow: some View {
+        let codexData = multiService.usageData(for: .codex)
+        if settings.codexEnabled {
+            if let errorMsg = codexData.error {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.system(size: 10))
+                    Text(errorMsg)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                }
+            } else if codexData.isAvailable, let plan = codexData.planName {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.system(size: 10))
+                    Text("ChatGPT OAuth connected (plan: \(plan))")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            } else if !multiService.activeProviders.contains(.codex) {
+                HStack(spacing: 4) {
+                    Image(systemName: "minus.circle")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10))
+                    Text("~/.codex/auth.json not found — install Codex CLI first")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
     }
 
     // MARK: - Overlay Section
@@ -77,66 +159,59 @@ struct SettingsView: View {
     @ViewBuilder
     private var rateLimitsSection: some View {
         Section("Rate Limits") {
-            if usageService.hasAPIData {
-                let usage = usageService.oauthUsage
+            ForEach(multiService.activeProviders) { provider in
+                let data = multiService.usageData(for: provider)
 
-                LabeledContent("Source") {
+                if multiService.activeProviders.count > 1 {
                     HStack(spacing: 4) {
-                        Circle()
-                            .fill(.green)
-                            .frame(width: 6, height: 6)
-                        Text("Anthropic API (live)")
-                            .foregroundStyle(.secondary)
+                        Image(systemName: provider.iconName)
+                            .font(.system(size: 10))
+                        Text(provider.rawValue)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(.primary)
+                }
+
+                if data.isAvailable {
+                    LabeledContent("Source") {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(.green)
+                                .frame(width: 6, height: 6)
+                            Text(provider == .claudeCode ? "Anthropic API (live)" : "OpenAI (live)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if let plan = data.planName {
+                        LabeledContent("Plan") {
+                            Text(plan).foregroundStyle(.secondary)
+                        }
+                    }
+
+                    ForEach(data.rateLimitBuckets) { bucket in
+                        rateBucketRow(bucket)
+                    }
+
+                    // Claude-specific enterprise quota
+                    if let enterprise = data.enterpriseQuota, enterprise.isAvailable {
+                        Divider()
+                        enterpriseSettingsRows(enterprise)
+                    }
+                } else {
+                    LabeledContent("Source") {
+                        Text("No data").foregroundStyle(.secondary)
                     }
                 }
 
-                if let plan = usageService.detectedPlan {
-                    LabeledContent("Plan") {
-                        Text(PlanTier.displayName(for: plan))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                bucketRow("5-Hour Window", usage.fiveHour)
-                bucketRow("Weekly (All Models)", usage.sevenDay)
-
-                if let sonnet = usage.sevenDaySonnet {
-                    bucketRow("Weekly (Sonnet)", sonnet)
-                }
-
-                if let enterprise = usage.enterpriseQuota, enterprise.isAvailable {
+                if multiService.activeProviders.count > 1 && provider != multiService.activeProviders.last {
                     Divider()
-                    enterpriseSettingsRows(enterprise)
                 }
+            }
 
-                LabeledContent("Extra Usage") {
-                    Text(usage.extraUsageEnabled ? "Enabled" : "Disabled")
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                LabeledContent("Source") {
-                    Text("Local JSONL (estimated)")
-                        .foregroundStyle(.secondary)
-                }
-
-                Picker("Plan tier", selection: $settings.planTier) {
-                    ForEach(PlanTier.allCases) { tier in
-                        Text(tier.rawValue).tag(tier)
-                    }
-                }
-
-                if settings.planTier == .custom {
-                    TextField(
-                        "Weighted cost limit (5hr)",
-                        value: $settings.customWeightedLimit,
-                        format: .number
-                    )
-                }
-
-                LabeledContent("Current limit") {
-                    Text(NumberFormatting.formatWeightedCost(settings.weightedCostLimit))
-                        .foregroundStyle(.secondary)
-                }
+            if multiService.activeProviders.isEmpty {
+                Text("No providers detected")
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -153,7 +228,7 @@ struct SettingsView: View {
                 Text("5 minutes").tag(300.0 as TimeInterval)
             }
             .onChange(of: settings.refreshInterval) { _, newValue in
-                usageService.updateRefreshInterval(newValue)
+                multiService.updateRefreshInterval(newValue)
             }
         }
     }
@@ -182,8 +257,8 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     @ViewBuilder
-    private func bucketRow(_ label: String, _ bucket: UsageBucket) -> some View {
-        LabeledContent(label) {
+    private func rateBucketRow(_ bucket: RateBucket) -> some View {
+        LabeledContent(bucket.label) {
             HStack(spacing: 6) {
                 Text("\(Int(min(bucket.utilization, 100)))% used")
                     .foregroundStyle(

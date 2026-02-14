@@ -26,6 +26,15 @@ final class MockUsageDataService: UsageDataServiceProtocol {
         oauthUsage.isAvailable
     }
 
+    var enterpriseQuota: EnterpriseQuota? {
+        oauthUsage.enterpriseQuota
+    }
+
+    var isEnterprisePlan: Bool {
+        guard let plan = detectedPlan else { return false }
+        return plan.hasPrefix("enterprise")
+    }
+
     // Tracking for verification in tests
     var startMonitoringCallCount = 0
     var stopMonitoringCallCount = 0
@@ -56,6 +65,7 @@ final class MockUsageDataService: UsageDataServiceProtocol {
                 sevenDay: UsageBucket(utilization: sevenDayUtilization, resetsAt: nil),
                 sevenDaySonnet: sonnetUtilization.map { UsageBucket(utilization: $0, resetsAt: nil) },
                 extraUsageEnabled: false,
+                enterpriseQuota: nil,
                 fetchedAt: Date()
             )
         } else {
@@ -117,6 +127,7 @@ final class MockUsageDataService: UsageDataServiceProtocol {
             sevenDay: oauthUsage.sevenDay,
             sevenDaySonnet: oauthUsage.sevenDaySonnet,
             extraUsageEnabled: oauthUsage.extraUsageEnabled,
+            enterpriseQuota: nil,
             fetchedAt: Date()
         )
     }

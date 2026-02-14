@@ -12,8 +12,12 @@ struct TokenBreakdownView: View {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                 tokenRow(label: "Input", count: usage.inputTokens, weight: "1.0x", color: .blue)
                 tokenRow(label: "Output", count: usage.outputTokens, weight: "5.0x", color: .purple)
-                tokenRow(label: "Cache Write", count: usage.cacheCreationInputTokens, weight: "1.25x", color: .orange)
-                tokenRow(label: "Cache Read", count: usage.cacheReadInputTokens, weight: "0.1x", color: .green)
+                if usage.cacheCreationInputTokens > 0 {
+                    tokenRow(label: "Cache Write", count: usage.cacheCreationInputTokens, weight: "1.25x", color: .orange)
+                }
+                if usage.cacheReadInputTokens > 0 {
+                    tokenRow(label: "Cache Read", count: usage.cacheReadInputTokens, weight: "0.1x", color: .green)
+                }
 
                 Divider()
                     .gridCellColumns(4)

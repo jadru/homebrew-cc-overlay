@@ -1,51 +1,50 @@
 import SwiftUI
 
 struct MenuBarLabel: View {
-    let usageService: UsageDataService
+    let multiService: MultiProviderUsageService
     let settings: AppSettings
 
-    private struct BucketItem: Identifiable {
-        let id: String
-        let utilization: Double
+    /// The provider data with the lowest remaining % (most critical).
+    private var criticalData: ProviderUsageData? {
+        multiService.activeProviders
+            .map { multiService.usageData(for: $0) }
+            .filter { $0.isAvailable }
+            .min { $0.remainingPercentage < $1.remainingPercentage }
     }
 
     private var remainPct: Double {
-        if usageService.hasAPIData {
-            return usageService.remainingPercentage
-        }
-        return 100.0 - usageService.aggregatedUsage.usagePercentage(limit: settings.weightedCostLimit)
+        criticalData?.remainingPercentage ?? 100
     }
 
     private var hasData: Bool {
-        usageService.hasAPIData || usageService.aggregatedUsage.fiveHourWindow.totalTokens > 0
+        criticalData?.isAvailable ?? false
     }
 
     private var tintColor: Color {
         Color.usageTint(for: remainPct)
     }
 
-    private var isWeeklyWarning: Bool {
-        let usage = usageService.oauthUsage
-        guard usage.isAvailable else { return false }
-        if usage.isWeeklyNearLimit { return true }
-        if let sonnet = usage.sevenDaySonnet, sonnet.utilization >= 70 { return true }
-        return false
+    private var hasDualProviders: Bool {
+        multiService.activeProviders.count > 1
+    }
+
+    private struct BucketItem: Identifiable {
+        let id: String
+        let utilization: Double
     }
 
     private var bucketItems: [BucketItem] {
-        guard usageService.hasAPIData else {
-            let usagePct = usageService.aggregatedUsage.usagePercentage(limit: settings.weightedCostLimit)
-            return [BucketItem(id: "5h", utilization: usagePct)]
+        guard let data = criticalData else {
+            return [BucketItem(id: "5h", utilization: 0)]
         }
-        let usage = usageService.oauthUsage
-        var items: [BucketItem] = [
-            BucketItem(id: "5h", utilization: min(usage.fiveHour.utilization, 100)),
-            BucketItem(id: "7d", utilization: min(usage.sevenDay.utilization, 100)),
-        ]
-        if let sonnet = usage.sevenDaySonnet {
-            items.append(BucketItem(id: "sonnet", utilization: min(sonnet.utilization, 100)))
+        return data.rateLimitBuckets.map { b in
+            BucketItem(id: b.id, utilization: min(b.utilization, 100))
         }
-        return items
+    }
+
+    private var isWeeklyWarning: Bool {
+        guard let data = criticalData else { return false }
+        return data.rateLimitBuckets.contains { $0.isWarning }
     }
 
     var body: some View {
@@ -56,8 +55,16 @@ struct MenuBarLabel: View {
             case .barChart:
                 verticalBar
             case .percentage:
-                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                    .symbolRenderingMode(.hierarchical)
+                if hasDualProviders {
+                    dualProviderIcons
+                } else if let data = criticalData {
+                    Image(systemName: data.provider.iconName)
+                        .symbolRenderingMode(.hierarchical)
+                        .font(.system(size: 11))
+                } else {
+                    Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                        .symbolRenderingMode(.hierarchical)
+                }
                 if hasData {
                     Text(NumberFormatting.formatPercentage(remainPct))
                         .font(.system(.caption, design: .monospaced))
@@ -72,34 +79,30 @@ struct MenuBarLabel: View {
                     .foregroundStyle(.orange)
                     .transition(.opacity)
             }
-
-            if let eq = usageService.enterpriseQuota, eq.isAvailable {
-                Text(NumberFormatting.formatDollarCompact(eq.individualLimit.remainingDollars))
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(Color.usageTint(for: eq.primaryRemainingPercentage))
-                    .contentTransition(.numericText())
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: eq.individualLimit.remainingDollars)
-            } else if hasData {
-                let cost = usageService.aggregatedUsage.fiveHourCost.totalCost
-                if cost > 0 {
-                    Text(NumberFormatting.formatDollarCompact(cost))
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: cost)
-                }
-            }
         }
         .animation(.easeInOut(duration: 0.3), value: tintColor)
         .animation(.easeInOut(duration: 0.3), value: isWeeklyWarning)
     }
 
-    // MARK: - Pie Chart (Activity Ring)
+    // MARK: - Dual Provider Icons
+
+    @ViewBuilder
+    private var dualProviderIcons: some View {
+        HStack(spacing: 2) {
+            ForEach(multiService.activeProviders) { provider in
+                let data = multiService.usageData(for: provider)
+                Circle()
+                    .fill(Color.usageTint(for: data.remainingPercentage))
+                    .frame(width: 5, height: 5)
+            }
+        }
+    }
+
+    // MARK: - Pie Chart
 
     private var miniGauge: some View {
-        let items = bucketItems
-        if items.count >= 2 {
-            return AnyView(activityRings(items: items))
+        if hasDualProviders {
+            return AnyView(dualActivityRings)
         } else {
             return AnyView(singleDonut)
         }
@@ -118,34 +121,40 @@ struct MenuBarLabel: View {
         .frame(width: 12, height: 12)
     }
 
-    private func activityRings(items: [BucketItem]) -> some View {
-        let outer = items[0]
-        let inner = items[1]
-        return ZStack {
-            // Outer ring — 5h
-            Circle()
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
-            Circle()
-                .trim(from: 0, to: outer.utilization / 100)
-                .stroke(Color.chartTint(for: outer.utilization), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: outer.utilization)
+    private var dualActivityRings: some View {
+        let providers = multiService.activeProviders
+        let outerData = providers.count > 0 ? multiService.usageData(for: providers[0]) : nil
+        let innerData = providers.count > 1 ? multiService.usageData(for: providers[1]) : nil
 
-            // Inner ring — 7d
+        return ZStack {
+            // Outer ring — first provider
+            Circle()
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
+            if let outer = outerData {
+                Circle()
+                    .trim(from: 0, to: outer.usedPercentage / 100)
+                    .stroke(Color.chartTint(for: outer.usedPercentage), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: outer.usedPercentage)
+            }
+
+            // Inner ring — second provider
             Circle()
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
                 .frame(width: 8, height: 8)
-            Circle()
-                .trim(from: 0, to: inner.utilization / 100)
-                .stroke(Color.chartTint(for: inner.utilization), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: inner.utilization)
-                .frame(width: 8, height: 8)
+            if let inner = innerData {
+                Circle()
+                    .trim(from: 0, to: inner.usedPercentage / 100)
+                    .stroke(Color.chartTint(for: inner.usedPercentage), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: inner.usedPercentage)
+                    .frame(width: 8, height: 8)
+            }
         }
         .frame(width: 14, height: 14)
     }
 
-    // MARK: - Multi-Bar Chart
+    // MARK: - Bar Chart
 
     private var verticalBar: some View {
         let items = bucketItems
