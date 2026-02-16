@@ -86,6 +86,10 @@ enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
 // MARK: - App Constants
 
 enum AppConstants {
+    static let version = "0.6.0"
+    static let githubRepo = "jadru/cc-overlay"
+    static let updateCheckInterval: TimeInterval = 86400 // 24h
+
     static let claudeProjectsPath: String = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return "\(home)/.claude/projects"

@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarView: View {
     let multiService: MultiProviderUsageService
     @Bindable var settings: AppSettings
+    let updateService: UpdateService
     var onOpenSettings: (() -> Void)?
 
     @State private var selectedProvider: CLIProvider?
@@ -46,6 +47,14 @@ struct MenuBarView: View {
     @ViewBuilder
     private var contentArea: some View {
         VStack(spacing: 12) {
+            if case .updateAvailable = updateService.updateState {
+                UpdateBannerView(updateService: updateService)
+            } else if case .installing = updateService.updateState {
+                UpdateBannerView(updateService: updateService)
+            } else if case .readyToRestart = updateService.updateState {
+                UpdateBannerView(updateService: updateService)
+            }
+
             contentHeader
 
             if let provider = selectedProvider {

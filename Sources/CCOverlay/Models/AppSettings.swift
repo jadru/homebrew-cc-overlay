@@ -113,6 +113,24 @@ final class AppSettings {
         planTier == .custom ? customWeightedLimit : planTier.weightedCostLimit
     }
 
+    // MARK: - Update Settings
+
+    var autoUpdateEnabled: Bool {
+        get {
+            access(keyPath: \.autoUpdateEnabled)
+            return UserDefaults.standard.object(forKey: "autoUpdateEnabled") as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.autoUpdateEnabled) { UserDefaults.standard.set(newValue, forKey: "autoUpdateEnabled") } }
+    }
+
+    var lastUpdateCheck: Date? {
+        get {
+            access(keyPath: \.lastUpdateCheck)
+            return UserDefaults.standard.object(forKey: "lastUpdateCheck") as? Date
+        }
+        set { withMutation(keyPath: \.lastUpdateCheck) { UserDefaults.standard.set(newValue, forKey: "lastUpdateCheck") } }
+    }
+
     // MARK: - Provider Settings
 
     var claudeCodeEnabled: Bool {
@@ -152,6 +170,7 @@ final class AppSettings {
             "pillShowDailyCost": true,
             "pillOpacity": 1.0,
             "pillClickThrough": false,
+            "autoUpdateEnabled": true,
             "claudeCodeEnabled": true,
             "codexEnabled": true,
         ])

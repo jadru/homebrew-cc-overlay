@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
+    let updateService: UpdateService
 
     var body: some View {
         Form {
@@ -14,6 +15,7 @@ struct SettingsView: View {
             rateLimitsSection
             dataSection
             startupSection
+            updatesSection
         }
         .formStyle(.grouped)
         .frame(width: 500, height: 700)
@@ -251,6 +253,81 @@ struct SettingsView: View {
                         settings.launchAtLogin = !enabled
                     }
                 }
+        }
+    }
+
+    // MARK: - Updates Section
+
+    @ViewBuilder
+    private var updatesSection: some View {
+        Section("Updates") {
+            Toggle("Automatic updates", isOn: $settings.autoUpdateEnabled)
+
+            LabeledContent("Current version") {
+                Text(AppConstants.version)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let lastCheck = settings.lastUpdateCheck {
+                LabeledContent("Last checked") {
+                    Text(lastCheck, style: .relative)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                Button("Check for Updates") {
+                    Task { await updateService.checkForUpdates() }
+                }
+
+                Spacer()
+
+                updateStatusIndicator
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var updateStatusIndicator: some View {
+        switch updateService.updateState {
+        case .checking:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking...")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        case .upToDate:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.system(size: 10))
+                Text("Up to date")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        case .updateAvailable(let version):
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(.blue)
+                    .font(.system(size: 10))
+                Text("v\(version) available")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.blue)
+            }
+        case .error(let message):
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 10))
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            }
+        default:
+            EmptyView()
         }
     }
 

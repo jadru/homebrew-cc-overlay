@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarLabel: View {
     let multiService: MultiProviderUsageService
     let settings: AppSettings
+    let updateService: UpdateService
 
     /// The provider data with the lowest remaining % (most critical).
     private var criticalData: ProviderUsageData? {
@@ -78,6 +79,13 @@ struct MenuBarLabel: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.orange)
                     .transition(.opacity)
+            }
+
+            if case .updateAvailable = updateService.updateState {
+                Circle()
+                    .fill(.blue)
+                    .frame(width: 6, height: 6)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.3), value: tintColor)
