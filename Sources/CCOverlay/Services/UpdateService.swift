@@ -27,14 +27,6 @@ final class UpdateService {
     private var settings: AppSettings?
     private var timer: Timer?
 
-    nonisolated deinit {
-        // Timer retains itself on RunLoop; MainActor.assumeIsolated is safe here
-        // because the final reference is released on the main thread for @MainActor classes.
-        MainActor.assumeIsolated {
-            timer?.invalidate()
-        }
-    }
-
     func configure(settings: AppSettings) {
         self.settings = settings
     }
