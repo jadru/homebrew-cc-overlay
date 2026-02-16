@@ -27,6 +27,14 @@ final class UpdateService {
     private var settings: AppSettings?
     private var timer: Timer?
 
+    nonisolated deinit {
+        // Timer retains itself on RunLoop; MainActor.assumeIsolated is safe here
+        // because the final reference is released on the main thread for @MainActor classes.
+        MainActor.assumeIsolated {
+            timer?.invalidate()
+        }
+    }
+
     func configure(settings: AppSettings) {
         self.settings = settings
     }
@@ -39,6 +47,7 @@ final class UpdateService {
         }
 
         // Periodic check every 24h
+        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: AppConstants.updateCheckInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.scheduledCheck()
@@ -53,10 +62,9 @@ final class UpdateService {
 
     /// Install update via brew.
     func installUpdate() {
-        guard case .updateAvailable = updateState else { return }
+        guard case .updateAvailable(let version) = updateState else { return }
         updateState = .installing
 
-        let currentState = updateState
         Task.detached { [weak self] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -68,18 +76,14 @@ final class UpdateService {
 
             do {
                 try process.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
 
                 let status = process.terminationStatus
                 await MainActor.run { [weak self] in
                     if status == 0 {
-                        if case .updateAvailable(let version) = currentState {
-                            self?.updateState = .readyToRestart(version: version)
-                        } else if case .installing = self?.updateState {
-                            self?.updateState = .readyToRestart(version: "latest")
-                        }
+                        self?.updateState = .readyToRestart(version: version)
                     } else {
-                        let data = pipe.fileHandleForReading.readDataToEndOfFile()
                         let output = String(data: data, encoding: .utf8) ?? "Unknown error"
                         self?.updateState = .error(message: "brew upgrade failed: \(output)")
                     }
@@ -90,6 +94,11 @@ final class UpdateService {
                 }
             }
         }
+    }
+
+    /// Dismiss the update banner.
+    func dismiss() {
+        updateState = .idle
     }
 
     /// Restart the app via brew services.

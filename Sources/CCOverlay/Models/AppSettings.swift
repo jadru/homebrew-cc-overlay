@@ -158,6 +158,25 @@ final class AppSettings {
         set { withMutation(keyPath: \.codexAPIKey) { UserDefaults.standard.set(newValue, forKey: "codexAPIKey") } }
     }
 
+    // MARK: - Gemini Settings
+
+    var geminiEnabled: Bool {
+        get {
+            access(keyPath: \.geminiEnabled)
+            return UserDefaults.standard.object(forKey: "geminiEnabled") as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.geminiEnabled) { UserDefaults.standard.set(newValue, forKey: "geminiEnabled") } }
+    }
+
+    var geminiAPIKey: String? {
+        get {
+            access(keyPath: \.geminiAPIKey)
+            let val = UserDefaults.standard.string(forKey: "geminiAPIKey")
+            return (val?.isEmpty ?? true) ? nil : val
+        }
+        set { withMutation(keyPath: \.geminiAPIKey) { UserDefaults.standard.set(newValue, forKey: "geminiAPIKey") } }
+    }
+
     init() {
         // Register defaults
         UserDefaults.standard.register(defaults: [
@@ -173,6 +192,7 @@ final class AppSettings {
             "autoUpdateEnabled": true,
             "claudeCodeEnabled": true,
             "codexEnabled": true,
+            "geminiEnabled": true,
         ])
     }
 }

@@ -13,11 +13,14 @@ struct PillView: View {
         multiService.activeProviders
     }
 
-    /// The most critical provider data (lowest remaining %).
+    /// The most critical provider data (lowest remaining % among usable providers).
+    /// Providers at ≤5% are considered exhausted and deprioritized.
     private var criticalData: ProviderUsageData {
-        activeProviders
+        let available = activeProviders
             .map { multiService.usageData(for: $0) }
             .filter { $0.isAvailable }
+        let usable = available.filter { $0.remainingPercentage > 5 }
+        return (usable.isEmpty ? available : usable)
             .min { $0.remainingPercentage < $1.remainingPercentage }
             ?? .empty(for: .claudeCode)
     }
@@ -86,7 +89,7 @@ struct PillView: View {
         }
         .padding(.horizontal, isExpanded ? 16 : 10)
         .padding(.vertical, isExpanded ? 14 : 6)
-        .frame(maxWidth: activeProviders.count > 1 && isExpanded ? 400 : 260)
+        .frame(maxWidth: isExpanded ? 280 : nil)
         .compatGlassRoundedRect(
             cornerRadius: isExpanded ? 20 : 50,
             tint: tintColor.opacity(0.25)
@@ -99,33 +102,39 @@ struct PillView: View {
     private var pillHeader: some View {
         HStack(spacing: activeProviders.count > 1 ? 8 : 5) {
             if activeProviders.count > 1 {
-                // Dual provider: show each provider's dot + percentage + time
-                ForEach(activeProviders) { provider in
+                // Critical provider: colored shortLabel + percentage + reset time
+                let critical = criticalData
+                Text(critical.provider.shortLabel)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.usageTint(for: critical.remainingPercentage))
+                    .animation(.easeInOut(duration: 0.3), value: critical.remainingPercentage)
+
+                Text(NumberFormatting.formatPercentage(critical.remainingPercentage))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: critical.remainingPercentage)
+
+                if let resetsAt = critical.resetsAt, resetsAt > Date() {
+                    resetCountdown(resetsAt)
+                }
+
+                // Non-critical providers: colored shortLabel only
+                ForEach(activeProviders.filter { $0 != critical.provider }) { provider in
                     let data = multiService.usageData(for: provider)
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.usageTint(for: data.remainingPercentage))
-                            .frame(width: 6, height: 6)
-                            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
-
-                        Text(NumberFormatting.formatPercentage(data.remainingPercentage))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(.primary)
-                            .contentTransition(.numericText(countsDown: true))
-                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
-
-                        if let resetsAt = data.resetsAt, resetsAt > Date() {
-                            resetCountdown(resetsAt)
-                        }
-                    }
+                    Text(provider.shortLabel)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
+                        .opacity(0.7)
+                        .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
                 }
             } else {
-                // Single provider: dot + percentage + time
+                // Single provider: colored shortLabel + percentage + time
                 let data = criticalData
-                Circle()
-                    .fill(Color.usageTint(for: data.remainingPercentage))
-                    .frame(width: 6, height: 6)
+                Text(data.provider.shortLabel)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
                     .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
 
                 Text(NumberFormatting.formatPercentage(remainPct))
@@ -168,7 +177,7 @@ struct PillView: View {
     private var expandedDetails: some View {
         VStack(spacing: 12) {
             if activeProviders.count > 1 {
-                dualProviderGauges
+                verticalProviderRows
             } else {
                 singleProviderGauge
             }
@@ -185,46 +194,42 @@ struct PillView: View {
         }
     }
 
-    // MARK: - Dual Provider (side-by-side)
+    // MARK: - Multi Provider (vertical rows)
 
-    private var dualProviderGauges: some View {
-        HStack(spacing: 12) {
+    private var verticalProviderRows: some View {
+        VStack(spacing: 10) {
             ForEach(activeProviders) { provider in
                 let data = multiService.usageData(for: provider)
-                providerMiniGauge(data: data)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
+                providerRow(data: data)
             }
         }
     }
 
-    private func providerMiniGauge(data: ProviderUsageData) -> some View {
-        let displayBuckets: [RateBucket] = {
-            let buckets = data.rateLimitBuckets
-            guard buckets.count > 2 else { return buckets }
-            // In dual mode, limit to 2 pills. Prioritize warning buckets.
-            let warned = buckets.filter { $0.isWarning }
-            if warned.count >= 2 { return Array(warned.prefix(2)) }
-            if warned.count == 1 {
-                let first = buckets[0]
-                return first.id == warned[0].id
-                    ? [first, buckets[1]]
-                    : [first, warned[0]]
-            }
-            return Array(buckets.prefix(2))
-        }()
-
+    private func providerRow(data: ProviderUsageData) -> some View {
         let barTint = Color.usageTint(for: data.remainingPercentage)
 
-        return VStack(spacing: 6) {
-            // Provider label + percentage
-            HStack(spacing: 3) {
+        return VStack(spacing: 4) {
+            // Row: icon + label + progress bar + percentage + cost
+            HStack(spacing: 6) {
                 Image(systemName: data.provider.iconName)
                     .font(.system(size: 8))
-                Text(data.provider == .claudeCode ? "CC" : "CX")
+                    .foregroundStyle(.tertiary)
+                Text(data.provider.shortLabel)
                     .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
 
-                Spacer()
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.1))
+                        Capsule()
+                            .fill(barTint)
+                            .frame(width: max(geo.size.width * data.remainingPercentage / 100, 0))
+                            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: data.remainingPercentage)
+                    }
+                }
+                .frame(height: 5)
+                .clipShape(Capsule())
 
                 Text(NumberFormatting.formatPercentage(data.remainingPercentage))
                     .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -232,45 +237,19 @@ struct PillView: View {
                     .foregroundStyle(barTint)
                     .contentTransition(.numericText(countsDown: true))
                     .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
-            }
-            .foregroundStyle(.tertiary)
 
-            // Horizontal progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.1))
-                    Capsule()
-                        .fill(barTint)
-                        .frame(width: max(geo.size.width * data.remainingPercentage / 100, 0))
-                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: data.remainingPercentage)
-                }
-            }
-            .frame(height: 5)
-            .clipShape(Capsule())
-
-            // Cost/percentage + window label
-            HStack(spacing: 0) {
-                if let cost = data.estimatedCost {
+                if let cost = data.estimatedCost, cost.windowCost > 0 {
                     Text(NumberFormatting.formatDollarCompact(cost.windowCost))
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
-                    Text(" · ")
-                        .font(.system(size: 8))
-                        .foregroundStyle(.quaternary)
                 }
-                Text(data.primaryWindowLabel)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.quaternary)
-
-                Spacer()
             }
 
-            // Rate limit pills (max 2 in dual mode)
-            if !displayBuckets.isEmpty {
+            // Rate limit pills
+            if !data.rateLimitBuckets.isEmpty {
                 HStack(spacing: 6) {
-                    ForEach(displayBuckets) { bucket in
+                    ForEach(data.rateLimitBuckets) { bucket in
                         RatePillView(
                             label: bucket.label,
                             percentage: 100 - Int(min(bucket.utilization, 100)),
@@ -278,6 +257,7 @@ struct PillView: View {
                         )
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

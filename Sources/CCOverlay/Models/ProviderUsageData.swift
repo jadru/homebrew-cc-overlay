@@ -46,7 +46,7 @@ struct ProviderUsageData: Sendable {
             isAvailable: false,
             usedPercentage: 0,
             remainingPercentage: 100,
-            primaryWindowLabel: provider == .claudeCode ? "5h" : "Daily",
+            primaryWindowLabel: provider == .claudeCode ? "5h" : "Daily",  // Codex & Gemini both use "Daily"
             resetsAt: nil,
             rateLimitBuckets: [],
             planName: nil,

@@ -47,13 +47,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var contentArea: some View {
         VStack(spacing: 12) {
-            if case .updateAvailable = updateService.updateState {
-                UpdateBannerView(updateService: updateService)
-            } else if case .installing = updateService.updateState {
-                UpdateBannerView(updateService: updateService)
-            } else if case .readyToRestart = updateService.updateState {
-                UpdateBannerView(updateService: updateService)
-            }
+            UpdateBannerView(updateService: updateService)
 
             contentHeader
 
@@ -146,7 +140,7 @@ struct MenuBarView: View {
             Text("No CLI providers detected")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text("Install Claude Code or Codex CLI to get started")
+            Text("Install Claude Code, Codex, or Gemini CLI to get started")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

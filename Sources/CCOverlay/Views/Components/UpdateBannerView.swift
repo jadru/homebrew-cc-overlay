@@ -44,7 +44,7 @@ struct UpdateBannerView: View {
                 .buttonStyle(.borderless)
                 .compatGlassCapsule(interactive: true)
 
-                Button(action: { updateService.updateState = .idle }) {
+                Button(action: { updateService.dismiss() }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -106,7 +106,7 @@ struct UpdateBannerView: View {
                 .buttonStyle(.borderless)
                 .compatGlassCapsule(interactive: true)
 
-                Button(action: { updateService.updateState = .idle }) {
+                Button(action: { updateService.dismiss() }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
