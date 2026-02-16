@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarView: View {
     let multiService: MultiProviderUsageService
     @Bindable var settings: AppSettings
+    let updateService: UpdateService
     var onOpenSettings: (() -> Void)?
 
     @State private var selectedProvider: CLIProvider?
@@ -46,6 +47,8 @@ struct MenuBarView: View {
     @ViewBuilder
     private var contentArea: some View {
         VStack(spacing: 12) {
+            UpdateBannerView(updateService: updateService)
+
             contentHeader
 
             if let provider = selectedProvider {
@@ -137,7 +140,7 @@ struct MenuBarView: View {
             Text("No CLI providers detected")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text("Install Claude Code or Codex CLI to get started")
+            Text("Install Claude Code, Codex, or Gemini CLI to get started")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

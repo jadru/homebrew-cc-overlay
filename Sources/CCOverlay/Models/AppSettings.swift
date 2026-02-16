@@ -113,6 +113,24 @@ final class AppSettings {
         planTier == .custom ? customWeightedLimit : planTier.weightedCostLimit
     }
 
+    // MARK: - Update Settings
+
+    var autoUpdateEnabled: Bool {
+        get {
+            access(keyPath: \.autoUpdateEnabled)
+            return UserDefaults.standard.object(forKey: "autoUpdateEnabled") as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.autoUpdateEnabled) { UserDefaults.standard.set(newValue, forKey: "autoUpdateEnabled") } }
+    }
+
+    var lastUpdateCheck: Date? {
+        get {
+            access(keyPath: \.lastUpdateCheck)
+            return UserDefaults.standard.object(forKey: "lastUpdateCheck") as? Date
+        }
+        set { withMutation(keyPath: \.lastUpdateCheck) { UserDefaults.standard.set(newValue, forKey: "lastUpdateCheck") } }
+    }
+
     // MARK: - Provider Settings
 
     var claudeCodeEnabled: Bool {
@@ -140,6 +158,25 @@ final class AppSettings {
         set { withMutation(keyPath: \.codexAPIKey) { UserDefaults.standard.set(newValue, forKey: "codexAPIKey") } }
     }
 
+    // MARK: - Gemini Settings
+
+    var geminiEnabled: Bool {
+        get {
+            access(keyPath: \.geminiEnabled)
+            return UserDefaults.standard.object(forKey: "geminiEnabled") as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.geminiEnabled) { UserDefaults.standard.set(newValue, forKey: "geminiEnabled") } }
+    }
+
+    var geminiAPIKey: String? {
+        get {
+            access(keyPath: \.geminiAPIKey)
+            let val = UserDefaults.standard.string(forKey: "geminiAPIKey")
+            return (val?.isEmpty ?? true) ? nil : val
+        }
+        set { withMutation(keyPath: \.geminiAPIKey) { UserDefaults.standard.set(newValue, forKey: "geminiAPIKey") } }
+    }
+
     init() {
         // Register defaults
         UserDefaults.standard.register(defaults: [
@@ -152,8 +189,10 @@ final class AppSettings {
             "pillShowDailyCost": true,
             "pillOpacity": 1.0,
             "pillClickThrough": false,
+            "autoUpdateEnabled": true,
             "claudeCodeEnabled": true,
             "codexEnabled": true,
+            "geminiEnabled": true,
         ])
     }
 }

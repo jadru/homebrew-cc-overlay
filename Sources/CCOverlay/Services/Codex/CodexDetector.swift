@@ -73,7 +73,41 @@ enum CodexDetector {
                 return path
             }
         }
+
+        // Scan nvm-installed node versions (GUI apps don't inherit shell PATH)
+        if let nvmBinary = findInNvmVersions("codex", home: home) {
+            return nvmBinary
+        }
+
         return resolveFromPATH("codex")
+    }
+
+    /// Search ~/.nvm/versions/node/*/bin/ for a binary (nvm paths aren't in GUI app PATH).
+    private static func findInNvmVersions(_ binary: String, home: String) -> String? {
+        let nvmDir = "\(home)/.nvm/versions/node"
+        guard let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmDir) else {
+            return nil
+        }
+        // Sort by semantic version descending so we prefer the latest node version
+        for version in versions.sorted(by: semanticVersionDescending) {
+            let path = "\(nvmDir)/\(version)/bin/\(binary)"
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        return nil
+    }
+
+    /// Compare nvm version directory names (e.g. "v18.20.0", "v9.0.0") descending.
+    private static func semanticVersionDescending(_ a: String, _ b: String) -> Bool {
+        let partsA = a.drop(while: { !$0.isNumber }).split(separator: ".").compactMap { Int($0) }
+        let partsB = b.drop(while: { !$0.isNumber }).split(separator: ".").compactMap { Int($0) }
+        for i in 0..<max(partsA.count, partsB.count) {
+            let va = i < partsA.count ? partsA[i] : 0
+            let vb = i < partsB.count ? partsB[i] : 0
+            if va != vb { return va > vb }
+        }
+        return false
     }
 
     private static func resolveFromPATH(_ command: String) -> String? {

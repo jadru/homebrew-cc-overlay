@@ -9,6 +9,7 @@ final class MultiProviderUsageService {
 
     private var claudeService: ClaudeCodeProviderService?
     private var codexService: CodexProviderService?
+    private var geminiService: GeminiProviderService?
     private var settings: AppSettings?
 
     init() {}
@@ -26,6 +27,8 @@ final class MultiProviderUsageService {
             return claudeService?.usageData ?? .empty(for: .claudeCode)
         case .codex:
             return codexService?.usageData ?? .empty(for: .codex)
+        case .gemini:
+            return geminiService?.usageData ?? .empty(for: .gemini)
         }
     }
 
@@ -47,6 +50,8 @@ final class MultiProviderUsageService {
                     claudeService?.startMonitoring(interval: interval)
                 case .codex:
                     codexService?.startMonitoring(interval: interval)
+                case .gemini:
+                    geminiService?.startMonitoring(interval: interval)
                 }
             }
         }
@@ -55,15 +60,23 @@ final class MultiProviderUsageService {
     func stopMonitoring() {
         claudeService?.stopMonitoring()
         codexService?.stopMonitoring()
+        geminiService?.stopMonitoring()
     }
 
     func refresh() {
-        for provider in activeProviders {
-            switch provider {
-            case .claudeCode:
-                claudeService?.refresh()
-            case .codex:
-                codexService?.refresh()
+        Task {
+            // Re-detect providers that aren't active yet (e.g. newly installed)
+            await detectNewProviders()
+
+            for provider in activeProviders {
+                switch provider {
+                case .claudeCode:
+                    claudeService?.refresh()
+                case .codex:
+                    codexService?.refresh()
+                case .gemini:
+                    geminiService?.refresh()
+                }
             }
         }
     }
@@ -74,6 +87,46 @@ final class MultiProviderUsageService {
     }
 
     // MARK: - Detection
+
+    /// Check for newly available providers without disrupting existing ones.
+    private func detectNewProviders() async {
+        var changed = false
+
+        if claudeService == nil && (settings?.claudeCodeEnabled ?? true) {
+            let claude = ClaudeCodeProviderService()
+            if claude.detect() {
+                self.claudeService = claude
+                claude.startMonitoring(interval: settings?.refreshInterval ?? AppConstants.defaultRefreshInterval)
+                changed = true
+            }
+        }
+
+        if codexService == nil && (settings?.codexEnabled ?? true) {
+            let codex = CodexProviderService()
+            if await codex.detect(manualAPIKey: settings?.codexAPIKey) {
+                self.codexService = codex
+                codex.startMonitoring(interval: settings?.refreshInterval ?? AppConstants.defaultRefreshInterval)
+                changed = true
+            }
+        }
+
+        if geminiService == nil && (settings?.geminiEnabled ?? true) {
+            let gemini = GeminiProviderService()
+            if await gemini.detect(manualAPIKey: settings?.geminiAPIKey) {
+                self.geminiService = gemini
+                gemini.startMonitoring(interval: settings?.refreshInterval ?? AppConstants.defaultRefreshInterval)
+                changed = true
+            }
+        }
+
+        if changed {
+            var detected: [CLIProvider] = []
+            if claudeService != nil { detected.append(.claudeCode) }
+            if codexService != nil { detected.append(.codex) }
+            if geminiService != nil { detected.append(.gemini) }
+            self.activeProviders = detected
+        }
+    }
 
     private func detectProviders() async {
         var detected: [CLIProvider] = []
@@ -91,6 +144,14 @@ final class MultiProviderUsageService {
         if await codex.detect(manualAPIKey: manualKey) && (settings?.codexEnabled ?? true) {
             self.codexService = codex
             detected.append(.codex)
+        }
+
+        // Detect Gemini
+        let gemini = GeminiProviderService()
+        let manualGeminiKey = settings?.geminiAPIKey
+        if await gemini.detect(manualAPIKey: manualGeminiKey) && (settings?.geminiEnabled ?? true) {
+            self.geminiService = gemini
+            detected.append(.gemini)
         }
 
         self.activeProviders = detected

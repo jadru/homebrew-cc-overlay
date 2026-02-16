@@ -6,6 +6,7 @@ struct CCOverlayApp: App {
     @State private var multiService = MultiProviderUsageService()
     @State private var settings = AppSettings()
     @State private var costAlertManager = CostAlertManager()
+    @State private var updateService = UpdateService()
     @State private var hasInitialized = false
 
     var body: some Scene {
@@ -13,8 +14,9 @@ struct CCOverlayApp: App {
             MenuBarView(
                 multiService: multiService,
                 settings: settings,
+                updateService: updateService,
                 onOpenSettings: {
-                    appDelegate.showSettings(settings: settings, multiService: multiService)
+                    appDelegate.showSettings(settings: settings, multiService: multiService, updateService: updateService)
                 }
             )
             .onAppear {
@@ -38,7 +40,7 @@ struct CCOverlayApp: App {
                 appDelegate.overlayManager?.updateFromSettings()
             }
         } label: {
-            MenuBarLabel(multiService: multiService, settings: settings)
+            MenuBarLabel(multiService: multiService, settings: settings, updateService: updateService)
                 .task {
                     initializeApp()
                 }
@@ -62,6 +64,9 @@ struct CCOverlayApp: App {
         print("[CCOverlayApp] Initializing app...")
         multiService.configure(settings: settings)
         multiService.startMonitoring(interval: settings.refreshInterval)
+
+        updateService.configure(settings: settings)
+        updateService.startMonitoring()
 
         appDelegate.setupOverlay(settings: settings, multiService: multiService)
 

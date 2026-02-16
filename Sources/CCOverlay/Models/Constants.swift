@@ -5,6 +5,7 @@ import Foundation
 enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
     case claudeCode = "Claude Code"
     case codex = "Codex"
+    case gemini = "Gemini"
 
     var id: String { rawValue }
 
@@ -12,6 +13,16 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .claudeCode: return "brain"
         case .codex: return "terminal.fill"
+        case .gemini: return "sparkles"
+        }
+    }
+
+    /// Short 2-letter label for compact pill overlay.
+    var shortLabel: String {
+        switch self {
+        case .claudeCode: return "CC"
+        case .codex: return "CX"
+        case .gemini: return "GM"
         }
     }
 }
@@ -86,6 +97,10 @@ enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
 // MARK: - App Constants
 
 enum AppConstants {
+    static let version = "0.6.0"
+    static let githubRepo = "jadru/cc-overlay"
+    static let updateCheckInterval: TimeInterval = 86400 // 24h
+
     static let claudeProjectsPath: String = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return "\(home)/.claude/projects"
@@ -94,6 +109,11 @@ enum AppConstants {
     static let codexConfigPath: String = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return "\(home)/.codex"
+    }()
+
+    static let geminiConfigPath: String = {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/.gemini"
     }()
 
     static let defaultRefreshInterval: TimeInterval = 60

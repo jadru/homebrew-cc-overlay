@@ -29,10 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func showSettings(settings: AppSettings, multiService: MultiProviderUsageService) {
+    func showSettings(settings: AppSettings, multiService: MultiProviderUsageService, updateService: UpdateService) {
         windowCoordinator.showSettings(
             settings: settings,
-            multiService: multiService
+            multiService: multiService,
+            updateService: updateService
         )
     }
 

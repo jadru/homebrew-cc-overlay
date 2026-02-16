@@ -56,11 +56,7 @@ struct ProviderSectionView: View {
                 title: "\(data.primaryWindowLabel) Limit"
             )
         } else {
-            GaugeCardView(
-                remainingPercentage: 100,
-                size: .standard,
-                title: "No data yet"
-            )
+            providerSetupCard
         }
     }
 
@@ -124,6 +120,56 @@ struct ProviderSectionView: View {
             }
             .padding(14)
             .compatGlassRoundedRect(cornerRadius: 16)
+        }
+    }
+
+    // MARK: - Setup Card (shown when provider is not available)
+
+    @ViewBuilder
+    private var providerSetupCard: some View {
+        VStack(spacing: 14) {
+            Image(systemName: data.provider.iconName)
+                .font(.system(size: 28))
+                .foregroundStyle(.tertiary)
+
+            VStack(spacing: 4) {
+                Text("Not set up")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text(setupInstructions(for: data.provider))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
+
+            if let error = data.error {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.system(size: 10))
+                    Text(error)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 16)
+        .compatGlassRoundedRect(cornerRadius: 16)
+    }
+
+    private func setupInstructions(for provider: CLIProvider) -> String {
+        switch provider {
+        case .claudeCode:
+            return "Install Claude Code and sign in\nnpm i -g @anthropic-ai/claude-code"
+        case .codex:
+            return "Install Codex CLI and authenticate\nnpm i -g @openai/codex && codex --login"
+        case .gemini:
+            return "Install Gemini CLI and authenticate\nnpm i -g @google/gemini-cli"
         }
     }
 }

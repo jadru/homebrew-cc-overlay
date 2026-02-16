@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
+    let updateService: UpdateService
 
     var body: some View {
         Form {
@@ -14,6 +15,7 @@ struct SettingsView: View {
             rateLimitsSection
             dataSection
             startupSection
+            updatesSection
         }
         .formStyle(.grouped)
         .frame(width: 500, height: 700)
@@ -46,6 +48,7 @@ struct SettingsView: View {
 
             Toggle("Enable Claude Code", isOn: $settings.claudeCodeEnabled)
             Toggle("Enable Codex", isOn: $settings.codexEnabled)
+            Toggle("Enable Gemini", isOn: $settings.geminiEnabled)
 
             LabeledContent("Codex API Key") {
                 SecureField("sk-...", text: Binding(
@@ -62,6 +65,22 @@ struct SettingsView: View {
 
             // Codex auth status indicator
             codexAuthStatusRow
+
+            LabeledContent("Gemini API Key") {
+                SecureField("AIza...", text: Binding(
+                    get: { settings.geminiAPIKey ?? "" },
+                    set: { settings.geminiAPIKey = $0.isEmpty ? nil : $0 }
+                ))
+                .frame(width: 200)
+                .textFieldStyle(.roundedBorder)
+            }
+
+            Text("API key is read from: GEMINI_API_KEY env > ~/.gemini/.env > manual entry above")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+
+            // Gemini auth status indicator
+            geminiAuthStatusRow
         }
     }
 
@@ -93,6 +112,41 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .font(.system(size: 10))
                     Text("~/.codex/auth.json not found — install Codex CLI first")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var geminiAuthStatusRow: some View {
+        let geminiData = multiService.usageData(for: .gemini)
+        if settings.geminiEnabled {
+            if let errorMsg = geminiData.error {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.system(size: 10))
+                    Text(errorMsg)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                }
+            } else if geminiData.isAvailable, let plan = geminiData.planName {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.system(size: 10))
+                    Text("Google OAuth connected (\(plan))")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            } else if !multiService.activeProviders.contains(.gemini) {
+                HStack(spacing: 4) {
+                    Image(systemName: "minus.circle")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10))
+                    Text("~/.gemini not found — install Gemini CLI first")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -178,7 +232,9 @@ struct SettingsView: View {
                             Circle()
                                 .fill(.green)
                                 .frame(width: 6, height: 6)
-                            Text(provider == .claudeCode ? "Anthropic API (live)" : "OpenAI (live)")
+                            Text(provider == .claudeCode ? "Anthropic API (live)" :
+                                 provider == .codex ? "OpenAI (live)" :
+                                 "Google AI (estimated)")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -199,9 +255,7 @@ struct SettingsView: View {
                         enterpriseSettingsRows(enterprise)
                     }
                 } else {
-                    LabeledContent("Source") {
-                        Text("No data").foregroundStyle(.secondary)
-                    }
+                    providerSetupHint(for: provider)
                 }
 
                 if multiService.activeProviders.count > 1 && provider != multiService.activeProviders.last {
@@ -209,9 +263,27 @@ struct SettingsView: View {
                 }
             }
 
-            if multiService.activeProviders.isEmpty {
-                Text("No providers detected")
-                    .foregroundStyle(.secondary)
+            // Show hints for providers that are enabled but not active
+            ForEach(CLIProvider.allCases) { provider in
+                if !multiService.activeProviders.contains(provider) && isProviderEnabled(provider) {
+                    if !multiService.activeProviders.isEmpty {
+                        Divider()
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: provider.iconName)
+                            .font(.system(size: 10))
+                        Text(provider.rawValue)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(.tertiary)
+                    providerSetupHint(for: provider)
+                }
+            }
+
+            if CLIProvider.allCases.allSatisfy({ !isProviderEnabled($0) }) {
+                Text("All providers are disabled — enable one in Providers above")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
             }
         }
     }
@@ -254,7 +326,114 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Updates Section
+
+    @ViewBuilder
+    private var updatesSection: some View {
+        Section("Updates") {
+            Toggle("Automatic updates", isOn: $settings.autoUpdateEnabled)
+
+            LabeledContent("Current version") {
+                Text(AppConstants.version)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let lastCheck = settings.lastUpdateCheck {
+                LabeledContent("Last checked") {
+                    Text(lastCheck, style: .relative)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                Button("Check for Updates") {
+                    Task { await updateService.checkForUpdates() }
+                }
+                .disabled(updateService.updateState == .checking)
+
+                Spacer()
+
+                updateStatusIndicator
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var updateStatusIndicator: some View {
+        switch updateService.updateState {
+        case .checking:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking...")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        case .upToDate:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.system(size: 10))
+                Text("Up to date")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        case .updateAvailable(let version):
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(.blue)
+                    .font(.system(size: 10))
+                Text("v\(version) available")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.blue)
+            }
+        case .error(let message):
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 10))
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            }
+        default:
+            EmptyView()
+        }
+    }
+
     // MARK: - Helpers
+
+    private func isProviderEnabled(_ provider: CLIProvider) -> Bool {
+        switch provider {
+        case .claudeCode: return settings.claudeCodeEnabled
+        case .codex: return settings.codexEnabled
+        case .gemini: return settings.geminiEnabled
+        }
+    }
+
+    @ViewBuilder
+    private func providerSetupHint(for provider: CLIProvider) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.tertiary)
+                .font(.system(size: 10))
+            Text(setupHintText(for: provider))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func setupHintText(for provider: CLIProvider) -> String {
+        switch provider {
+        case .claudeCode:
+            return "Install Claude Code and sign in to see rate limits"
+        case .codex:
+            return "Install Codex CLI and run 'codex --login' to see rate limits"
+        case .gemini:
+            return "Install Gemini CLI and run 'gemini' to authenticate"
+        }
+    }
 
     @ViewBuilder
     private func rateBucketRow(_ bucket: RateBucket) -> some View {
