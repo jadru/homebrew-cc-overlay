@@ -97,7 +97,7 @@ enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.6.0"
+    static let version = "0.7.0"
     static let githubRepo = "jadru/cc-overlay"
     static let updateCheckInterval: TimeInterval = 86400 // 24h
 
@@ -119,4 +119,19 @@ enum AppConstants {
     static let defaultRefreshInterval: TimeInterval = 60
     static let fiveHourWindowSeconds: TimeInterval = 5 * 60 * 60
     static let sessionScanInterval: TimeInterval = 5
+
+    // Thresholds
+    static let defaultWarningThresholdPct: Double = 70
+    static let defaultCriticalThresholdPct: Double = 90
+    static let warningThresholdPct: Double = defaultWarningThresholdPct
+
+    // Activity detection
+    static let activityWindowSeconds: TimeInterval = 5 * 60
+
+    // Time
+    static let secondsPerDay: TimeInterval = 86400
+
+    // Network
+    static let apiTimeoutInterval: TimeInterval = 10
+    static let oauthTimeoutInterval: TimeInterval = 15
 }

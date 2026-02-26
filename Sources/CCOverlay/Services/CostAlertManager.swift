@@ -7,12 +7,10 @@ final class CostAlertManager {
     private var lastAlertedThreshold: Double = 0
     private var lastWeeklyAlertedThreshold: Double = 0
 
-    private static let thresholds: [Double] = [70, 90]
-
     func check(usedPercentage: Double, settings: AppSettings) {
         guard settings.costAlertEnabled else { return }
 
-        for threshold in Self.thresholds {
+        for threshold in thresholds(from: settings) {
             if usedPercentage >= threshold && lastAlertedThreshold < threshold {
                 sendNotification(
                     title: "Claude Code Usage Alert",
@@ -26,7 +24,7 @@ final class CostAlertManager {
     func checkWeekly(utilization: Double, settings: AppSettings) {
         guard settings.costAlertEnabled else { return }
 
-        for threshold in Self.thresholds {
+        for threshold in thresholds(from: settings) {
             if utilization >= threshold && lastWeeklyAlertedThreshold < threshold {
                 sendNotification(
                     title: "Claude Code Weekly Limit",
@@ -40,6 +38,12 @@ final class CostAlertManager {
     func resetThreshold() {
         lastAlertedThreshold = 0
         lastWeeklyAlertedThreshold = 0
+    }
+
+    private func thresholds(from settings: AppSettings) -> [Double] {
+        let warning = min(max(settings.alertWarningThreshold, 1), 100)
+        let critical = min(max(settings.alertCriticalThreshold, 1), 100)
+        return Array(Set([warning, critical])).sorted()
     }
 
     private func sendNotification(title: String, body: String) {

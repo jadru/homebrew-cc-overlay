@@ -3,33 +3,7 @@ import SwiftUI
 /// Displays Codex plan and credits information.
 struct CreditsInfoCardView: View {
     let credits: CreditsDisplayInfo
-    var size: Size = .standard
-
-    enum Size {
-        case compact
-        case standard
-
-        var headerFont: Font {
-            switch self {
-            case .compact: return .system(size: 10, weight: .semibold)
-            case .standard: return .system(size: 11, weight: .medium)
-            }
-        }
-
-        var padding: CGFloat {
-            switch self {
-            case .compact: return 10
-            case .standard: return 14
-            }
-        }
-
-        var cornerRadius: CGFloat {
-            switch self {
-            case .compact: return 14
-            case .standard: return 16
-            }
-        }
-    }
+    var size: ComponentSize = .standard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

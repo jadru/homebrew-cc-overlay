@@ -4,66 +4,25 @@ import SwiftUI
 struct CostCardView: View {
     let fiveHourCost: CostBreakdown
     let dailyCost: CostBreakdown
-    var size: Size = .standard
+    var size: ComponentSize = .standard
     var windowLabel: String = "5h window"
     var dailyLabel: String = "today"
 
-    enum Size {
-        case compact  // For ClaudeUsagePanelView
-        case standard // For MenuBarView
-
-        var headerFont: Font {
-            switch self {
-            case .compact: return .system(size: 10, weight: .semibold)
-            case .standard: return .system(size: 11, weight: .medium)
-            }
-        }
-
-        var valueFont: Font {
-            switch self {
-            case .compact: return .system(size: 15, weight: .semibold, design: .rounded)
-            case .standard: return .system(size: 18, weight: .semibold, design: .rounded)
-            }
-        }
-
-        var labelFont: Font {
-            switch self {
-            case .compact: return .system(size: 8, weight: .medium)
-            case .standard: return .system(size: 10)
-            }
-        }
-
-        var dividerHeight: CGFloat {
-            switch self {
-            case .compact: return 26
-            case .standard: return 32
-            }
-        }
-
-        var spacing: CGFloat {
-            switch self {
-            case .compact: return 8
-            case .standard: return 8
-            }
-        }
-
-        var padding: CGFloat {
-            switch self {
-            case .compact: return 10
-            case .standard: return 14
-            }
-        }
-
-        var cornerRadius: CGFloat {
-            switch self {
-            case .compact: return 14
-            case .standard: return 16
-            }
-        }
+    private var valueFont: Font {
+        size == .compact ? .system(size: 15, weight: .semibold, design: .rounded)
+                         : .system(size: 18, weight: .semibold, design: .rounded)
     }
 
+    private var labelFont: Font {
+        size == .compact ? .system(size: 8, weight: .medium) : .system(size: 10)
+    }
+
+    private var dividerHeight: CGFloat { size == .compact ? 26 : 32 }
+
+    private var costSpacing: CGFloat { 8 }
+
     var body: some View {
-        VStack(spacing: size.spacing) {
+        VStack(spacing: costSpacing) {
             headerRow
             costColumns
             if fiveHourCost.totalCost > 0 {
@@ -111,7 +70,7 @@ struct CostCardView: View {
 
             Rectangle()
                 .fill(Color.secondary.opacity(size == .compact ? 0.1 : 0.15))
-                .frame(width: size == .compact ? 0.5 : 1, height: size.dividerHeight)
+                .frame(width: size == .compact ? 0.5 : 1, height: dividerHeight)
 
             costColumn(
                 value: NumberFormatting.formatDollarCost(dailyCost.totalCost),
@@ -124,11 +83,11 @@ struct CostCardView: View {
     private func costColumn(value: String, label: String) -> some View {
         VStack(spacing: size == .compact ? 2 : 3) {
             Text(value)
-                .font(size.valueFont)
+                .font(valueFont)
                 .foregroundStyle(.primary)
                 .contentTransition(.numericText())
             Text(label)
-                .font(size.labelFont)
+                .font(labelFont)
                 .foregroundStyle(size == .compact ? .quaternary : .tertiary)
         }
         .frame(maxWidth: .infinity)

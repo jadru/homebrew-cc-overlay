@@ -16,7 +16,7 @@ extension Color {
     /// - Returns: Red (≥90%), Orange (≥70%), Secondary (otherwise)
     static func rateLimitTint(for utilization: Double) -> Color {
         if utilization >= 90 { return .red }
-        if utilization >= 70 { return .orange }
+        if utilization >= AppConstants.warningThresholdPct { return .orange }
         return .secondary
     }
 

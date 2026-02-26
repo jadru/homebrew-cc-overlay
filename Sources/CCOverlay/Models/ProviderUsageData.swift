@@ -31,9 +31,48 @@ struct ProviderUsageData: Sendable {
     let detailedRateWindows: [DetailedRateWindow]?
 
     // State
+    let lastActivityAt: Date?     // When tokens were last consumed (nil if unknown)
     let error: String?
     let lastRefresh: Date?
     let isLoading: Bool
+
+    init(
+        provider: CLIProvider,
+        isAvailable: Bool,
+        usedPercentage: Double,
+        remainingPercentage: Double,
+        primaryWindowLabel: String,
+        resetsAt: Date? = nil,
+        rateLimitBuckets: [RateBucket] = [],
+        planName: String? = nil,
+        estimatedCost: CostSummary? = nil,
+        tokenBreakdown: TokenBreakdownData? = nil,
+        enterpriseQuota: EnterpriseQuota? = nil,
+        creditsInfo: CreditsDisplayInfo? = nil,
+        detailedRateWindows: [DetailedRateWindow]? = nil,
+        lastActivityAt: Date? = nil,
+        error: String? = nil,
+        lastRefresh: Date? = nil,
+        isLoading: Bool = false
+    ) {
+        self.provider = provider
+        self.isAvailable = isAvailable
+        self.usedPercentage = usedPercentage
+        self.remainingPercentage = remainingPercentage
+        self.primaryWindowLabel = primaryWindowLabel
+        self.resetsAt = resetsAt
+        self.rateLimitBuckets = rateLimitBuckets
+        self.planName = planName
+        self.estimatedCost = estimatedCost
+        self.tokenBreakdown = tokenBreakdown
+        self.enterpriseQuota = enterpriseQuota
+        self.creditsInfo = creditsInfo
+        self.detailedRateWindows = detailedRateWindows
+        self.lastActivityAt = lastActivityAt
+        self.error = error
+        self.lastRefresh = lastRefresh
+        self.isLoading = isLoading
+    }
 
     static func empty(
         for provider: CLIProvider,
@@ -46,15 +85,7 @@ struct ProviderUsageData: Sendable {
             isAvailable: false,
             usedPercentage: 0,
             remainingPercentage: 100,
-            primaryWindowLabel: provider == .claudeCode ? "5h" : "Daily",  // Codex & Gemini both use "Daily"
-            resetsAt: nil,
-            rateLimitBuckets: [],
-            planName: nil,
-            estimatedCost: nil,
-            tokenBreakdown: nil,
-            enterpriseQuota: nil,
-            creditsInfo: nil,
-            detailedRateWindows: nil,
+            primaryWindowLabel: provider == .claudeCode ? "5h" : "Daily",
             error: error,
             lastRefresh: lastRefresh,
             isLoading: isLoading

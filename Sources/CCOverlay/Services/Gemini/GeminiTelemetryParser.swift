@@ -19,7 +19,7 @@ actor GeminiTelemetryParser {
 
         /// Requests in the last 24 hours (midnight Pacific reset approximated).
         var rpdEstimate: Double {
-            let cutoff = Date().addingTimeInterval(-86400)
+            let cutoff = Date().addingTimeInterval(-AppConstants.secondsPerDay)
             return Double(requestTimestamps.filter { $0 > cutoff }.count)
         }
 
