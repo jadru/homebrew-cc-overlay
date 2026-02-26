@@ -5,6 +5,13 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
     let updateService: UpdateService
+    private let weightedLimitFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 0
+        formatter.groupingSeparator = ","
+        return formatter
+    }()
 
     var body: some View {
         Form {
@@ -204,7 +211,41 @@ struct SettingsView: View {
     @ViewBuilder
     private var alertsSection: some View {
         Section("Alerts") {
-            Toggle("Cost threshold alerts (70%, 90%)", isOn: $settings.costAlertEnabled)
+            Toggle("Cost threshold alerts", isOn: $settings.costAlertEnabled)
+
+            if settings.costAlertEnabled {
+                LabeledContent("Warning threshold") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.alertWarningThreshold, in: 10...95, step: 1)
+                            .frame(width: 140)
+                            .onChange(of: settings.alertWarningThreshold) { _, newValue in
+                                if newValue >= settings.alertCriticalThreshold {
+                                    settings.alertCriticalThreshold = min(newValue + 1, 100)
+                                }
+                            }
+                        Text("\(Int(settings.alertWarningThreshold))%")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
+
+                LabeledContent("Critical threshold") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.alertCriticalThreshold, in: 20...100, step: 1)
+                            .frame(width: 140)
+                            .onChange(of: settings.alertCriticalThreshold) { _, newValue in
+                                if newValue <= settings.alertWarningThreshold {
+                                    settings.alertWarningThreshold = max(newValue - 1, 1)
+                                }
+                            }
+                        Text("\(Int(settings.alertCriticalThreshold))%")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
+            }
         }
     }
 
@@ -293,6 +334,24 @@ struct SettingsView: View {
     @ViewBuilder
     private var dataSection: some View {
         Section("Data") {
+            Picker("Claude plan tier", selection: $settings.planTier) {
+                ForEach(PlanTier.allCases) { tier in
+                    Text(tier.rawValue).tag(tier)
+                }
+            }
+
+            if settings.planTier == .custom {
+                LabeledContent("Custom weighted limit") {
+                    TextField(
+                        "5,000,000",
+                        value: $settings.customWeightedLimit,
+                        formatter: weightedLimitFormatter
+                    )
+                    .frame(width: 140)
+                    .textFieldStyle(.roundedBorder)
+                }
+            }
+
             Picker("Refresh interval", selection: $settings.refreshInterval) {
                 Text("15 seconds").tag(15.0 as TimeInterval)
                 Text("30 seconds").tag(30.0 as TimeInterval)
@@ -441,8 +500,8 @@ struct SettingsView: View {
             HStack(spacing: 6) {
                 Text("\(Int(min(bucket.utilization, 100)))% used")
                     .foregroundStyle(
-                        bucket.utilization >= 90 ? .red :
-                        bucket.utilization >= 70 ? .orange : .secondary
+                        bucket.utilization >= settings.alertCriticalThreshold ? .red :
+                        bucket.utilization >= settings.alertWarningThreshold ? .orange : .secondary
                     )
                 if let resetsAt = bucket.resetsAt {
                     Text("resets \(resetsAt, style: .relative)")
@@ -484,8 +543,8 @@ struct SettingsView: View {
             HStack(spacing: 6) {
                 Text("\(NumberFormatting.formatDollarCost(limit.usedDollars)) / \(NumberFormatting.formatDollarCost(limit.capDollars))")
                     .foregroundStyle(
-                        limit.utilizationPercentage >= 90 ? .red :
-                        limit.utilizationPercentage >= 70 ? .orange : .secondary
+                        limit.utilizationPercentage >= settings.alertCriticalThreshold ? .red :
+                        limit.utilizationPercentage >= settings.alertWarningThreshold ? .orange : .secondary
                     )
                 if let resetsAt = limit.resetsAt {
                     Text("resets \(resetsAt, style: .relative)")

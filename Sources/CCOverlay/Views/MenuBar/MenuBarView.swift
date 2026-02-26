@@ -104,7 +104,9 @@ struct MenuBarView: View {
         }
         .buttonStyle(.borderless)
         .focusable(false)
-        .accessibilityHidden(true)
+        .accessibilityLabel("Refresh usage data")
+        .accessibilityHint("Fetches latest provider usage and limits")
+        .accessibilityValue(multiService.isLoading ? "Refreshing" : "Idle")
         .compatGlassCircle(interactive: true)
         .onChange(of: multiService.isLoading) { _, isLoading in
             if isLoading {

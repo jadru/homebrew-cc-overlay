@@ -1,3 +1,25 @@
+# v0.7.0
+
+## Quick Wins: Stability, Security, Accessibility
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Provider architecture hardening** — `fetchUsage()` is now explicitly part of provider protocol contracts; base implementation no longer crashes with `fatalError`
+- **Cost budget controls in Settings** — Added Claude plan tier picker and custom weighted limit input
+- **Stale data indicator** — Menu bar and floating pill now show stale-state warning when data is older than `2x refresh interval`
+- **Custom alert thresholds** — Warning/Critical thresholds are now user-configurable in Settings and used by alert notifications
+- **API key security migration** — Codex/Gemini manual API keys moved from plain UserDefaults into Keychain with automatic legacy migration
+- **VoiceOver improvements** — Accessibility labels/values added for menu bar status, overlay status, and refresh action
+
+### Brew Release Notes
+
+- Release automation (`.github/workflows/release.yml`) updates Homebrew formula URL/SHA automatically from tag and syncs to tap repo
+- For this release, create/push tag: `v0.7.0`
+
+---
+
 # v0.6.0
 
 ## Homebrew OTA Auto-Update
