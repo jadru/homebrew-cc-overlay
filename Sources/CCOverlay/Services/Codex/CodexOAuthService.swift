@@ -2,7 +2,7 @@ import Foundation
 
 /// Fetches Codex usage/rate-limit data using ChatGPT OAuth tokens.
 ///
-/// Endpoint: `GET https://chatgpt.com/backend-api/api/codex/usage`
+/// Endpoint: `GET https://chatgpt.com/backend-api/wham/usage`
 /// Auth: `Authorization: Bearer <access_token>`, `chatgpt-account-id: <account_id>`
 /// Token refresh: `POST https://auth.openai.com/oauth/token`
 actor CodexOAuthService {
@@ -108,7 +108,7 @@ actor CodexOAuthService {
         if let accountId {
             request.setValue(accountId, forHTTPHeaderField: "chatgpt-account-id")
         }
-        request.timeoutInterval = 15
+        request.timeoutInterval = AppConstants.oauthTimeoutInterval
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -201,7 +201,7 @@ actor CodexOAuthService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 10
+        request.timeoutInterval = AppConstants.apiTimeoutInterval
 
         let body: [String: String] = [
             "client_id": Self.clientId,

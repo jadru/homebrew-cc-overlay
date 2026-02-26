@@ -3,12 +3,17 @@ import Observation
 
 @Observable
 @MainActor
-final class ClaudeCodeProviderService {
+final class ClaudeCodeProviderService: ProviderServiceProtocol {
     let provider: CLIProvider = .claudeCode
 
     private let inner: UsageDataService
     private(set) var isDetected = false
     private(set) var isAuthenticated = false
+
+    var isLoading: Bool { inner.isLoading }
+    var error: String? { inner.error }
+    var lastRefresh: Date? { inner.lastRefresh }
+    var lastActivityAt: Date? { inner.aggregatedUsage.currentSession?.lastTimestamp }
 
     init(claudeProjectsPath: String = AppConstants.claudeProjectsPath) {
         self.inner = UsageDataService(claudeProjectsPath: claudeProjectsPath)
@@ -34,6 +39,10 @@ final class ClaudeCodeProviderService {
     }
 
     func refresh() {
+        inner.refresh()
+    }
+
+    func fetchUsage() async {
         inner.refresh()
     }
 
@@ -92,8 +101,7 @@ final class ClaudeCodeProviderService {
             estimatedCost: cost,
             tokenBreakdown: tokenData,
             enterpriseQuota: inner.enterpriseQuota,
-            creditsInfo: nil,
-            detailedRateWindows: nil,
+            lastActivityAt: agg.currentSession?.lastTimestamp,
             error: inner.error,
             lastRefresh: inner.lastRefresh,
             isLoading: inner.isLoading

@@ -12,7 +12,7 @@ actor AnthropicAPIService {
         request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("claude-code/2.1.25", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 10
+        request.timeoutInterval = AppConstants.apiTimeoutInterval
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

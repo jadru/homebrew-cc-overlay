@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Vertical icon-based sidebar for switching between providers and accessing settings.
@@ -16,6 +17,7 @@ struct ProviderTabSidebar: View {
             Spacer()
 
             settingsButton
+            quitButton
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 5)
@@ -66,5 +68,20 @@ struct ProviderTabSidebar: View {
         }
         .buttonStyle(.borderless)
         .help("Settings")
+    }
+
+    @ViewBuilder
+    private var quitButton: some View {
+        Button {
+            NSApplication.shared.terminate(nil)
+        } label: {
+            Image(systemName: "power")
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help("Quit")
     }
 }

@@ -3,33 +3,7 @@ import SwiftUI
 /// Displays detailed rate limit windows with progress bars and reset countdowns.
 struct RateWindowsCardView: View {
     let windows: [DetailedRateWindow]
-    var size: Size = .standard
-
-    enum Size {
-        case compact
-        case standard
-
-        var headerFont: Font {
-            switch self {
-            case .compact: return .system(size: 10, weight: .semibold)
-            case .standard: return .system(size: 11, weight: .medium)
-            }
-        }
-
-        var padding: CGFloat {
-            switch self {
-            case .compact: return 10
-            case .standard: return 14
-            }
-        }
-
-        var cornerRadius: CGFloat {
-            switch self {
-            case .compact: return 14
-            case .standard: return 16
-            }
-        }
-    }
+    var size: ComponentSize = .standard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

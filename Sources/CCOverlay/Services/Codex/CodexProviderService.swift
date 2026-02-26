@@ -3,77 +3,51 @@ import Observation
 
 @Observable
 @MainActor
-final class CodexProviderService {
-    let provider: CLIProvider = .codex
-
+final class CodexProviderService: BaseProviderService {
     private let apiKeyService = OpenAIAPIService()
     private var oauthService: CodexOAuthService?
     private var detection: CodexDetector.Detection?
     private var apiKeySnapshot: OpenAIAPIService.UsageSnapshot?
     private var oauthSnapshot: CodexOAuthService.UsageSnapshot?
-    private var refreshTimer: Timer?
-
-    private(set) var isDetected = false
-    private(set) var isAuthenticated = false
-    private(set) var isLoading = false
-    private(set) var error: String?
-    private(set) var lastRefresh: Date?
 
     /// Whether we're using OAuth (chatgpt) auth instead of API key
     private var isOAuthMode: Bool { detection?.chatgptAuth != nil }
+
+    init() {
+        super.init(provider: .codex)
+    }
+
+    // MARK: - Detection
 
     /// Detect Codex CLI binary and auth credentials.
     /// Supports both API key and ChatGPT OAuth modes.
     func detect(manualAPIKey: String? = nil) async -> Bool {
         detection = CodexDetector.detect(manualAPIKey: manualAPIKey)
-        isDetected = detection?.binaryPath != nil
+        setDetected(detection?.binaryPath != nil)
 
         switch detection?.authMode {
         case .apiKey(let key):
-            isAuthenticated = true
+            setAuthenticated(true)
             await apiKeyService.configure(apiKey: key)
             oauthService = nil
         case .chatgpt(let auth):
-            isAuthenticated = true
+            setAuthenticated(true)
             if let existing = oauthService {
                 await existing.updateAuth(auth)
             } else {
                 oauthService = CodexOAuthService(auth: auth)
             }
         case nil:
-            isAuthenticated = false
+            setAuthenticated(false)
             oauthService = nil
         }
 
         return isDetected && isAuthenticated
     }
 
-    func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
-        refresh()
+    // MARK: - Fetch
 
-        refreshTimer?.invalidate()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) {
-            [weak self] _ in
-            Task { @MainActor in
-                self?.refresh()
-            }
-        }
-    }
-
-    func stopMonitoring() {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
-    }
-
-    func refresh() {
-        isLoading = true
-        Task {
-            await fetchUsage()
-            isLoading = false
-        }
-    }
-
-    private func fetchUsage() async {
+    override func fetchUsage() async {
         if isOAuthMode {
             await fetchOAuthUsage()
         } else {
@@ -81,47 +55,43 @@ final class CodexProviderService {
         }
     }
 
-    // MARK: - OAuth Usage
-
     private func fetchOAuthUsage() async {
         guard let oauthService else {
-            self.error = "OAuth service not configured"
+            setError("OAuth service not configured")
             return
         }
 
         do {
             let snap = try await oauthService.fetchUsage()
+            trackActivity(newUsedPct: Double(snap.primaryWindow?.usedPercent ?? 0))
             self.oauthSnapshot = snap
-            self.lastRefresh = Date()
-            self.error = nil
+            markRefreshed()
         } catch {
             if let oauthError = error as? CodexOAuthService.OAuthError,
                case .tokenRevoked = oauthError {
-                self.error = "Codex auth revoked — run 'codex --login' then restart app"
+                setError("Codex auth revoked — run 'codex --login' then restart app")
             } else if self.oauthSnapshot == nil {
-                self.error = error.localizedDescription
+                setError(error.localizedDescription)
             }
         }
     }
-
-    // MARK: - API Key Usage
 
     private func fetchAPIKeyUsage() async {
         do {
             let snap = try await apiKeyService.fetchUsage()
+            trackActivity(newUsedPct: snap.budgetUtilization)
             self.apiKeySnapshot = snap
-            self.lastRefresh = Date()
-            self.error = nil
+            markRefreshed()
         } catch {
             if self.apiKeySnapshot == nil {
-                self.error = error.localizedDescription
+                setError(error.localizedDescription)
             }
         }
     }
 
-    // MARK: - Unified ProviderUsageData
+    // MARK: - Usage Data
 
-    var usageData: ProviderUsageData {
+    override var usageData: ProviderUsageData {
         if isOAuthMode {
             return oauthUsageData
         } else {
@@ -133,19 +103,17 @@ final class CodexProviderService {
 
     private var oauthUsageData: ProviderUsageData {
         guard let snap = oauthSnapshot else {
-            return .empty(
-                for: .codex,
-                error: error,
-                lastRefresh: lastRefresh,
-                isLoading: isLoading
-            )
+            return .empty(for: .codex, error: error, lastRefresh: lastRefresh, isLoading: isLoading)
         }
 
         let primaryUsedPct = Double(snap.primaryWindow?.usedPercent ?? 0)
         let secondaryUsedPct = Double(snap.secondaryWindow?.usedPercent ?? 0)
-        let remainPct = 100.0 - primaryUsedPct
 
-        // Primary window label
+        // If secondary window is actively blocking, clamp gauge to 100%
+        let secondaryIsBlocking = (snap.secondaryWindow?.resetAfterSeconds ?? 0) > 0 && secondaryUsedPct >= 100
+        let effectiveUsedPct = secondaryIsBlocking ? 100.0 : primaryUsedPct
+        let remainPct = 100.0 - effectiveUsedPct
+
         let primaryLabel: String
         if let pw = snap.primaryWindow, pw.limitWindowSeconds > 0 {
             let hours = pw.limitWindowSeconds / 3600
@@ -154,7 +122,6 @@ final class CodexProviderService {
             primaryLabel = "5h"
         }
 
-        // Reset time from primary window
         var resetsAt: Date?
         if let pw = snap.primaryWindow, pw.resetAt > 0 {
             resetsAt = Date(timeIntervalSince1970: TimeInterval(pw.resetAt))
@@ -167,13 +134,13 @@ final class CodexProviderService {
                 label: primaryLabel,
                 utilization: primaryUsedPct,
                 resetsAt: resetsAt,
-                isWarning: primaryUsedPct >= 70
+                isWarning: primaryUsedPct >= AppConstants.warningThresholdPct
             ))
         }
         if let sw = snap.secondaryWindow {
             let secondaryLabel: String
             if sw.limitWindowSeconds > 0 {
-                let days = sw.limitWindowSeconds / 86400
+                let days = sw.limitWindowSeconds / Int(AppConstants.secondsPerDay)
                 secondaryLabel = days > 0 ? "\(days)d" : "\(sw.limitWindowSeconds / 3600)h"
             } else {
                 secondaryLabel = "7d"
@@ -186,11 +153,9 @@ final class CodexProviderService {
                 label: secondaryLabel,
                 utilization: secondaryUsedPct,
                 resetsAt: secondaryResets,
-                isWarning: secondaryUsedPct >= 70
+                isWarning: secondaryUsedPct >= AppConstants.warningThresholdPct
             ))
         }
-
-        // Include additional rate limit windows (e.g. per-model limits)
         for limit in snap.additionalLimits {
             if let pw = limit.primaryWindow {
                 var limitResets: Date?
@@ -201,12 +166,12 @@ final class CodexProviderService {
                     label: limit.limitName,
                     utilization: Double(pw.usedPercent),
                     resetsAt: limitResets,
-                    isWarning: pw.usedPercent >= 70
+                    isWarning: pw.usedPercent >= Int(AppConstants.warningThresholdPct)
                 ))
             }
         }
 
-        // Build plan name with credits info
+        // Plan name with credits
         var planName = snap.planType.capitalized
         if let credits = snap.credits {
             if credits.unlimited {
@@ -216,7 +181,6 @@ final class CodexProviderService {
             }
         }
 
-        // Build CreditsDisplayInfo
         let creditsDisplay = CreditsDisplayInfo(
             planType: snap.planType.capitalized,
             hasCredits: snap.credits?.hasCredits ?? false,
@@ -225,7 +189,7 @@ final class CodexProviderService {
             extraUsageEnabled: snap.extraUsageEnabled
         )
 
-        // Build DetailedRateWindows
+        // Detailed rate windows
         var detailedWindows: [DetailedRateWindow] = []
         if let pw = snap.primaryWindow {
             detailedWindows.append(DetailedRateWindow(
@@ -242,7 +206,7 @@ final class CodexProviderService {
         if let sw = snap.secondaryWindow {
             let secLabel: String
             if sw.limitWindowSeconds > 0 {
-                let days = sw.limitWindowSeconds / 86400
+                let days = sw.limitWindowSeconds / Int(AppConstants.secondsPerDay)
                 secLabel = days > 0 ? "\(days)d" : "\(sw.limitWindowSeconds / 3600)h"
             } else {
                 secLabel = "7d"
@@ -284,17 +248,15 @@ final class CodexProviderService {
         return ProviderUsageData(
             provider: .codex,
             isAvailable: true,
-            usedPercentage: primaryUsedPct,
+            usedPercentage: effectiveUsedPct,
             remainingPercentage: remainPct,
             primaryWindowLabel: primaryLabel,
             resetsAt: resetsAt,
             rateLimitBuckets: buckets,
             planName: planName,
-            estimatedCost: nil,
-            tokenBreakdown: nil,
-            enterpriseQuota: nil,
             creditsInfo: creditsDisplay,
             detailedRateWindows: detailedWindows,
+            lastActivityAt: lastActivityAt,
             error: error,
             lastRefresh: lastRefresh,
             isLoading: isLoading
@@ -305,12 +267,7 @@ final class CodexProviderService {
 
     private var apiKeyUsageData: ProviderUsageData {
         guard let snap = apiKeySnapshot else {
-            return .empty(
-                for: .codex,
-                error: error,
-                lastRefresh: lastRefresh,
-                isLoading: isLoading
-            )
+            return .empty(for: .codex, error: error, lastRefresh: lastRefresh, isLoading: isLoading)
         }
 
         let primaryLabel: String
@@ -333,7 +290,7 @@ final class CodexProviderService {
                 label: primaryLabel,
                 utilization: usedPct,
                 resetsAt: snap.periodEnd,
-                isWarning: usedPct >= 70
+                isWarning: usedPct >= AppConstants.warningThresholdPct
             ))
         }
 
@@ -355,10 +312,7 @@ final class CodexProviderService {
             rateLimitBuckets: buckets,
             planName: snap.billing.planName,
             estimatedCost: cost,
-            tokenBreakdown: nil,
-            enterpriseQuota: nil,
-            creditsInfo: nil,
-            detailedRateWindows: nil,
+            lastActivityAt: lastActivityAt,
             error: error,
             lastRefresh: lastRefresh,
             isLoading: isLoading
