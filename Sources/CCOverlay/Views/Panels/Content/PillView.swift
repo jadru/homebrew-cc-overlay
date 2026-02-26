@@ -33,6 +33,10 @@ struct PillView: View {
         Color.usageTint(for: remainPct)
     }
 
+    private var isStale: Bool {
+        multiService.isStale(lastRefresh: criticalData.lastRefresh)
+    }
+
     var body: some View {
         contentCard
             .fixedSize()
@@ -95,6 +99,9 @@ struct PillView: View {
             tint: tintColor.opacity(0.25)
         )
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isExpanded)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Overlay usage status")
+        .accessibilityValue(accessibilityValue)
     }
 
     // MARK: - Header
@@ -102,32 +109,26 @@ struct PillView: View {
     private var pillHeader: some View {
         HStack(spacing: activeProviders.count > 1 ? 8 : 5) {
             if activeProviders.count > 1 {
-                // Critical provider: colored shortLabel + percentage + reset time
+                let recentlyActive = multiService.recentlyActiveProviders
                 let critical = criticalData
-                Text(critical.provider.shortLabel)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.usageTint(for: critical.remainingPercentage))
-                    .animation(.easeInOut(duration: 0.3), value: critical.remainingPercentage)
 
-                Text(NumberFormatting.formatPercentage(critical.remainingPercentage))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.primary)
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: critical.remainingPercentage)
+                // Full display list: recently active (most consumed first) + critical if not already included
+                let fullDisplay: [CLIProvider] = {
+                    var list = recentlyActive
+                    if !list.contains(critical.provider) {
+                        list.append(critical.provider)
+                    }
+                    return list
+                }()
 
-                if let resetsAt = critical.resetsAt, resetsAt > Date() {
-                    resetCountdown(resetsAt)
+                // Dim display: providers that are neither recently active nor critical
+                let dimDisplay = activeProviders.filter { !fullDisplay.contains($0) }
+
+                ForEach(fullDisplay, id: \.self) { provider in
+                    providerFullChip(data: multiService.usageData(for: provider))
                 }
-
-                // Non-critical providers: colored shortLabel only
-                ForEach(activeProviders.filter { $0 != critical.provider }) { provider in
-                    let data = multiService.usageData(for: provider)
-                    Text(provider.shortLabel)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-                        .opacity(0.7)
-                        .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+                ForEach(dimDisplay, id: \.self) { provider in
+                    providerDimChip(data: multiService.usageData(for: provider))
                 }
             } else {
                 // Single provider: colored shortLabel + percentage + time
@@ -148,7 +149,55 @@ struct PillView: View {
                     resetCountdown(resetsAt)
                 }
             }
+
+            if isStale {
+                Image(systemName: "clock.badge.exclamationmark")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.yellow)
+            }
         }
+    }
+
+    private var accessibilityValue: String {
+        if activeProviders.isEmpty || !criticalData.isAvailable {
+            return "No provider usage data available"
+        }
+
+        var value = "\(criticalData.provider.rawValue), \(Int(criticalData.remainingPercentage)) percent remaining"
+        if isStale {
+            value += ", data may be stale"
+        }
+        return value
+    }
+
+    /// Full display chip: shortLabel (colored) + percentage + reset countdown.
+    @ViewBuilder
+    private func providerFullChip(data: ProviderUsageData) -> some View {
+        Text(data.provider.shortLabel)
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
+            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+
+        Text(NumberFormatting.formatPercentage(data.remainingPercentage))
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(.primary)
+            .contentTransition(.numericText(countsDown: true))
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
+
+        if let resetsAt = data.resetsAt, resetsAt > Date() {
+            resetCountdown(resetsAt)
+        }
+    }
+
+    /// Dim label chip: shortLabel only, reduced opacity.
+    @ViewBuilder
+    private func providerDimChip(data: ProviderUsageData) -> some View {
+        Text(data.provider.shortLabel)
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
+            .opacity(0.7)
+            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
     }
 
     @ViewBuilder

@@ -29,6 +29,11 @@ struct MenuBarLabel: View {
         multiService.activeProviders.count > 1
     }
 
+    private var isStale: Bool {
+        guard let data = criticalData else { return false }
+        return multiService.isStale(lastRefresh: data.lastRefresh)
+    }
+
     private struct BucketItem: Identifiable {
         let id: String
         let utilization: Double
@@ -48,6 +53,10 @@ struct MenuBarLabel: View {
         return data.rateLimitBuckets.contains { $0.isWarning }
     }
 
+    private var recentlyActive: [CLIProvider] {
+        multiService.recentlyActiveProviders
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             switch settings.menuBarIndicatorStyle {
@@ -56,7 +65,9 @@ struct MenuBarLabel: View {
             case .barChart:
                 verticalBar
             case .percentage:
-                if hasDualProviders {
+                if hasDualProviders && !recentlyActive.isEmpty {
+                    recentlyActiveIcons
+                } else if hasDualProviders {
                     dualProviderIcons
                 } else if let data = criticalData {
                     Image(systemName: data.provider.iconName)
@@ -66,7 +77,7 @@ struct MenuBarLabel: View {
                     Image(systemName: "gauge.with.dots.needle.bottom.50percent")
                         .symbolRenderingMode(.hierarchical)
                 }
-                if hasData {
+                if hasData && recentlyActive.isEmpty {
                     Text(NumberFormatting.formatPercentage(remainPct))
                         .font(.system(.caption, design: .monospaced))
                         .contentTransition(.numericText(countsDown: true))
@@ -81,6 +92,13 @@ struct MenuBarLabel: View {
                     .transition(.opacity)
             }
 
+            if isStale {
+                Image(systemName: "clock.badge.exclamationmark")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.yellow)
+                    .transition(.opacity)
+            }
+
             if case .updateAvailable = updateService.updateState {
                 Circle()
                     .fill(.blue)
@@ -90,6 +108,25 @@ struct MenuBarLabel: View {
         }
         .animation(.easeInOut(duration: 0.3), value: tintColor)
         .animation(.easeInOut(duration: 0.3), value: isWeeklyWarning)
+        .animation(.easeInOut(duration: 0.3), value: isStale)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Usage status")
+        .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        guard let data = criticalData, hasData else {
+            return "No provider usage data available"
+        }
+
+        var value = "\(data.provider.rawValue), \(Int(data.remainingPercentage)) percent remaining"
+        if isWeeklyWarning {
+            value += ", warning threshold reached"
+        }
+        if isStale {
+            value += ", data may be stale"
+        }
+        return value
     }
 
     // MARK: - Dual Provider Icons
@@ -102,6 +139,26 @@ struct MenuBarLabel: View {
                 Circle()
                     .fill(Color.usageTint(for: data.remainingPercentage))
                     .frame(width: 5, height: 5)
+            }
+        }
+    }
+
+    /// Recently active providers: icon + percentage, sorted by most consumed first.
+    @ViewBuilder
+    private var recentlyActiveIcons: some View {
+        HStack(spacing: 3) {
+            ForEach(recentlyActive, id: \.self) { provider in
+                let data = multiService.usageData(for: provider)
+                let tint = Color.usageTint(for: data.remainingPercentage)
+                Image(systemName: provider.iconName)
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: 10))
+                    .foregroundStyle(tint)
+                Text(NumberFormatting.formatPercentage(data.remainingPercentage))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(tint)
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
             }
         }
     }
@@ -130,9 +187,11 @@ struct MenuBarLabel: View {
     }
 
     private var dualActivityRings: some View {
+        // Prefer recently active providers for ring display; fall back to all active providers
+        let displayProviders = recentlyActive.isEmpty ? multiService.activeProviders : recentlyActive
         let providers = multiService.activeProviders
-        let outerData = providers.count > 0 ? multiService.usageData(for: providers[0]) : nil
-        let innerData = providers.count > 1 ? multiService.usageData(for: providers[1]) : nil
+        let outerData = displayProviders.count > 0 ? multiService.usageData(for: displayProviders[0]) : (providers.count > 0 ? multiService.usageData(for: providers[0]) : nil)
+        let innerData = displayProviders.count > 1 ? multiService.usageData(for: displayProviders[1]) : (providers.count > 1 ? multiService.usageData(for: providers[1]) : nil)
 
         return ZStack {
             // Outer ring — first provider

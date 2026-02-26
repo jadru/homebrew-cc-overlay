@@ -1,3 +1,25 @@
+# v0.7.0
+
+## Quick Wins: 안정성, 보안, 접근성
+
+> [English](RELEASE_NOTES.md)
+
+### 주요 변경
+
+- **프로바이더 아키텍처 안정화** — `fetchUsage()`를 프로토콜 요구사항으로 명시하고, base 구현의 `fatalError` 크래시 경로 제거
+- **비용 예산 설정 노출** — Settings에 Claude 플랜 티어 선택 + custom weighted limit 입력 추가
+- **Stale 데이터 표시기** — 데이터가 `refresh interval`의 2배 이상 오래되면 메뉴바/오버레이에 경고 표시
+- **알림 임계값 커스터마이즈** — Warning/Critical 임계값을 Settings에서 조절하고 알림 로직에 반영
+- **API 키 보안 마이그레이션** — Codex/Gemini 수동 API 키를 UserDefaults에서 Keychain으로 이전(기존 값 자동 마이그레이션)
+- **VoiceOver 접근성 개선** — 메뉴바 상태, 오버레이 상태, 새로고침 액션에 접근성 라벨/값 추가
+
+### Brew 릴리즈 메모
+
+- 릴리즈 자동화(`.github/workflows/release.yml`)가 태그 기준으로 Homebrew formula URL/SHA를 갱신하고 tap 저장소와 동기화
+- 이번 릴리즈 태그: `v0.7.0`
+
+---
+
 # v0.6.0
 
 ## Homebrew OTA 자동 업데이트

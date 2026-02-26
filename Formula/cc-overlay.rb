@@ -28,7 +28,7 @@ class CcOverlay < Formula
 
   service do
     run [opt_bin/"cc-overlay"]
-    keep_alive true
+    keep_alive crashed: true
     log_path var/"log/cc-overlay.log"
   end
 

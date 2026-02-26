@@ -179,7 +179,7 @@ actor OpenAIAPIService {
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 10
+        request.timeoutInterval = AppConstants.apiTimeoutInterval
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
