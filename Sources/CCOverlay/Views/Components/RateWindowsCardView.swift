@@ -21,15 +21,11 @@ struct RateWindowsCardView: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        HStack {
-            Text("Rate Limits")
-                .font(size.headerFont)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Image(systemName: "gauge.with.dots.needle.33percent")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
+        CardHeader(
+            title: "Rate Limits",
+            iconName: "gauge.with.dots.needle.33percent",
+            size: size
+        )
     }
 
     // MARK: - Window Row
@@ -52,16 +48,11 @@ struct RateWindowsCardView: View {
             }
 
             // Progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.12))
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(tint)
-                        .frame(width: geo.size.width * max(remainPct / 100.0, 0))
-                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: remainPct)
-                }
-            }
+            SegmentedProgressBar(
+                progress: remainPct,
+                tint: tint,
+                height: window.isPrimary ? 6 : 4
+            )
             .frame(height: window.isPrimary ? 6 : 4)
 
             // Reset countdown

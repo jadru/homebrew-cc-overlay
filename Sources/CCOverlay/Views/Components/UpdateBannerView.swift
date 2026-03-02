@@ -27,6 +27,7 @@ struct UpdateBannerView: View {
             Image(systemName: "arrow.down.circle.fill")
                 .font(.system(size: 14))
                 .foregroundStyle(.blue)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("v\(version) available")
@@ -67,6 +68,7 @@ struct UpdateBannerView: View {
         HStack(spacing: 10) {
             ProgressView()
                 .controlSize(.small)
+                .accessibilityLabel("Installing update")
 
             Text("Installing update...")
                 .font(.system(size: 11, weight: .medium))
@@ -89,6 +91,7 @@ struct UpdateBannerView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 14))
                 .foregroundStyle(.green)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Restart to apply v\(version)")

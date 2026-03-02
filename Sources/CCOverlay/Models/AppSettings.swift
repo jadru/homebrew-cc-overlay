@@ -9,9 +9,9 @@ final class AppSettings {
 
     private enum Key {
         static let showOverlay = "showOverlay"
+        static let debugFlowLogging = "debugFlowLogging"
         static let refreshInterval = "refreshInterval"
         static let planTier = "planTier"
-        static let billingMode = "billingMode"
         static let customWeightedLimit = "customWeightedLimit"
         static let alertWarningThreshold = "alertWarningThreshold"
         static let alertCriticalThreshold = "alertCriticalThreshold"
@@ -39,6 +39,18 @@ final class AppSettings {
         set { withMutation(keyPath: \.showOverlay) { UserDefaults.standard.set(newValue, forKey: Key.showOverlay) } }
     }
 
+    var debugFlowLogging: Bool {
+        get {
+            access(keyPath: \.debugFlowLogging)
+            return UserDefaults.standard.object(forKey: Key.debugFlowLogging) as? Bool ?? false
+        }
+        set {
+            withMutation(keyPath: \.debugFlowLogging) {
+                UserDefaults.standard.set(newValue, forKey: Key.debugFlowLogging)
+            }
+        }
+    }
+
     var refreshInterval: TimeInterval {
         get {
             access(keyPath: \.refreshInterval)
@@ -55,15 +67,6 @@ final class AppSettings {
             return PlanTier(rawValue: raw) ?? .pro
         }
         set { withMutation(keyPath: \.planTier) { UserDefaults.standard.set(newValue.rawValue, forKey: Key.planTier) } }
-    }
-
-    var billingMode: BillingMode {
-        get {
-            access(keyPath: \.billingMode)
-            let raw = UserDefaults.standard.string(forKey: Key.billingMode) ?? BillingMode.subscription.rawValue
-            return BillingMode(rawValue: raw) ?? .subscription
-        }
-        set { withMutation(keyPath: \.billingMode) { UserDefaults.standard.set(newValue.rawValue, forKey: Key.billingMode) } }
     }
 
     var customWeightedLimit: Double {
@@ -221,10 +224,18 @@ final class AppSettings {
         set {
             withMutation(keyPath: \.codexAPIKey) {
                 guard let newValue, !newValue.isEmpty else {
-                    try? KeychainHelper.deleteCodexAPIKey()
+                    do {
+                        try KeychainHelper.deleteCodexAPIKey()
+                    } catch {
+                        AppLogger.data.error("Failed to delete Codex API key: \(error.localizedDescription)")
+                    }
                     return
                 }
-                try? KeychainHelper.saveCodexAPIKey(newValue)
+                do {
+                    try KeychainHelper.saveCodexAPIKey(newValue)
+                } catch {
+                    AppLogger.data.error("Failed to save Codex API key: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -247,18 +258,35 @@ final class AppSettings {
         set {
             withMutation(keyPath: \.geminiAPIKey) {
                 guard let newValue, !newValue.isEmpty else {
-                    try? KeychainHelper.deleteGeminiAPIKey()
+                    do {
+                        try KeychainHelper.deleteGeminiAPIKey()
+                    } catch {
+                        AppLogger.data.error("Failed to delete Gemini API key: \(error.localizedDescription)")
+                    }
                     return
                 }
-                try? KeychainHelper.saveGeminiAPIKey(newValue)
+                do {
+                    try KeychainHelper.saveGeminiAPIKey(newValue)
+                } catch {
+                    AppLogger.data.error("Failed to save Gemini API key: \(error.localizedDescription)")
+                }
             }
+        }
+    }
+
+    func isEnabled(_ provider: CLIProvider) -> Bool {
+        switch provider {
+        case .claudeCode: return claudeCodeEnabled
+        case .codex: return codexEnabled
+        case .gemini: return geminiEnabled
         }
     }
 
     init() {
         UserDefaults.standard.register(defaults: [
             Key.showOverlay: true,
-            Key.refreshInterval: 60.0,
+        Key.refreshInterval: 60.0,
+            Key.debugFlowLogging: false,
             Key.costAlertEnabled: true,
             Key.alertWarningThreshold: AppConstants.defaultWarningThresholdPct,
             Key.alertCriticalThreshold: AppConstants.defaultCriticalThresholdPct,
@@ -310,6 +338,7 @@ final class AppSettings {
             try saveToKeychain(legacyValue)
             defaults.removeObject(forKey: userDefaultsKey)
         } catch {
+            AppLogger.data.error("Failed to migrate legacy key for \(userDefaultsKey): \(error.localizedDescription)")
             // Keep legacy value in UserDefaults as fallback when migration fails.
         }
     }

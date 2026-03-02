@@ -55,4 +55,23 @@ struct UsageCalculator: Sendable {
             cacheReadInputTokens: entries.reduce(0) { $0 + $1.cacheReadTokens }
         )
     }
+
+    /// Group entries by project and compute per-project cost summaries.
+    static func aggregateByProject(entries: [ParsedUsageEntry], now: Date = Date()) -> [ProjectCostSummary] {
+        let dailyEntries = todayEntries(from: entries, now: now)
+        let grouped = Dictionary(grouping: dailyEntries) { $0.projectName ?? "unknown" }
+
+        return grouped.map { name, projectEntries in
+            let tokens = sumTokens(projectEntries)
+            let cost = CostCalculator.cost(for: projectEntries)
+            let sessionIds = Set(projectEntries.map(\.sessionId))
+            return ProjectCostSummary(
+                projectName: name,
+                tokenUsage: tokens,
+                cost: cost,
+                sessionCount: sessionIds.count
+            )
+        }
+        .sorted { $0.cost.totalCost > $1.cost.totalCost }
+    }
 }

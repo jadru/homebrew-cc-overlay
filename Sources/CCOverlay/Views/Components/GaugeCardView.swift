@@ -7,6 +7,7 @@ struct GaugeCardView: View {
     var weeklyWarningPercentage: Int?
     var showLiveIndicator: Bool = false
     var rateLimitBuckets: [RateLimitBucket] = []
+    var predictionText: String? = nil
     var size: Size = .standard
     var title: String = "Session Limit"
 
@@ -175,6 +176,12 @@ struct GaugeCardView: View {
                 }
                 .foregroundStyle(.tertiary)
             }
+        }
+
+        if let predictionText {
+            Text(predictionText)
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
         }
     }
 }

@@ -50,11 +50,29 @@ struct PillView: View {
                 if settings.pillAlwaysExpanded {
                     isExpanded = true
                 }
+                DebugFlowLogger.shared.log(
+                    stage: .display,
+                    message: "overlay.pill.appear",
+                    details: [
+                        "providers": activeProviders.map(\.rawValue).joined(separator: ","),
+                        "expanded": "\(isExpanded)",
+                    ]
+                )
+            }
+            .onDisappear {
+                DebugFlowLogger.shared.log(stage: .display, message: "overlay.pill.disappear")
             }
             .onChange(of: settings.pillAlwaysExpanded) { _, alwaysExpanded in
                 withAnimation(.snappy(duration: 0.25)) {
                     isExpanded = alwaysExpanded
                 }
+            }
+            .onChange(of: multiService.activeProviders) { _, providers in
+                DebugFlowLogger.shared.log(
+                    stage: .display,
+                    message: "overlay.pill.providers.changed",
+                    details: ["providers": providers.map(\.rawValue).joined(separator: ",")]
+                )
             }
     }
 
@@ -154,6 +172,7 @@ struct PillView: View {
                 Image(systemName: "clock.badge.exclamationmark")
                     .font(.system(size: 10))
                     .foregroundStyle(.yellow)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -267,18 +286,12 @@ struct PillView: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.tertiary)
 
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.secondary.opacity(0.1))
-                        Capsule()
-                            .fill(barTint)
-                            .frame(width: max(geo.size.width * data.remainingPercentage / 100, 0))
-                            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: data.remainingPercentage)
-                    }
-                }
-                .frame(height: 5)
-                .clipShape(Capsule())
+                SegmentedProgressBar(
+                    progress: data.remainingPercentage,
+                    tint: barTint,
+                    height: 5,
+                    cornerRadius: 999
+                )
 
                 Text(NumberFormatting.formatPercentage(data.remainingPercentage))
                     .font(.system(size: 9, weight: .bold, design: .rounded))

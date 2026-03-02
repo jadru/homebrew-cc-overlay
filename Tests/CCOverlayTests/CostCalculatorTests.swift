@@ -15,8 +15,8 @@ final class CostCalculatorTests: XCTestCase {
 
     func testOpusPricingLookup() {
         let p = CostCalculator.pricing(for: "claude-opus-4-5-20251101")
-        XCTAssertEqual(p.inputPerMTok, 15.0)
-        XCTAssertEqual(p.outputPerMTok, 75.0)
+        XCTAssertEqual(p.inputPerMTok, 5.0)
+        XCTAssertEqual(p.outputPerMTok, 25.0)
     }
 
     func testHaikuPricingLookup() {
@@ -57,9 +57,9 @@ final class CostCalculatorTests: XCTestCase {
             ),
         ]
         let cost = CostCalculator.cost(for: entries)
-        // Opus: 1M*$15 + 50K*$75 = $15 + $3.75 = $18.75
+        // Opus: 1M*$5 + 50K*$25 = $5 + $1.25 = $6.25
         // Sonnet: 1M*$3 + 50K*$15 = $3 + $0.75 = $3.75
-        XCTAssertEqual(cost.totalCost, 22.5, accuracy: 0.001)
+        XCTAssertEqual(cost.totalCost, 10.0, accuracy: 0.001)
     }
 
     func testCacheTokenCosts() {

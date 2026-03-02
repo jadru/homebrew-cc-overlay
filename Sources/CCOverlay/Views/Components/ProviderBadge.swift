@@ -13,5 +13,6 @@ struct ProviderBadge: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }

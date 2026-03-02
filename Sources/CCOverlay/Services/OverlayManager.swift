@@ -18,21 +18,32 @@ final class OverlayManager {
     // MARK: - Public API
 
     func showOverlay() {
-        print("[OverlayManager] showOverlay called, window exists: \(window != nil)")
+        AppLogger.ui.debug("showOverlay called, window exists: \(self.window != nil)")
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "overlay.show",
+            details: ["alreadyVisible": "\(window != nil)"]
+        )
         if window != nil {
             window?.orderFront(nil)
             return
         }
         createWindow()
         startFocusMonitoring()
-        print("[OverlayManager] Window created at: \(window?.frame ?? .zero)")
+        AppLogger.ui.debug("Window created at: \(self.window?.frame.debugDescription ?? "nil")")
     }
 
     func hideOverlay() {
+        DebugFlowLogger.shared.log(stage: .display, message: "overlay.hide")
         window?.orderOut(nil)
     }
 
     func toggleOverlay() {
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "overlay.toggle",
+            details: ["isVisible": "\(window?.isVisible == true)"]
+        )
         if window?.isVisible == true {
             hideOverlay()
         } else {
@@ -48,6 +59,7 @@ final class OverlayManager {
     }
 
     func refreshOverlay() {
+        DebugFlowLogger.shared.log(stage: .display, message: "overlay.refresh")
         let wasVisible = window?.isVisible ?? false
         closeOverlay()
         if wasVisible || settings.showOverlay {
@@ -107,6 +119,11 @@ final class OverlayManager {
         panel.orderFront(nil)
         self.window = panel
         self.hostingView = hosting
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "overlay.window.created",
+            details: ["size": "\(initialSize.width)x\(initialSize.height)"]
+        )
     }
 
     // MARK: - Settings Observation
@@ -145,14 +162,29 @@ final class OverlayManager {
         // Self activation - always show
         if pid == ProcessInfo.processInfo.processIdentifier {
             window?.orderFront(nil)
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "overlay.appActivation",
+                details: ["pid": "\(pid)", "action": "self-app"]
+            )
             return
         }
 
         // Check if whitelisted dev tool
         if let bundleId, DevToolDetector.isWhitelisted(bundleId) {
             window?.orderFront(nil)
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "overlay.appActivation",
+                details: ["bundle": bundleId, "action": "show"]
+            )
         } else {
             window?.orderOut(nil)
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "overlay.appActivation",
+                details: ["bundle": bundleId ?? "unknown", "action": "hide"]
+            )
         }
     }
 }

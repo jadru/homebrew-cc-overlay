@@ -45,19 +45,11 @@ struct CostCardView: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        HStack {
-            Text("Estimated Cost")
-                .font(size.headerFont)
-                .foregroundStyle(size == .compact ? .tertiary : .secondary)
-                .textCase(size == .compact ? .uppercase : .none)
-                .tracking(size == .compact ? 0.3 : 0)
-            Spacer()
-            if size == .standard {
-                Image(systemName: "dollarsign.circle")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-        }
+        CardHeader(
+            title: "Estimated Cost",
+            iconName: "dollarsign.circle",
+            size: size
+        )
     }
 
     @ViewBuilder

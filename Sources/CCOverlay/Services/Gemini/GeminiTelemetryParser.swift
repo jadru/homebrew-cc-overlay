@@ -35,14 +35,6 @@ actor GeminiTelemetryParser {
 
     private let configPath: String
 
-    private let isoFormatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    private let isoFallbackFormatter = ISO8601DateFormatter()
-
     init(configPath: String = AppConstants.geminiConfigPath) {
         self.configPath = configPath
     }
@@ -111,13 +103,13 @@ actor GeminiTelemetryParser {
 
             // Parse timestamp
             if let ts = json["timestamp"] as? String {
-                if let date = isoFormatter.date(from: ts) ?? isoFallbackFormatter.date(from: ts) {
+                if let date = DateParsing.parseISO8601(ts) {
                     result.timestamps.append(date)
                 }
             } else if let ts = json["startTimeUnixNano"] as? String, let nanos = UInt64(ts) {
                 result.timestamps.append(Date(timeIntervalSince1970: Double(nanos) / 1_000_000_000))
             } else if let ts = json["time"] as? String {
-                if let date = isoFormatter.date(from: ts) ?? isoFallbackFormatter.date(from: ts) {
+                if let date = DateParsing.parseISO8601(ts) {
                     result.timestamps.append(date)
                 }
             }
@@ -202,7 +194,7 @@ actor GeminiTelemetryParser {
                 requests += 1
 
                 if let ts = message["timestamp"] as? String,
-                   let date = isoFormatter.date(from: ts) ?? isoFallbackFormatter.date(from: ts)
+                   let date = DateParsing.parseISO8601(ts)
                 {
                     timestamps.append(date)
                 }
