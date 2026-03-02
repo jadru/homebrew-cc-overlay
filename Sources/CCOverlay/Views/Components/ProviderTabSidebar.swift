@@ -53,6 +53,8 @@ struct ProviderTabSidebar: View {
         }
         .animation(.snappy(duration: 0.2), value: isSelected)
         .help(provider.rawValue)
+        .accessibilityLabel(provider.rawValue)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Settings
@@ -68,6 +70,7 @@ struct ProviderTabSidebar: View {
         }
         .buttonStyle(.borderless)
         .help("Settings")
+        .accessibilityLabel("Settings")
     }
 
     @ViewBuilder
@@ -83,5 +86,6 @@ struct ProviderTabSidebar: View {
         }
         .buttonStyle(.borderless)
         .help("Quit")
+        .accessibilityLabel("Quit")
     }
 }

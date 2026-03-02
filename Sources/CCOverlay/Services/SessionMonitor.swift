@@ -275,7 +275,7 @@ final class SessionMonitor {
             projectName: entry?.projectPath.flatMap { URL(fileURLWithPath: $0).lastPathComponent },
             gitBranch: entry?.gitBranch,
             messageCount: entry?.messageCount,
-            lastModified: entry?.modified.flatMap { parseISO8601($0) },
+            lastModified: entry?.modified.flatMap { DateParsing.parseISO8601($0) },
             model: proc.model,
             permissionMode: proc.permissionMode,
             isSidechain: entry?.isSidechain ?? false,
@@ -293,7 +293,7 @@ final class SessionMonitor {
             // Use created timestamp — it stays close to process start time
             // unlike modified which drifts as the session runs
             guard let createdStr = cached.entry.created,
-                  let created = parseISO8601(createdStr) else { continue }
+                  let created = DateParsing.parseISO8601(createdStr) else { continue }
 
             let delta = abs(created.timeIntervalSince(processStart))
             if delta < threshold && delta < bestDelta {
@@ -305,11 +305,4 @@ final class SessionMonitor {
         return bestMatch
     }
 
-    private func parseISO8601(_ string: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
-    }
 }

@@ -3,55 +3,97 @@ import Observation
 
 @Observable
 @MainActor
-final class ClaudeCodeProviderService: ProviderServiceProtocol {
-    let provider: CLIProvider = .claudeCode
-
-    private let inner: UsageDataService
-    private(set) var isDetected = false
-    private(set) var isAuthenticated = false
-
-    var isLoading: Bool { inner.isLoading }
-    var error: String? { inner.error }
-    var lastRefresh: Date? { inner.lastRefresh }
-    var lastActivityAt: Date? { inner.aggregatedUsage.currentSession?.lastTimestamp }
+final class ClaudeCodeProviderService: BaseProviderService {
+    private let apiService = AnthropicAPIService()
+    private let claudeProjectsPath: String
+    private(set) var aggregatedUsage: AggregatedUsage = .empty
+    private(set) var oauthUsage: OAuthUsageStatus = .empty
+    private(set) var detectedPlan: String?
+    private var fileWatcher: FileWatcher?
 
     init(claudeProjectsPath: String = AppConstants.claudeProjectsPath) {
-        self.inner = UsageDataService(claudeProjectsPath: claudeProjectsPath)
+        self.claudeProjectsPath = claudeProjectsPath
+        super.init(provider: .claudeCode)
     }
 
     /// Check if Claude Code CLI is installed and has valid credentials.
     func detect() -> Bool {
         let fm = FileManager.default
-        isDetected = fm.fileExists(atPath: AppConstants.claudeProjectsPath)
+        let detected = fm.fileExists(atPath: claudeProjectsPath)
+        setDetected(detected)
 
         // Check Keychain for OAuth credentials
-        isAuthenticated = (try? KeychainHelper.readClaudeOAuthToken()) != nil
+        let hasToken = (try? KeychainHelper.readClaudeOAuthToken()) != nil
+        setAuthenticated(hasToken)
 
-        return isDetected
+        DebugFlowLogger.shared.log(
+            stage: .detection,
+            provider: .claudeCode,
+            message: detected && hasToken ? "detected" : "not-detected",
+            details: [
+                "projectsPath": claudeProjectsPath,
+                "projectsPathExists": "\(detected)",
+                "authenticated": "\(hasToken)",
+            ]
+        )
+
+        return detected
     }
 
-    func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
-        inner.startMonitoring(interval: interval)
+    override func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
+        super.startMonitoring(interval: interval)
+
+        fileWatcher?.stop()
+        fileWatcher = FileWatcher(directory: claudeProjectsPath) { [weak self] in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
+
+        Task {
+            detectedPlan = await apiService.detectedSubscriptionType()
+        }
     }
 
-    func stopMonitoring() {
-        inner.stopMonitoring()
+    override func stopMonitoring() {
+        fileWatcher?.stop()
+        fileWatcher = nil
+        super.stopMonitoring()
     }
 
-    func refresh() {
-        inner.refresh()
+    override func fetchUsage() async {
+        do {
+            let allEntries = try discoverAndParseAllSessions()
+            aggregatedUsage = UsageCalculator.aggregate(entries: allEntries)
+            setError(nil)
+        } catch {
+            AppLogger.data.error("JSONL refresh failed: \(error.localizedDescription)")
+            setError(error.localizedDescription)
+        }
+
+        do {
+            let usage = try await apiService.fetchUsage()
+            oauthUsage = usage
+            setError(nil)
+            trackActivity(newUsedPct: usage.usedPercentage)
+        } catch is KeychainHelper.KeychainError {
+            // No credentials — silently fall back to JSONL-only mode
+        } catch {
+            AppLogger.network.error("Rate limit fetch failed: \(error.localizedDescription)")
+            if !oauthUsage.isAvailable {
+                setError(error.localizedDescription)
+            }
+        }
+
+        markRefreshed()
     }
 
-    func fetchUsage() async {
-        inner.refresh()
-    }
-
-    var usageData: ProviderUsageData {
-        let oauth = inner.oauthUsage
-        let agg = inner.aggregatedUsage
+    override var usageData: ProviderUsageData {
+        let oauth = oauthUsage
+        let agg = aggregatedUsage
 
         let buckets: [RateBucket] = {
-            guard inner.hasAPIData else { return [] }
+            guard hasAPIData else { return [] }
             var result: [RateBucket] = [
                 RateBucket(
                     label: "5h",
@@ -91,24 +133,79 @@ final class ClaudeCodeProviderService: ProviderServiceProtocol {
 
         return ProviderUsageData(
             provider: .claudeCode,
-            isAvailable: inner.hasAPIData || agg.fiveHourWindow.totalTokens > 0,
-            usedPercentage: inner.usedPercentage,
-            remainingPercentage: inner.remainingPercentage,
+            isAvailable: hasAPIData || agg.fiveHourWindow.totalTokens > 0,
+            usedPercentage: hasAPIData ? oauth.usedPercentage : 0,
+            remainingPercentage: hasAPIData ? oauth.remainingPercentage : 100,
             primaryWindowLabel: "5h",
             resetsAt: oauth.primaryResetsAt,
             rateLimitBuckets: buckets,
-            planName: inner.detectedPlan.map { PlanTier.displayName(for: $0) },
+            planName: detectedPlan.map { PlanTier.displayName(for: $0) },
             estimatedCost: cost,
             tokenBreakdown: tokenData,
-            enterpriseQuota: inner.enterpriseQuota,
+            enterpriseQuota: oauth.enterpriseQuota,
             lastActivityAt: agg.currentSession?.lastTimestamp,
-            error: inner.error,
-            lastRefresh: inner.lastRefresh,
-            isLoading: inner.isLoading
+            error: error,
+            lastRefresh: lastRefresh,
+            isLoading: isLoading
         )
     }
 
-    // MARK: - Pass-through for backward compat during migration
+    /// Whether we're using API-backed usage data.
+    var hasAPIData: Bool {
+        oauthUsage.isAvailable
+    }
 
-    var innerService: UsageDataService { inner }
+    override var lastActivityAt: Date? {
+        aggregatedUsage.currentSession?.lastTimestamp
+    }
+
+    /// Parse all sessions from Claude JSONL logs modified in the last 24h.
+    private func discoverAndParseAllSessions() throws -> [ParsedUsageEntry] {
+        let fm = FileManager.default
+        let projectsURL = URL(fileURLWithPath: claudeProjectsPath)
+
+        guard fm.fileExists(atPath: projectsURL.path) else { return [] }
+
+        var allEntries: [ParsedUsageEntry] = []
+
+        let projectDirs = try fm.contentsOfDirectory(
+            at: projectsURL,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        )
+
+        for projectDir in projectDirs {
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: projectDir.path, isDirectory: &isDir),
+                  isDir.boolValue
+            else { continue }
+
+            let projectName = projectDir.lastPathComponent
+
+            let files: [URL]
+            do {
+                files = try fm.contentsOfDirectory(
+                    at: projectDir,
+                    includingPropertiesForKeys: [.contentModificationDateKey]
+                ).filter { $0.pathExtension == "jsonl" }
+            } catch {
+                continue
+            }
+
+            let oneDayAgo = Date().addingTimeInterval(-24 * 60 * 60)
+            for file in files {
+                if let attrs = try? fm.attributesOfItem(atPath: file.path),
+                   let modDate = attrs[.modificationDate] as? Date,
+                   modDate < oneDayAgo
+                {
+                    continue
+                }
+
+                if let entries = try? JSONLParser.parseSessionFile(at: file, projectName: projectName) {
+                    allEntries.append(contentsOf: entries)
+                }
+            }
+        }
+
+        return allEntries
+    }
 }

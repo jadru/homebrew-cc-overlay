@@ -13,7 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func setupOverlay(settings: AppSettings, multiService: MultiProviderUsageService) {
-        print("[AppDelegate] setupOverlay called, overlayManager exists: \(overlayManager != nil)")
+        AppLogger.ui.debug("setupOverlay called, overlayManager exists: \(self.overlayManager != nil)")
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "overlay.setup",
+            details: ["hasManager": "\(overlayManager != nil)"]
+        )
         guard overlayManager == nil else { return }
 
         let manager = OverlayManager(
@@ -22,7 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         self.overlayManager = manager
-        print("[AppDelegate] showOverlay setting: \(settings.showOverlay)")
+        AppLogger.ui.debug("showOverlay setting: \(settings.showOverlay)")
 
         if settings.showOverlay {
             manager.showOverlay()
@@ -30,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showSettings(settings: AppSettings, multiService: MultiProviderUsageService, updateService: UpdateService) {
+        DebugFlowLogger.shared.log(stage: .display, message: "settings.opened")
         windowCoordinator.showSettings(
             settings: settings,
             multiService: multiService,
@@ -39,10 +45,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func setupHotkey(settings: AppSettings, toggleOverlay: @escaping @MainActor () -> Void) {
         hotkeyManager = HotkeyManager()
+        DebugFlowLogger.shared.log(stage: .display, message: "hotkey.configure")
         updateHotkey(settings: settings, toggleOverlay: toggleOverlay)
     }
 
     func updateHotkey(settings: AppSettings, toggleOverlay: @escaping @MainActor () -> Void) {
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "hotkey.update",
+            details: ["enabled": "\(settings.globalHotkeyEnabled)"]
+        )
         if settings.globalHotkeyEnabled {
             hotkeyManager?.register(action: toggleOverlay)
         } else {

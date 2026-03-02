@@ -31,6 +31,12 @@ struct MenuBarView: View {
         }
         .frame(width: 340)
         .onAppear {
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "menuBar.appear",
+                details: ["active": activeProviderSet.map(\.rawValue).joined(separator: ",")]
+            )
+
             if selectedProvider == nil {
                 selectedProvider = multiService.activeProviders.first ?? CLIProvider.allCases.first
             }
@@ -39,6 +45,19 @@ struct MenuBarView: View {
             if let current = selectedProvider, !CLIProvider.allCases.contains(current) {
                 selectedProvider = newProviders.first ?? CLIProvider.allCases.first
             }
+
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "menuBar.providers.changed",
+                details: ["providers": newProviders.map(\.rawValue).joined(separator: ",")]
+            )
+        }
+        .onChange(of: selectedProvider) { _, newProvider in
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "menuBar.provider.selected",
+                details: ["provider": newProvider?.rawValue ?? "none"]
+            )
         }
     }
 
@@ -87,16 +106,44 @@ struct MenuBarView: View {
 
                 Spacer()
 
+                exportMenu
                 refreshButton
             }
         }
+    }
+
+    // MARK: - Export Menu
+
+    @ViewBuilder
+    private var exportMenu: some View {
+        Menu {
+            Button("Copy Summary") {
+                guard let provider = selectedProvider else { return }
+                let data = multiService.usageData(for: provider)
+                let summary = UsageExportService.markdownSummary(data: data)
+                UsageExportService.copyToClipboard(summary)
+            }
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 11))
+                .foregroundStyle(.primary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     // MARK: - Refresh Button
 
     @ViewBuilder
     private var refreshButton: some View {
-        Button(action: { multiService.refresh() }) {
+        Button(action: {
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "menuBar.refresh.tapped",
+                details: ["provider": selectedProvider?.rawValue ?? "none"]
+            )
+            multiService.refresh()
+        }) {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 12))
                 .foregroundStyle(showRefreshSuccess ? .green : .primary)

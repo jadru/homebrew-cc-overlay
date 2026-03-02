@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -8,6 +9,22 @@ struct CCOverlayApp: App {
     @State private var costAlertManager = CostAlertManager()
     @State private var updateService = UpdateService()
     @State private var hasInitialized = false
+
+    private let modelContainer: ModelContainer = {
+        let schema = Schema([UsageSnapshot.self])
+        let config = ModelConfiguration(isStoredInMemoryOnly: false)
+        do {
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            AppLogger.data.error("Failed to initialize persistent ModelContainer, falling back to in-memory: \(error)")
+            do {
+                let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+                return try ModelContainer(for: schema, configurations: [inMemoryConfig])
+            } catch {
+                fatalError("Failed to initialize in-memory ModelContainer: \(error)")
+            }
+        }
+    }()
 
     var body: some Scene {
         MenuBarExtra {
@@ -25,7 +42,7 @@ struct CCOverlayApp: App {
             .onChange(of: multiService.usedPercentage) { _, newValue in
                 costAlertManager.check(usedPercentage: newValue, settings: settings)
             }
-            .onChange(of: multiService.claudeOAuthUsage.sevenDay.utilization) { _, weeklyPct in
+            .onChange(of: multiService.claudeOAuthUsage.rateLimitBuckets.first(where: { $0.label == "7d" })?.utilization ?? 0) { _, weeklyPct in
                 costAlertManager.checkWeekly(utilization: weeklyPct, settings: settings)
             }
             .onChange(of: settings.globalHotkeyEnabled) { _, _ in
@@ -38,6 +55,9 @@ struct CCOverlayApp: App {
             }
             .onChange(of: settings.pillClickThrough) { _, _ in
                 appDelegate.overlayManager?.updateFromSettings()
+            }
+            .onChange(of: settings.debugFlowLogging) { _, enabled in
+                DebugFlowLogger.shared.configure(enabled: enabled)
             }
         } label: {
             MenuBarLabel(multiService: multiService, settings: settings, updateService: updateService)
@@ -61,7 +81,8 @@ struct CCOverlayApp: App {
         guard !hasInitialized else { return }
         hasInitialized = true
 
-        print("[CCOverlayApp] Initializing app...")
+        AppLogger.ui.info("Initializing app...")
+        DebugFlowLogger.shared.configure(enabled: settings.debugFlowLogging)
         multiService.configure(settings: settings)
         multiService.startMonitoring(interval: settings.refreshInterval)
 

@@ -6,19 +6,6 @@ actor GeminiAPIService {
     private var apiKey: String?
     private let telemetryParser: GeminiTelemetryParser
 
-    struct UsageSnapshot: Sendable {
-        let tier: GeminiTier
-        let rpmUtilization: Double   // 0-100
-        let rpdUtilization: Double   // 0-100
-        let estimatedInputTokens: Int
-        let estimatedOutputTokens: Int
-        let estimatedCostToday: Double
-        let requestCount: Int
-        let sessionCount: Int
-        let model: String?
-        let fetchedAt: Date
-    }
-
     init() {
         self.telemetryParser = GeminiTelemetryParser()
     }
@@ -27,7 +14,7 @@ actor GeminiAPIService {
         self.apiKey = apiKey
     }
 
-    func fetchUsage() async throws -> UsageSnapshot {
+    func fetchUsage() async throws -> GeminiUsageSnapshot {
         guard apiKey != nil else {
             throw GeminiServiceError.noAPIKey
         }
@@ -36,7 +23,7 @@ actor GeminiAPIService {
         return buildSnapshot(from: usage)
     }
 
-    private func buildSnapshot(from usage: GeminiTelemetryParser.UsageEstimate) -> UsageSnapshot {
+    private func buildSnapshot(from usage: GeminiTelemetryParser.UsageEstimate) -> GeminiUsageSnapshot {
         // API key mode uses Developer API rate limits (much lower than Code Assist)
         let tier: GeminiTier = .apiFree
         let (rpmLimit, rpdLimit) = tier.limits
@@ -51,7 +38,7 @@ actor GeminiAPIService {
             model: model
         )
 
-        return UsageSnapshot(
+        return GeminiUsageSnapshot(
             tier: tier,
             rpmUtilization: rpmUtil,
             rpdUtilization: rpdUtil,
@@ -60,6 +47,7 @@ actor GeminiAPIService {
             estimatedCostToday: cost.totalCost,
             requestCount: usage.requestCount,
             sessionCount: usage.sessionCount,
+            accountEmail: nil,
             model: model,
             fetchedAt: Date()
         )
@@ -70,12 +58,10 @@ actor GeminiAPIService {
 
 enum GeminiServiceError: LocalizedError {
     case noAPIKey
-    case noAuth
 
     var errorDescription: String? {
         switch self {
         case .noAPIKey: return "Gemini API key not configured"
-        case .noAuth: return "Gemini not authenticated"
         }
     }
 }

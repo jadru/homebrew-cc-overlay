@@ -18,6 +18,8 @@ class BaseProviderService: ProviderServiceProtocol {
     private var lastKnownUsedPct: Double = -1
     private var refreshTimer: Timer?
     private var refreshTask: Task<Void, Never>?
+    private var baseInterval: TimeInterval = AppConstants.defaultRefreshInterval
+    private var currentInterval: TimeInterval = AppConstants.defaultRefreshInterval
 
     init(provider: CLIProvider) {
         self.provider = provider
@@ -25,9 +27,9 @@ class BaseProviderService: ProviderServiceProtocol {
 
     // MARK: - Subclass Overrides
 
-    /// Subclasses should override this method.
+    /// Subclasses must override this method.
     func fetchUsage() async {
-        assertionFailure("Subclass should override fetchUsage()")
+        fatalError("Subclass must override fetchUsage()")
     }
 
     /// Override in subclasses to build provider-specific usage data.
@@ -38,15 +40,10 @@ class BaseProviderService: ProviderServiceProtocol {
     // MARK: - Monitoring
 
     func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
+        baseInterval = interval
+        currentInterval = interval
         refresh()
-
-        refreshTimer?.invalidate()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) {
-            [weak self] _ in
-            Task { @MainActor in
-                self?.refresh()
-            }
-        }
+        rescheduleTimer()
     }
 
     func stopMonitoring() {
@@ -62,6 +59,40 @@ class BaseProviderService: ProviderServiceProtocol {
         refreshTask = Task {
             await fetchUsage()
             isLoading = false
+            adjustInterval()
+        }
+    }
+
+    // MARK: - Polling Backoff
+
+    private func adjustInterval() {
+        let isActive: Bool
+        if let activity = lastActivityAt {
+            isActive = Date().timeIntervalSince(activity) < AppConstants.activityWindowSeconds
+        } else {
+            isActive = false
+        }
+
+        if isActive {
+            currentInterval = baseInterval
+        } else {
+            let maxInterval = min(
+                baseInterval * AppConstants.maxBackoffMultiplier,
+                AppConstants.maxRefreshInterval
+            )
+            currentInterval = min(currentInterval * AppConstants.backoffMultiplier, maxInterval)
+        }
+
+        rescheduleTimer()
+    }
+
+    private func rescheduleTimer() {
+        refreshTimer?.invalidate()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: currentInterval, repeats: true) {
+            [weak self] _ in
+            Task { @MainActor in
+                self?.refresh()
+            }
         }
     }
 
@@ -71,6 +102,11 @@ class BaseProviderService: ProviderServiceProtocol {
     func trackActivity(newUsedPct: Double) {
         if lastKnownUsedPct >= 0 && newUsedPct > lastKnownUsedPct {
             lastActivityAt = Date()
+            // Snap back to base interval on activity
+            if currentInterval > baseInterval {
+                currentInterval = baseInterval
+                rescheduleTimer()
+            }
         }
         lastKnownUsedPct = newUsedPct
     }

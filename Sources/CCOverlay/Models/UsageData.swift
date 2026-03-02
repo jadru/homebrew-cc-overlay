@@ -61,6 +61,15 @@ struct ParsedUsageEntry: Sendable {
     let cacheCreationTokens: Int
     let cacheReadTokens: Int
     let timestamp: Date
+    var projectName: String? = nil
+}
+
+struct ProjectCostSummary: Identifiable, Sendable {
+    var id: String { projectName }
+    let projectName: String
+    let tokenUsage: TokenUsage
+    let cost: CostBreakdown
+    let sessionCount: Int
 }
 
 struct SessionUsage: Identifiable, Sendable {
