@@ -25,15 +25,28 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
         case .gemini: return "GM"
         }
     }
-}
 
-// MARK: - Billing Mode
+    var setupInstructions: String {
+        switch self {
+        case .claudeCode:
+            return "Install Claude Code and sign in\nnpm i -g @anthropic-ai/claude-code"
+        case .codex:
+            return "Install Codex CLI and authenticate\nnpm i -g @openai/codex && codex --login"
+        case .gemini:
+            return "Install Gemini CLI and authenticate\nnpm i -g @google/gemini-cli"
+        }
+    }
 
-enum BillingMode: String, CaseIterable, Identifiable, Sendable {
-    case subscription = "Subscription (OAuth)"
-    case apiKey = "API Key"
-
-    var id: String { rawValue }
+    var setupHint: String {
+        switch self {
+        case .claudeCode:
+            return "Install Claude Code and sign in to see rate limits"
+        case .codex:
+            return "Install Codex CLI and run 'codex --login' to see rate limits"
+        case .gemini:
+            return "Install Gemini CLI and run 'gemini' to authenticate"
+        }
+    }
 }
 
 // MARK: - Plan Tiers (Subscription)
@@ -127,6 +140,11 @@ enum AppConstants {
 
     // Activity detection
     static let activityWindowSeconds: TimeInterval = 5 * 60
+
+    // Polling backoff
+    static let backoffMultiplier: Double = 1.5
+    static let maxBackoffMultiplier: Double = 4.0
+    static let maxRefreshInterval: TimeInterval = 300
 
     // Time
     static let secondsPerDay: TimeInterval = 86400

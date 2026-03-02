@@ -6,20 +6,6 @@ actor GeminiOAuthService {
     private var accountEmail: String?
     private let telemetryParser: GeminiTelemetryParser
 
-    struct UsageSnapshot: Sendable {
-        let tier: GeminiTier
-        let rpmUtilization: Double   // 0-100
-        let rpdUtilization: Double   // 0-100
-        let estimatedInputTokens: Int
-        let estimatedOutputTokens: Int
-        let estimatedCostToday: Double
-        let requestCount: Int
-        let sessionCount: Int
-        let accountEmail: String?
-        let model: String?
-        let fetchedAt: Date
-    }
-
     init(auth: GeminiDetector.GoogleAuth) {
         self.accountEmail = auth.accountEmail
         self.telemetryParser = GeminiTelemetryParser()
@@ -41,7 +27,7 @@ actor GeminiOAuthService {
         return .codeAssistUnknown
     }
 
-    func fetchUsage() async throws -> UsageSnapshot {
+    func fetchUsage() async throws -> GeminiUsageSnapshot {
         let usage = await telemetryParser.parseUsage()
 
         // Determine tier based on email domain:
@@ -60,7 +46,7 @@ actor GeminiOAuthService {
             model: model
         )
 
-        return UsageSnapshot(
+        return GeminiUsageSnapshot(
             tier: tier,
             rpmUtilization: rpmUtil,
             rpdUtilization: rpdUtil,

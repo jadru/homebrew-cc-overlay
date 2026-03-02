@@ -131,7 +131,6 @@ actor OpenAIAPIService {
         // Get current billing period dates
         let now = Date()
         let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: now)
         let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
 
         let formatter = DateFormatter()

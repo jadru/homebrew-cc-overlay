@@ -48,12 +48,34 @@ enum GeminiDetector {
             authMode = nil
         }
 
-        return Detection(
+        let detection = Detection(
             binaryPath: binaryPath,
             configPath: configPath,
             authMode: authMode,
             configuredModel: model
         )
+
+        let authModeLabel = switch authMode {
+        case .apiKey:
+            "api-key"
+        case .googleOAuth:
+            "google-oauth"
+        case nil:
+            "none"
+        }
+        DebugFlowLogger.shared.log(
+            stage: .detection,
+            provider: .gemini,
+            message: detection.isAvailable ? "detected" : "not-detected",
+            details: [
+                "binary": binaryPath ?? "<none>",
+                "configPath": configPath ?? "<none>",
+                "model": model ?? "<none>",
+                "authMode": authModeLabel,
+            ]
+        )
+
+        return detection
     }
 
     // MARK: - Binary Detection
@@ -73,58 +95,11 @@ enum GeminiDetector {
         }
 
         // Scan nvm-installed node versions (GUI apps don't inherit shell PATH)
-        if let nvmBinary = findInNvmVersions("gemini", home: home) {
+        if let nvmBinary = CLIBinaryFinder.findInNvmVersions("gemini", home: home) {
             return nvmBinary
         }
 
-        return resolveFromPATH("gemini")
-    }
-
-    /// Search ~/.nvm/versions/node/*/bin/ for a binary (nvm paths aren't in GUI app PATH).
-    private static func findInNvmVersions(_ binary: String, home: String) -> String? {
-        let nvmDir = "\(home)/.nvm/versions/node"
-        guard let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmDir) else {
-            return nil
-        }
-        // Sort by semantic version descending so we prefer the latest node version
-        for version in versions.sorted(by: semanticVersionDescending) {
-            let path = "\(nvmDir)/\(version)/bin/\(binary)"
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
-            }
-        }
-        return nil
-    }
-
-    /// Compare nvm version directory names (e.g. "v18.20.0", "v9.0.0") descending.
-    private static func semanticVersionDescending(_ a: String, _ b: String) -> Bool {
-        let partsA = a.drop(while: { !$0.isNumber }).split(separator: ".").compactMap { Int($0) }
-        let partsB = b.drop(while: { !$0.isNumber }).split(separator: ".").compactMap { Int($0) }
-        for i in 0..<max(partsA.count, partsB.count) {
-            let va = i < partsA.count ? partsA[i] : 0
-            let vb = i < partsB.count ? partsB[i] : 0
-            if va != vb { return va > vb }
-        }
-        return false
-    }
-
-    private static func resolveFromPATH(_ command: String) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = [command]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let result = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return result?.isEmpty == false ? result : nil
-        } catch {
-            return nil
-        }
+        return CLIBinaryFinder.resolveFromPATH("gemini")
     }
 
     // MARK: - Config Path

@@ -8,7 +8,6 @@ struct ProviderSectionView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            providerHeader
             gaugeCard
             enterpriseQuotaCard
             creditsInfoCard
@@ -18,40 +17,18 @@ struct ProviderSectionView: View {
         }
     }
 
-    // MARK: - Header (icon removed – shown in sidebar)
-
-    @ViewBuilder
-    private var providerHeader: some View {
-        EmptyView()
-    }
-
     // MARK: - Gauge
 
     @ViewBuilder
     private var gaugeCard: some View {
         if data.isAvailable {
-            let buckets: [GaugeCardView.RateLimitBucket] = data.rateLimitBuckets.map { b in
-                .init(
-                    label: b.label,
-                    percentage: 100 - Int(min(b.utilization, 100)),
-                    showWarning: b.isWarning,
-                    dimmed: !b.isWarning
-                )
-            }
-
-            let weeklyWarning: Int? = {
-                if let weekly = data.rateLimitBuckets.first(where: { $0.isWarning }) {
-                    return Int(min(weekly.utilization, 100))
-                }
-                return nil
-            }()
-
             GaugeCardView(
                 remainingPercentage: data.remainingPercentage,
                 resetsAt: data.resetsAt,
-                weeklyWarningPercentage: weeklyWarning,
+                weeklyWarningPercentage: data.gaugeWarningPercentage,
                 showLiveIndicator: true,
-                rateLimitBuckets: buckets,
+                rateLimitBuckets: data.gaugeRateLimitBuckets,
+                predictionText: data.exhaustionPrediction?.formattedTimeRemaining,
                 size: .standard,
                 title: "\(data.primaryWindowLabel) Limit"
             )
@@ -131,13 +108,14 @@ struct ProviderSectionView: View {
             Image(systemName: data.provider.iconName)
                 .font(.system(size: 28))
                 .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
 
             VStack(spacing: 4) {
                 Text("Not set up")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
 
-                Text(setupInstructions(for: data.provider))
+                Text(data.provider.setupInstructions)
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
@@ -149,6 +127,7 @@ struct ProviderSectionView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                         .font(.system(size: 10))
+                        .accessibilityHidden(true)
                     Text(error)
                         .font(.system(size: 10))
                         .foregroundStyle(.orange)
@@ -162,14 +141,4 @@ struct ProviderSectionView: View {
         .compatGlassRoundedRect(cornerRadius: 16)
     }
 
-    private func setupInstructions(for provider: CLIProvider) -> String {
-        switch provider {
-        case .claudeCode:
-            return "Install Claude Code and sign in\nnpm i -g @anthropic-ai/claude-code"
-        case .codex:
-            return "Install Codex CLI and authenticate\nnpm i -g @openai/codex && codex --login"
-        case .gemini:
-            return "Install Gemini CLI and authenticate\nnpm i -g @google/gemini-cli"
-        }
-    }
 }

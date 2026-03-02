@@ -7,8 +7,8 @@ final class GeminiProviderService: BaseProviderService {
     private let apiKeyService = GeminiAPIService()
     private var oauthService: GeminiOAuthService?
     private var detection: GeminiDetector.Detection?
-    private var apiKeySnapshot: GeminiAPIService.UsageSnapshot?
-    private var oauthSnapshot: GeminiOAuthService.UsageSnapshot?
+    private var apiKeySnapshot: GeminiUsageSnapshot?
+    private var oauthSnapshot: GeminiUsageSnapshot?
 
     /// Whether we're using Google OAuth instead of API key
     private var isOAuthMode: Bool { detection?.googleAuth != nil }

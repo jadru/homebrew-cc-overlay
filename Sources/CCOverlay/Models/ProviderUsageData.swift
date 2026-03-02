@@ -30,6 +30,9 @@ struct ProviderUsageData: Sendable {
     let creditsInfo: CreditsDisplayInfo?
     let detailedRateWindows: [DetailedRateWindow]?
 
+    // Prediction
+    let exhaustionPrediction: RateLimitPrediction?
+
     // State
     let lastActivityAt: Date?     // When tokens were last consumed (nil if unknown)
     let error: String?
@@ -50,6 +53,7 @@ struct ProviderUsageData: Sendable {
         enterpriseQuota: EnterpriseQuota? = nil,
         creditsInfo: CreditsDisplayInfo? = nil,
         detailedRateWindows: [DetailedRateWindow]? = nil,
+        exhaustionPrediction: RateLimitPrediction? = nil,
         lastActivityAt: Date? = nil,
         error: String? = nil,
         lastRefresh: Date? = nil,
@@ -68,6 +72,7 @@ struct ProviderUsageData: Sendable {
         self.enterpriseQuota = enterpriseQuota
         self.creditsInfo = creditsInfo
         self.detailedRateWindows = detailedRateWindows
+        self.exhaustionPrediction = exhaustionPrediction
         self.lastActivityAt = lastActivityAt
         self.error = error
         self.lastRefresh = lastRefresh
