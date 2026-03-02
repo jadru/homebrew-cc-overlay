@@ -19,6 +19,7 @@ struct SettingsView: View {
             overlaySection
             displaySection
             alertsSection
+            developerSection
             rateLimitsSection
             dataSection
             startupSection
@@ -71,7 +72,17 @@ struct SettingsView: View {
                 .foregroundStyle(.tertiary)
 
             // Codex auth status indicator
-            codexAuthStatusRow
+            providerAuthStatusRow(
+                for: .codex,
+                data: multiService.usageData(for: .codex),
+                connectedMessage: { plan in
+                    if let plan {
+                        return "ChatGPT OAuth connected (plan: \(plan))"
+                    }
+                    return "ChatGPT OAuth connected"
+                },
+                notFoundText: "~/.codex/auth.json not found — install Codex CLI first"
+            )
 
             LabeledContent("Gemini API Key") {
                 SecureField("AIza...", text: Binding(
@@ -87,15 +98,29 @@ struct SettingsView: View {
                 .foregroundStyle(.tertiary)
 
             // Gemini auth status indicator
-            geminiAuthStatusRow
+            providerAuthStatusRow(
+                for: .gemini,
+                data: multiService.usageData(for: .gemini),
+                connectedMessage: { plan in
+                    if let plan {
+                        return "Google OAuth connected (\(plan))"
+                    }
+                    return "Google OAuth connected"
+                },
+                notFoundText: "~/.gemini not found — install Gemini CLI first"
+            )
         }
     }
 
     @ViewBuilder
-    private var codexAuthStatusRow: some View {
-        let codexData = multiService.usageData(for: .codex)
-        if settings.codexEnabled {
-            if let errorMsg = codexData.error {
+    private func providerAuthStatusRow(
+        for provider: CLIProvider,
+        data: ProviderUsageData,
+        connectedMessage: (String?) -> String,
+        notFoundText: String
+    ) -> some View {
+        if (provider == .codex ? settings.codexEnabled : settings.geminiEnabled) {
+            if let errorMsg = data.error {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -104,56 +129,21 @@ struct SettingsView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.orange)
                 }
-            } else if codexData.isAvailable, let plan = codexData.planName {
+            } else if data.isAvailable {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .font(.system(size: 10))
-                    Text("ChatGPT OAuth connected (plan: \(plan))")
+                    Text(connectedMessage(data.planName))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
-            } else if !multiService.activeProviders.contains(.codex) {
+            } else if !multiService.activeProviders.contains(provider) {
                 HStack(spacing: 4) {
                     Image(systemName: "minus.circle")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 10))
-                    Text("~/.codex/auth.json not found — install Codex CLI first")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var geminiAuthStatusRow: some View {
-        let geminiData = multiService.usageData(for: .gemini)
-        if settings.geminiEnabled {
-            if let errorMsg = geminiData.error {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.system(size: 10))
-                    Text(errorMsg)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.orange)
-                }
-            } else if geminiData.isAvailable, let plan = geminiData.planName {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.system(size: 10))
-                    Text("Google OAuth connected (\(plan))")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-            } else if !multiService.activeProviders.contains(.gemini) {
-                HStack(spacing: 4) {
-                    Image(systemName: "minus.circle")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 10))
-                    Text("~/.gemini not found — install Gemini CLI first")
+                    Text(notFoundText)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -249,6 +239,16 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private var developerSection: some View {
+        Section("Developer") {
+            Toggle("UI flow logging", isOn: $settings.debugFlowLogging)
+            Text("Log provider detection/render/notification transitions for local GUI validation")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
     // MARK: - Rate Limits Section
 
     @ViewBuilder
@@ -306,7 +306,7 @@ struct SettingsView: View {
 
             // Show hints for providers that are enabled but not active
             ForEach(CLIProvider.allCases) { provider in
-                if !multiService.activeProviders.contains(provider) && isProviderEnabled(provider) {
+                if !multiService.activeProviders.contains(provider) && settings.isEnabled(provider) {
                     if !multiService.activeProviders.isEmpty {
                         Divider()
                     }
@@ -321,7 +321,7 @@ struct SettingsView: View {
                 }
             }
 
-            if CLIProvider.allCases.allSatisfy({ !isProviderEnabled($0) }) {
+            if CLIProvider.allCases.allSatisfy({ !settings.isEnabled($0) }) {
                 Text("All providers are disabled — enable one in Providers above")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
@@ -463,34 +463,15 @@ struct SettingsView: View {
 
     // MARK: - Helpers
 
-    private func isProviderEnabled(_ provider: CLIProvider) -> Bool {
-        switch provider {
-        case .claudeCode: return settings.claudeCodeEnabled
-        case .codex: return settings.codexEnabled
-        case .gemini: return settings.geminiEnabled
-        }
-    }
-
     @ViewBuilder
     private func providerSetupHint(for provider: CLIProvider) -> some View {
         HStack(spacing: 4) {
             Image(systemName: "info.circle")
                 .foregroundStyle(.tertiary)
                 .font(.system(size: 10))
-            Text(setupHintText(for: provider))
+            Text(provider.setupHint)
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
-        }
-    }
-
-    private func setupHintText(for provider: CLIProvider) -> String {
-        switch provider {
-        case .claudeCode:
-            return "Install Claude Code and sign in to see rate limits"
-        case .codex:
-            return "Install Codex CLI and run 'codex --login' to see rate limits"
-        case .gemini:
-            return "Install Gemini CLI and run 'gemini' to authenticate"
         }
     }
 

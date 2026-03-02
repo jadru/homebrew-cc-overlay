@@ -90,11 +90,33 @@ final class MultiProviderUsageService {
 
     private func detectProviders(skipExisting: Bool = false) async {
         let interval = settings?.refreshInterval ?? AppConstants.defaultRefreshInterval
+        DebugFlowLogger.shared.log(
+            stage: .detection,
+            message: "scan.start",
+            details: [
+                "skipExisting": "\(skipExisting)",
+                "interval": "\(interval)"
+            ]
+        )
+
         var changed = false
 
         for providerType in CLIProvider.allCases {
-            guard isProviderEnabled(providerType) else { continue }
-            if skipExisting && services[providerType] != nil { continue }
+            guard let settings, settings.isEnabled(providerType) else { continue }
+            if skipExisting && services[providerType] != nil {
+                DebugFlowLogger.shared.log(
+                    stage: .detection,
+                    provider: providerType,
+                    message: "detect.skip.existing"
+                )
+                continue
+            }
+
+            DebugFlowLogger.shared.log(
+                stage: .detection,
+                provider: providerType,
+                message: "detect.start"
+            )
 
             if let service = await createAndDetect(for: providerType) {
                 services[providerType] = service
@@ -102,20 +124,34 @@ final class MultiProviderUsageService {
                     service.startMonitoring(interval: interval)
                 }
                 changed = true
+                DebugFlowLogger.shared.log(
+                    stage: .detection,
+                    provider: providerType,
+                    message: "detect.success"
+                )
+            } else {
+                DebugFlowLogger.shared.log(
+                    stage: .detection,
+                    provider: providerType,
+                    message: "detect.fail"
+                )
             }
         }
 
-        if changed || !skipExisting {
-            activeProviders = CLIProvider.allCases.filter { services[$0] != nil }
+        let nextActiveProviders = CLIProvider.allCases.filter { services[$0] != nil }
+        if nextActiveProviders != activeProviders {
+            DebugFlowLogger.shared.log(
+                stage: .display,
+                message: "active-providers.changed",
+                details: [
+                    "from": activeProviders.map(\.rawValue).joined(separator: ","),
+                    "to": nextActiveProviders.map(\.rawValue).joined(separator: ",")
+                ]
+            )
         }
-    }
 
-    private func isProviderEnabled(_ provider: CLIProvider) -> Bool {
-        guard let settings else { return true }
-        switch provider {
-        case .claudeCode: return settings.claudeCodeEnabled
-        case .codex: return settings.codexEnabled
-        case .gemini: return settings.geminiEnabled
+        if changed || !skipExisting {
+            activeProviders = nextActiveProviders
         }
     }
 
@@ -148,8 +184,8 @@ final class MultiProviderUsageService {
     }
 
     /// Claude-specific: needed for CostAlertManager backward compat.
-    var claudeOAuthUsage: OAuthUsageStatus {
-        (services[.claudeCode] as? ClaudeCodeProviderService)?.innerService.oauthUsage ?? .empty
+    var claudeOAuthUsage: ProviderUsageData {
+        (services[.claudeCode] as? ClaudeCodeProviderService)?.usageData ?? .empty(for: .claudeCode)
     }
 
     var lastRefresh: Date? {

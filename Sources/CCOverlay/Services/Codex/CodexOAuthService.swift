@@ -37,7 +37,6 @@ actor CodexOAuthService {
         let additionalLimits: [AdditionalLimit]
         let fetchedAt: Date
         let extraUsageEnabled: Bool
-        let rawKeys: [String]
     }
 
     struct AdditionalLimit: Sendable {
@@ -169,8 +168,6 @@ actor CodexOAuthService {
         }
 
         let extraUsageEnabled = json["extra_usage_enabled"] as? Bool ?? false
-        let rawKeys = Array(json.keys).sorted()
-
         return UsageSnapshot(
             planType: planType,
             primaryWindow: primaryWindow,
@@ -178,8 +175,7 @@ actor CodexOAuthService {
             credits: credits,
             additionalLimits: additionalLimits,
             fetchedAt: Date(),
-            extraUsageEnabled: extraUsageEnabled,
-            rawKeys: rawKeys
+            extraUsageEnabled: extraUsageEnabled
         )
     }
 

@@ -30,21 +30,17 @@ struct EnterpriseQuotaCardView: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Enterprise Quota")
-                    .font(size.headerFont)
-                    .foregroundStyle(.secondary)
-                if let orgName = quota.organizationName {
-                    Text(orgName)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
+        VStack(alignment: .leading, spacing: 1) {
+            CardHeader(
+                title: "Enterprise Quota",
+                iconName: "building.2",
+                size: size
+            )
+            if let orgName = quota.organizationName {
+                Text(orgName)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
             }
-            Spacer()
-            Image(systemName: "building.2")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -66,14 +62,11 @@ struct EnterpriseQuotaCardView: View {
             }
 
             GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.12))
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.usageTint(for: remainPct))
-                        .frame(width: geo.size.width * max(remainPct / 100.0, 0))
-                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: limit.utilizationPercentage)
-                }
+                SegmentedProgressBar(
+                    progress: remainPct,
+                    tint: Color.usageTint(for: remainPct),
+                    height: isPrimary ? 6 : 4
+                )
             }
             .frame(height: isPrimary ? 6 : 4)
 

@@ -20,15 +20,11 @@ struct CreditsInfoCardView: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        HStack {
-            Text("Plan & Credits")
-                .font(size.headerFont)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Image(systemName: "shield.checkered")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
+        CardHeader(
+            title: "Plan & Credits",
+            iconName: "shield.checkered",
+            size: size
+        )
     }
 
     // MARK: - Plan Badge

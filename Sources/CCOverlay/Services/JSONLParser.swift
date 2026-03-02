@@ -11,14 +11,8 @@ struct JSONLParser: Sendable {
         return decoder
     }()
 
-    private static nonisolated(unsafe) let isoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
     /// Parse a single JSONL file and extract all usage entries from assistant messages.
-    static func parseSessionFile(at url: URL) throws -> [ParsedUsageEntry] {
+    static func parseSessionFile(at url: URL, projectName: String? = nil) throws -> [ParsedUsageEntry] {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ParserError.fileNotFound
         }
@@ -40,7 +34,7 @@ struct JSONLParser: Sendable {
                   entry.type == "assistant",
                   let usage = entry.message?.usage,
                   let timestampStr = entry.timestamp,
-                  let timestamp = parseTimestamp(timestampStr)
+                  let timestamp = DateParsing.parseISO8601(timestampStr)
             else { continue }
 
             entries.append(
@@ -51,20 +45,12 @@ struct JSONLParser: Sendable {
                     outputTokens: usage.output_tokens ?? 0,
                     cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
                     cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-                    timestamp: timestamp
+                    timestamp: timestamp,
+                    projectName: projectName
                 ))
         }
 
         return entries
     }
 
-    private static func parseTimestamp(_ string: String) -> Date? {
-        if let date = isoFormatter.date(from: string) {
-            return date
-        }
-        // Fallback: try without fractional seconds
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        return fallback.date(from: string)
-    }
 }
