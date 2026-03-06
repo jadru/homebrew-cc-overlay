@@ -3,7 +3,6 @@ import Foundation
 enum CodexDetector {
     /// Auth mode for Codex
     enum AuthMode: Sendable {
-        case apiKey(String)
         case chatgpt(ChatGPTAuth)
     }
 
@@ -24,28 +23,21 @@ enum CodexDetector {
 
         var isAvailable: Bool { binaryPath != nil && authMode != nil }
 
-        var apiKey: String? {
-            if case .apiKey(let key) = authMode { return key }
-            return nil
-        }
-
         var chatgptAuth: ChatGPTAuth? {
             if case .chatgpt(let auth) = authMode { return auth }
             return nil
         }
     }
 
-    static func detect(manualAPIKey: String? = nil) -> Detection {
+    static func detect() -> Detection {
         let binaryPath = findBinary()
         let configPath = findConfigPath()
         let model = configPath.flatMap { parseModel(from: $0) }
 
-        // Try OAuth first (from ~/.codex/auth.json), then fall back to API key
+        // OAuth only (from ~/.codex/auth.json)
         let authMode: AuthMode?
         if let chatgptAuth = readChatGPTAuth() {
             authMode = .chatgpt(chatgptAuth)
-        } else if let key = findAPIKey(configPath: configPath, manualKey: manualAPIKey) {
-            authMode = .apiKey(key)
         } else {
             authMode = nil
         }
@@ -58,8 +50,6 @@ enum CodexDetector {
         )
 
         let authModeLabel = switch authMode {
-        case .apiKey:
-            "api-key"
         case .chatgpt:
             "chatgpt-oauth"
         case nil:
@@ -184,40 +174,10 @@ enum CodexDetector {
         return nil
     }
 
-    // MARK: - API Key Detection (priority: env > config.toml > manual)
-
-    private static func findAPIKey(configPath: String?, manualKey: String?) -> String? {
-        // 1. Environment variable
-        if let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"],
-           !key.isEmpty, key.hasPrefix("sk-")
-        {
-            return key
-        }
-
-        // 2. Parse from config.toml
-        if let path = configPath, let key = parseAPIKey(from: path) {
-            return key
-        }
-
-        // 3. Manual key from settings
-        if let key = manualKey, !key.isEmpty, key.hasPrefix("sk-") {
-            return key
-        }
-
-        return nil
-    }
-
     // MARK: - TOML Parsing (lightweight, line-based)
 
     private static func parseModel(from configPath: String) -> String? {
         return parseTOMLValue(key: "model", from: configPath)
-    }
-
-    private static func parseAPIKey(from configPath: String) -> String? {
-        guard let key = parseTOMLValue(key: "api_key", from: configPath),
-              key.hasPrefix("sk-")
-        else { return nil }
-        return key
     }
 
     private static func parseTOMLValue(key: String, from path: String) -> String? {

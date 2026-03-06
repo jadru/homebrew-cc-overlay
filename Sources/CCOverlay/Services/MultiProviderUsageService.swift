@@ -9,12 +9,38 @@ final class MultiProviderUsageService {
 
     private var services: [CLIProvider: any ProviderServiceProtocol] = [:]
     private var settings: AppSettings?
+    private var usageHistoryService: UsageHistoryService?
+    private var lastInterval: TimeInterval = AppConstants.defaultRefreshInterval
 
     init() {}
 
-    /// Bind settings for reading provider enable/disable and API keys.
-    func configure(settings: AppSettings) {
+    /// Bind settings for reading provider enable/disable.
+    func configure(settings: AppSettings, usageHistoryService: UsageHistoryService? = nil) {
         self.settings = settings
+        if let usageHistoryService {
+            self.usageHistoryService = usageHistoryService
+        }
+    }
+
+    func isProviderPaused(_ provider: CLIProvider) -> Bool {
+        settings?.isProviderPaused(provider) ?? false
+    }
+
+    func setProviderPaused(_ provider: CLIProvider, paused: Bool) {
+        guard let settings else { return }
+        settings.setProviderPaused(provider, paused: paused)
+
+        if paused {
+            if let service = services.removeValue(forKey: provider) {
+                service.stopMonitoring()
+            }
+            activeProviders = currentActiveProviders
+            return
+        }
+
+        Task {
+            await resumeProvider(provider)
+        }
     }
 
     // MARK: - Data Access
@@ -57,6 +83,7 @@ final class MultiProviderUsageService {
     // MARK: - Monitoring
 
     func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
+        lastInterval = interval
         Task {
             await detectProviders()
             for service in services.values {
@@ -89,7 +116,7 @@ final class MultiProviderUsageService {
     // MARK: - Detection
 
     private func detectProviders(skipExisting: Bool = false) async {
-        let interval = settings?.refreshInterval ?? AppConstants.defaultRefreshInterval
+        let interval = lastInterval
         DebugFlowLogger.shared.log(
             stage: .detection,
             message: "scan.start",
@@ -100,9 +127,17 @@ final class MultiProviderUsageService {
         )
 
         var changed = false
+        var servicesMutated = false
 
         for providerType in CLIProvider.allCases {
-            guard let settings, settings.isEnabled(providerType) else { continue }
+            guard let settings else { continue }
+            guard settings.isEnabled(providerType), !settings.isProviderPaused(providerType) else {
+                if let service = services.removeValue(forKey: providerType) {
+                    service.stopMonitoring()
+                    servicesMutated = true
+                }
+                continue
+            }
             if skipExisting && services[providerType] != nil {
                 DebugFlowLogger.shared.log(
                     stage: .detection,
@@ -152,21 +187,42 @@ final class MultiProviderUsageService {
 
         if changed || !skipExisting {
             activeProviders = nextActiveProviders
+        } else if servicesMutated {
+            activeProviders = nextActiveProviders
         }
     }
 
     private func createAndDetect(for provider: CLIProvider) async -> (any ProviderServiceProtocol)? {
         switch provider {
         case .claudeCode:
-            let service = ClaudeCodeProviderService()
+            let service = ClaudeCodeProviderService(usageHistoryService: usageHistoryService)
             return service.detect() ? service : nil
         case .codex:
             let service = CodexProviderService()
-            return await service.detect(manualAPIKey: settings?.codexAPIKey) ? service : nil
+            return await service.detect() ? service : nil
         case .gemini:
             let service = GeminiProviderService()
-            return await service.detect(manualAPIKey: settings?.geminiAPIKey) ? service : nil
+            return await service.detect() ? service : nil
         }
+    }
+
+    private func resumeProvider(_ provider: CLIProvider) async {
+        guard let settings else { return }
+        guard settings.isEnabled(provider), !settings.isProviderPaused(provider) else { return }
+        if services[provider] != nil {
+            services[provider]?.startMonitoring(interval: lastInterval)
+            activeProviders = currentActiveProviders
+            return
+        }
+
+        guard let service = await createAndDetect(for: provider) else { return }
+        services[provider] = service
+        service.startMonitoring(interval: lastInterval)
+        activeProviders = currentActiveProviders
+    }
+
+    private var currentActiveProviders: [CLIProvider] {
+        CLIProvider.allCases.filter { services[$0] != nil }
     }
 
     // MARK: - Backward Compatibility Helpers

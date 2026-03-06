@@ -22,7 +22,7 @@ extension View {
                 .background((tint ?? .clear), in: Circle())
                 .overlay(
                     Circle().strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : 0.14),
+                        Color.primary.opacity(interactive ? 0.22 : 0.14),
                         lineWidth: 0.8
                     )
                 )
@@ -61,7 +61,7 @@ extension View {
                 .background((tint ?? .clear), in: Capsule())
                 .overlay(
                     Capsule().strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : 0.14),
+                        Color.primary.opacity(interactive ? 0.22 : 0.14),
                         lineWidth: 0.8
                     )
                 )
@@ -111,7 +111,7 @@ extension View {
                 .background((tint ?? .clear), in: shape)
                 .overlay(
                     shape.strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : 0.14),
+                        Color.primary.opacity(interactive ? 0.22 : 0.14),
                         lineWidth: 0.8
                     )
                 )
@@ -121,12 +121,12 @@ extension View {
         self
             .background(.ultraThinMaterial, in: shape)
             .background((tint ?? .clear), in: shape)
-            .overlay(
-                shape.strokeBorder(
-                    Color.white.opacity(interactive ? 0.22 : 0.14),
-                    lineWidth: 0.8
+                .overlay(
+                    shape.strokeBorder(
+                        Color.primary.opacity(interactive ? 0.22 : 0.14),
+                        lineWidth: 0.8
+                    )
                 )
-            )
         #endif
     }
 }

@@ -3,6 +3,8 @@ import SwiftUI
 
 struct MenuBarView: View {
     let multiService: MultiProviderUsageService
+    let sessionMonitor: SessionMonitor
+    let usageHistoryService: UsageHistoryService?
     @Bindable var settings: AppSettings
     let updateService: UpdateService
     var onOpenSettings: (() -> Void)?
@@ -10,9 +12,28 @@ struct MenuBarView: View {
     @State private var selectedProvider: CLIProvider?
     @State private var showRefreshSuccess = false
     @State private var refreshRotation: Double = 0
+    @State private var keyboardMonitor: Any?
 
     private var activeProviderSet: Set<CLIProvider> {
         Set(multiService.activeProviders)
+    }
+
+    private var navigableProviders: [CLIProvider] {
+        let enabledProviders = CLIProvider.allCases.filter { settings.isEnabled($0) && !multiService.isProviderPaused($0) }
+        let activeEnabledProviders = enabledProviders.filter { activeProviderSet.contains($0) }
+        return activeEnabledProviders.isEmpty ? enabledProviders : activeEnabledProviders
+    }
+
+    private var isHistoryUnavailable: Bool {
+        usageHistoryService == nil
+    }
+
+    private var providerErrors: [CLIProvider: String] {
+        Dictionary(uniqueKeysWithValues: CLIProvider.allCases.compactMap { provider in
+            let err = multiService.usageData(for: provider).error
+            guard let err else { return nil }
+            return (provider, err)
+        })
     }
 
     var body: some View {
@@ -20,8 +41,13 @@ struct MenuBarView: View {
             ProviderTabSidebar(
                 providers: CLIProvider.allCases,
                 activeProviders: activeProviderSet,
+                pausedProviders: Set(CLIProvider.allCases.filter { multiService.isProviderPaused($0) }),
+                providerErrors: providerErrors,
                 selectedProvider: $selectedProvider,
-                onSettingsTapped: { onOpenSettings?() }
+                onSettingsTapped: { onOpenSettings?() },
+                onPauseResumeTapped: { provider in
+                    multiService.setProviderPaused(provider, paused: !multiService.isProviderPaused(provider))
+                }
             )
 
             Divider()
@@ -29,21 +55,20 @@ struct MenuBarView: View {
 
             contentArea
         }
-        .frame(width: 340)
+        .frame(width: 380)
+        .frame(minHeight: 700)
         .onAppear {
-            DebugFlowLogger.shared.log(
-                stage: .display,
-                message: "menuBar.appear",
-                details: ["active": activeProviderSet.map(\.rawValue).joined(separator: ",")]
-            )
-
-            if selectedProvider == nil {
-                selectedProvider = multiService.activeProviders.first ?? CLIProvider.allCases.first
-            }
+            initializeView()
+        }
+        .onDisappear {
+            stopKeyboardMonitor()
         }
         .onChange(of: multiService.activeProviders) { _, newProviders in
-            if let current = selectedProvider, !CLIProvider.allCases.contains(current) {
-                selectedProvider = newProviders.first ?? CLIProvider.allCases.first
+            if let current = selectedProvider, !newProviders.contains(current) {
+                selectedProvider = (newProviders.first ?? CLIProvider.allCases.first(where: settings.isEnabled)) ?? CLIProvider.allCases.first
+            }
+            if selectedProvider == nil {
+                selectedProvider = newProviders.first ?? CLIProvider.allCases.first(where: settings.isEnabled)
             }
 
             DebugFlowLogger.shared.log(
@@ -62,6 +87,7 @@ struct MenuBarView: View {
     }
 
     // MARK: - Content Area
+    private let maxSectionHeight: CGFloat = 1000
 
     @ViewBuilder
     private var contentArea: some View {
@@ -72,10 +98,13 @@ struct MenuBarView: View {
 
             if let provider = selectedProvider {
                 let data = multiService.usageData(for: provider)
-                ProviderSectionView(
-                    data: data,
-                    settings: settings
-                )
+                ScrollView {
+                    ProviderSectionView(
+                        data: data,
+                        activeSessions: provider == .claudeCode ? sessionMonitor.activeSessions : []
+                    )
+                }
+                .frame(maxHeight: maxSectionHeight)
             } else {
                 noProvidersView
             }
@@ -120,30 +149,81 @@ struct MenuBarView: View {
             Button("Copy Summary") {
                 guard let provider = selectedProvider else { return }
                 let data = multiService.usageData(for: provider)
-                let summary = UsageExportService.markdownSummary(data: data)
+                let summary = UsageExportService.markdownSummary(data: data, projects: data.projectCosts)
                 UsageExportService.copyToClipboard(summary)
             }
+
+            Divider()
+
+            Button("Copy Usage CSV") {
+                copyUsageCSV()
+            }
+            .disabled(isHistoryUnavailable || !hasHistoryForExport)
+
+            Button("Save Usage CSV...") {
+                Task {
+                    await saveUsageCSV()
+                }
+            }
+            .disabled(isHistoryUnavailable || !hasHistoryForExport)
         } label: {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 11))
-                .foregroundStyle(.primary)
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.primary)
+
+                if isHistoryUnavailable {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.yellow)
+                        .offset(x: 8, y: -8)
+                }
+            }
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+    }
+
+    private var hasHistoryForExport: Bool {
+        guard !isHistoryUnavailable, let snapshots = currentSnapshots() else { return false }
+        return !snapshots.isEmpty
+    }
+
+    private var historyBannerError: AppError? {
+        if isHistoryUnavailable {
+            return .historyStorageUnavailable
+        }
+
+        guard let provider = selectedProvider else { return nil }
+        guard let snapshots = currentSnapshots(), !snapshots.isEmpty else {
+            return .historyEmpty(provider: provider.rawValue)
+        }
+
+        return nil
+    }
+
+    private func copyUsageCSV() {
+        guard let snapshots = currentSnapshots(), !snapshots.isEmpty else { return }
+        let csv = UsageExportService.csvExport(snapshots: snapshots)
+        UsageExportService.copyToClipboard(csv)
+    }
+
+    private func saveUsageCSV() async {
+        guard let snapshots = currentSnapshots(), !snapshots.isEmpty else { return }
+        let csv = UsageExportService.csvExport(snapshots: snapshots)
+        await UsageExportService.saveCSVFile(csv)
+    }
+
+    private func currentSnapshots() -> [UsageSnapshot]? {
+        guard let provider = selectedProvider else { return nil }
+        return usageHistoryService?.dailySnapshots(for: provider, days: 7)
     }
 
     // MARK: - Refresh Button
 
     @ViewBuilder
     private var refreshButton: some View {
-        Button(action: {
-            DebugFlowLogger.shared.log(
-                stage: .display,
-                message: "menuBar.refresh.tapped",
-                details: ["provider": selectedProvider?.rawValue ?? "none"]
-            )
-            multiService.refresh()
-        }) {
+        Button(action: triggerRefresh) {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 12))
                 .foregroundStyle(showRefreshSuccess ? .green : .primary)
@@ -177,6 +257,15 @@ struct MenuBarView: View {
         }
     }
 
+    private func triggerRefresh() {
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "menuBar.refresh.tapped",
+            details: ["provider": selectedProvider?.rawValue ?? "none"]
+        )
+        multiService.refresh()
+    }
+
     // MARK: - No Providers
 
     @ViewBuilder
@@ -202,6 +291,10 @@ struct MenuBarView: View {
     @ViewBuilder
     private var footerSection: some View {
         VStack(spacing: 4) {
+            if let historyBannerError {
+                ErrorBannerView(error: historyBannerError, compact: true)
+            }
+
             if let lastRefresh = multiService.lastRefresh {
                 Text("Updated \(lastRefresh, style: .relative) ago")
                     .font(.system(size: 10))
@@ -211,10 +304,86 @@ struct MenuBarView: View {
             if let error = multiService.error {
                 ErrorBannerView(
                     error: AppError.from(error),
-                    onRetry: { multiService.refresh() },
+                    onRetry: triggerRefresh,
                     compact: false
                 )
             }
         }
+    }
+}
+
+extension MenuBarView {
+    private func initializeView() {
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "menuBar.appear",
+            details: ["active": activeProviderSet.map(\.rawValue).joined(separator: ",")]
+        )
+
+        if selectedProvider == nil {
+            selectedProvider = navigableProviders.first ?? activeProviderSet.first ?? CLIProvider.allCases.first
+        }
+
+        startKeyboardMonitor()
+    }
+
+    private func startKeyboardMonitor() {
+        guard keyboardMonitor == nil else { return }
+
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            return self.handleKeyDown(event) ? nil : event
+        }
+    }
+
+    private func stopKeyboardMonitor() {
+        if let monitor = keyboardMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        keyboardMonitor = nil
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags
+        let hasBlockingModifiers = modifiers.intersection([.command, .control, .option, .function, .capsLock]).isEmpty == false
+
+        if hasBlockingModifiers {
+            return false
+        }
+
+        switch event.keyCode {
+        case 126: // Up
+            moveProviderSelection(delta: -1)
+            return true
+        case 125: // Down
+            moveProviderSelection(delta: 1)
+            return true
+        case 15: // R
+            if event.charactersIgnoringModifiers?.lowercased() == "r" {
+                triggerRefresh()
+                return true
+            }
+            return false
+        default:
+            return false
+        }
+    }
+
+    private func moveProviderSelection(delta: Int) {
+        guard !navigableProviders.isEmpty else { return }
+
+        if let current = selectedProvider, let index = navigableProviders.firstIndex(of: current) {
+            let newIndex = (index + delta).modulo(navigableProviders.count)
+            selectedProvider = navigableProviders[newIndex]
+            return
+        }
+
+        selectedProvider = navigableProviders.first
+    }
+}
+
+private extension Int {
+    func modulo(_ divisor: Int) -> Int {
+        let remainder = self % divisor
+        return remainder >= 0 ? remainder : remainder + divisor
     }
 }

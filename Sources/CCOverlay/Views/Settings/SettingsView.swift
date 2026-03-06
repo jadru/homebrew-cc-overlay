@@ -42,7 +42,7 @@ struct SettingsView: View {
                         Circle()
                             .fill(isActive ? .green : .red)
                             .frame(width: 6, height: 6)
-                        Text(isActive ? "Active" : "Not detected")
+                        Text(isActive ? "Active" : "Not Detected")
                             .foregroundStyle(.secondary)
                     }
                 } label: {
@@ -54,22 +54,9 @@ struct SettingsView: View {
                 }
             }
 
-            Toggle("Enable Claude Code", isOn: $settings.claudeCodeEnabled)
-            Toggle("Enable Codex", isOn: $settings.codexEnabled)
-            Toggle("Enable Gemini", isOn: $settings.geminiEnabled)
-
-            LabeledContent("Codex API Key") {
-                SecureField("sk-...", text: Binding(
-                    get: { settings.codexAPIKey ?? "" },
-                    set: { settings.codexAPIKey = $0.isEmpty ? nil : $0 }
-                ))
-                .frame(width: 200)
-                .textFieldStyle(.roundedBorder)
-            }
-
-            Text("API key is read from: OPENAI_API_KEY env > ~/.codex/config.toml > manual entry above")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+            Toggle("Claude Code", isOn: $settings.claudeCodeEnabled)
+            Toggle("Codex", isOn: $settings.codexEnabled)
+            Toggle("Gemini", isOn: $settings.geminiEnabled)
 
             // Codex auth status indicator
             providerAuthStatusRow(
@@ -77,25 +64,12 @@ struct SettingsView: View {
                 data: multiService.usageData(for: .codex),
                 connectedMessage: { plan in
                     if let plan {
-                        return "ChatGPT OAuth connected (plan: \(plan))"
+                        return "ChatGPT OAuth connected (Plan: \(plan))"
                     }
                     return "ChatGPT OAuth connected"
                 },
-                notFoundText: "~/.codex/auth.json not found — install Codex CLI first"
+                notFoundText: "~/.codex/auth.json not found. Please install Codex CLI first"
             )
-
-            LabeledContent("Gemini API Key") {
-                SecureField("AIza...", text: Binding(
-                    get: { settings.geminiAPIKey ?? "" },
-                    set: { settings.geminiAPIKey = $0.isEmpty ? nil : $0 }
-                ))
-                .frame(width: 200)
-                .textFieldStyle(.roundedBorder)
-            }
-
-            Text("API key is read from: GEMINI_API_KEY env > ~/.gemini/.env > manual entry above")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
 
             // Gemini auth status indicator
             providerAuthStatusRow(
@@ -107,7 +81,7 @@ struct SettingsView: View {
                     }
                     return "Google OAuth connected"
                 },
-                notFoundText: "~/.gemini not found — install Gemini CLI first"
+                notFoundText: "~/.gemini folder not found. Please install Gemini CLI first"
             )
         }
     }
@@ -156,12 +130,12 @@ struct SettingsView: View {
     @ViewBuilder
     private var overlaySection: some View {
         Section("Overlay") {
-            Toggle("Show floating overlay", isOn: $settings.showOverlay)
+            Toggle("Show Floating Overlay", isOn: $settings.showOverlay)
 
-            Toggle("Always expanded", isOn: $settings.pillAlwaysExpanded)
+            Toggle("Always Expanded", isOn: $settings.pillAlwaysExpanded)
                 .disabled(!settings.showOverlay)
 
-            Toggle("Show daily cost", isOn: $settings.pillShowDailyCost)
+            Toggle("Show Daily Cost", isOn: $settings.pillShowDailyCost)
                 .disabled(!settings.showOverlay)
 
             LabeledContent("Opacity") {
@@ -176,7 +150,7 @@ struct SettingsView: View {
             }
             .disabled(!settings.showOverlay)
 
-            Toggle("Click-through mode", isOn: $settings.pillClickThrough)
+            Toggle("Click-Through Mode", isOn: $settings.pillClickThrough)
                 .disabled(!settings.showOverlay)
         }
     }
@@ -186,13 +160,13 @@ struct SettingsView: View {
     @ViewBuilder
     private var displaySection: some View {
         Section("Display") {
-            Picker("Menu bar indicator", selection: $settings.menuBarIndicatorStyle) {
+            Picker("Menu Bar Style", selection: $settings.menuBarIndicatorStyle) {
                 ForEach(MenuBarIndicatorStyle.allCases) { style in
-                    Text(style.rawValue).tag(style)
+                    Text(localizedMenuBarStyle(style)).tag(style)
                 }
             }
 
-            Toggle("Global hotkey (\u{2318}\u{21E7}A)", isOn: $settings.globalHotkeyEnabled)
+            Toggle("Global Hotkey (\u{2318}\u{21E7}A)", isOn: $settings.globalHotkeyEnabled)
         }
     }
 
@@ -201,10 +175,10 @@ struct SettingsView: View {
     @ViewBuilder
     private var alertsSection: some View {
         Section("Alerts") {
-            Toggle("Cost threshold alerts", isOn: $settings.costAlertEnabled)
+            Toggle("Cost Threshold Alerts", isOn: $settings.costAlertEnabled)
 
             if settings.costAlertEnabled {
-                LabeledContent("Warning threshold") {
+                LabeledContent("Warning Threshold") {
                     HStack(spacing: 8) {
                         Slider(value: $settings.alertWarningThreshold, in: 10...95, step: 1)
                             .frame(width: 140)
@@ -220,7 +194,7 @@ struct SettingsView: View {
                     }
                 }
 
-                LabeledContent("Critical threshold") {
+                LabeledContent("Critical Threshold") {
                     HStack(spacing: 8) {
                         Slider(value: $settings.alertCriticalThreshold, in: 20...100, step: 1)
                             .frame(width: 140)
@@ -242,8 +216,8 @@ struct SettingsView: View {
     @ViewBuilder
     private var developerSection: some View {
         Section("Developer") {
-            Toggle("UI flow logging", isOn: $settings.debugFlowLogging)
-            Text("Log provider detection/render/notification transitions for local GUI validation")
+            Toggle("UI Flow Logging", isOn: $settings.debugFlowLogging)
+            Text("Logs provider detection, rendering, and alert transitions for local GUI verification.")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -273,9 +247,9 @@ struct SettingsView: View {
                             Circle()
                                 .fill(.green)
                                 .frame(width: 6, height: 6)
-                            Text(provider == .claudeCode ? "Anthropic API (live)" :
-                                 provider == .codex ? "OpenAI (live)" :
-                                 "Google AI (estimated)")
+                            Text(provider == .claudeCode ? "Anthropic API (Live)" :
+                                 provider == .codex ? "OpenAI (Live)" :
+                                 "Google AI (Estimated)")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -322,7 +296,7 @@ struct SettingsView: View {
             }
 
             if CLIProvider.allCases.allSatisfy({ !settings.isEnabled($0) }) {
-                Text("All providers are disabled — enable one in Providers above")
+                Text("All providers are disabled. Please enable one in the Providers section above")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
@@ -334,14 +308,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var dataSection: some View {
         Section("Data") {
-            Picker("Claude plan tier", selection: $settings.planTier) {
+            Picker("Claude Plan Tier", selection: $settings.planTier) {
                 ForEach(PlanTier.allCases) { tier in
-                    Text(tier.rawValue).tag(tier)
+                    Text(localizedPlanTier(tier)).tag(tier)
                 }
             }
 
             if settings.planTier == .custom {
-                LabeledContent("Custom weighted limit") {
+                LabeledContent("Custom Weighted Limit") {
                     TextField(
                         "5,000,000",
                         value: $settings.customWeightedLimit,
@@ -352,11 +326,11 @@ struct SettingsView: View {
                 }
             }
 
-            Picker("Refresh interval", selection: $settings.refreshInterval) {
-                Text("15 seconds").tag(15.0 as TimeInterval)
-                Text("30 seconds").tag(30.0 as TimeInterval)
-                Text("1 minute").tag(60.0 as TimeInterval)
-                Text("5 minutes").tag(300.0 as TimeInterval)
+            Picker("Refresh Interval", selection: $settings.refreshInterval) {
+                Text("15s").tag(15.0 as TimeInterval)
+                Text("30s").tag(30.0 as TimeInterval)
+                Text("1m").tag(60.0 as TimeInterval)
+                Text("5m").tag(300.0 as TimeInterval)
             }
             .onChange(of: settings.refreshInterval) { _, newValue in
                 multiService.updateRefreshInterval(newValue)
@@ -369,7 +343,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var startupSection: some View {
         Section("Startup") {
-            Toggle("Launch at login", isOn: $settings.launchAtLogin)
+            Toggle("Launch at Login", isOn: $settings.launchAtLogin)
                 .onChange(of: settings.launchAtLogin) { _, enabled in
                     let service = SMAppService.mainApp
                     do {
@@ -390,15 +364,15 @@ struct SettingsView: View {
     @ViewBuilder
     private var updatesSection: some View {
         Section("Updates") {
-            Toggle("Automatic updates", isOn: $settings.autoUpdateEnabled)
+            Toggle("Auto Update", isOn: $settings.autoUpdateEnabled)
 
-            LabeledContent("Current version") {
+            LabeledContent("Current Version") {
                 Text(AppConstants.version)
                     .foregroundStyle(.secondary)
             }
 
             if let lastCheck = settings.lastUpdateCheck {
-                LabeledContent("Last checked") {
+                LabeledContent("Last Checked") {
                     Text(lastCheck, style: .relative)
                         .foregroundStyle(.secondary)
                 }
@@ -433,7 +407,7 @@ struct SettingsView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.system(size: 10))
-                Text("Up to date")
+                Text("Up to Date")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -442,7 +416,7 @@ struct SettingsView: View {
                 Image(systemName: "arrow.down.circle.fill")
                     .foregroundStyle(.blue)
                     .font(.system(size: 10))
-                Text("v\(version) available")
+                Text("\(version) Available")
                     .font(.system(size: 10))
                     .foregroundStyle(.blue)
             }
@@ -469,7 +443,7 @@ struct SettingsView: View {
             Image(systemName: "info.circle")
                 .foregroundStyle(.tertiary)
                 .font(.system(size: 10))
-            Text(provider.setupHint)
+            Text(localizedSetupHint(for: provider))
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -479,13 +453,13 @@ struct SettingsView: View {
     private func rateBucketRow(_ bucket: RateBucket) -> some View {
         LabeledContent(bucket.label) {
             HStack(spacing: 6) {
-                Text("\(Int(min(bucket.utilization, 100)))% used")
+                Text("\(Int(min(bucket.utilization, 100)))% Used")
                     .foregroundStyle(
                         bucket.utilization >= settings.alertCriticalThreshold ? .red :
                         bucket.utilization >= settings.alertWarningThreshold ? .orange : .secondary
                     )
                 if let resetsAt = bucket.resetsAt {
-                    Text("resets \(resetsAt, style: .relative)")
+                    Text("Resets \(resetsAt, style: .relative)")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -507,14 +481,14 @@ struct SettingsView: View {
             Text(quota.seatTier.displayName).foregroundStyle(.secondary)
         }
 
-        spendingLimitRow("Individual Cap", quota.individualLimit)
+        spendingLimitRow("Individual Limit", quota.individualLimit)
 
         if quota.seatTierLimit.capDollars > 0 {
-            spendingLimitRow("Tier Cap", quota.seatTierLimit)
+            spendingLimitRow("Tier Limit", quota.seatTierLimit)
         }
 
         if quota.organizationLimit.capDollars > 0 {
-            spendingLimitRow("Org Cap", quota.organizationLimit)
+            spendingLimitRow("Organization Limit", quota.organizationLimit)
         }
     }
 
@@ -528,11 +502,40 @@ struct SettingsView: View {
                         limit.utilizationPercentage >= settings.alertWarningThreshold ? .orange : .secondary
                     )
                 if let resetsAt = limit.resetsAt {
-                    Text("resets \(resetsAt, style: .relative)")
+                    Text("Resets \(resetsAt, style: .relative)")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
             }
+        }
+    }
+
+    private func localizedMenuBarStyle(_ style: MenuBarIndicatorStyle) -> String {
+        switch style {
+        case .pieChart: return "Pie Chart"
+        case .barChart: return "Bar Chart"
+        case .percentage: return "Percentage"
+        }
+    }
+
+    private func localizedPlanTier(_ tier: PlanTier) -> String {
+        switch tier {
+        case .pro: return "Pro ($20/mo)"
+        case .max5: return "Max ($100/mo)"
+        case .max20: return "Max ($200/mo)"
+        case .enterprise: return "Enterprise"
+        case .custom: return "Custom"
+        }
+    }
+
+    private func localizedSetupHint(for provider: CLIProvider) -> String {
+        switch provider {
+        case .claudeCode:
+            return "Install Claude Code and log in to view usage limits"
+        case .codex:
+            return "Install Codex CLI and run 'codex --login' to view usage limits"
+        case .gemini:
+            return "Install Gemini CLI and authenticate with 'gemini'"
         }
     }
 }

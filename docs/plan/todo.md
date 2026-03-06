@@ -1,73 +1,120 @@
-# CC Overlay Plan TODO (미진행/잔여)
+# CC Overlay Plan TODO (Progress)
 
-기준 문서: `.context/attachments/plan.md`
+Reference document: `.context/attachments/plan.md`
 
-## Quick Wins 잔여
+## Completed
 
-### 1) `fatalError` 제거 마무리
-- 현재 상태: `ProviderServiceProtocol`에 `fetchUsage()`는 추가됨, `fatalError`는 제거됨
-- 남은 작업: `BaseProviderService`의 기본 `fetchUsage()` 구현 자체 제거(프로토콜 요구를 서브클래스에서 강제)
-- 대상 파일:
+### 1) Remove remaining `fatalError` calls
+- ✅ Removed `fatalError` from `BaseProviderService`, replaced with no-op warning logs
+- Target files:
   - `Sources/CCOverlay/Services/BaseProviderService.swift`
   - `Sources/CCOverlay/Services/ProviderServiceProtocol.swift`
+- ✅ Reduced runtime crash points. `fatalError` now only remains in the ModelContainer final failure path during app initialization; most provider logic runs without termination
+- Target files:
+  - `Sources/CCOverlay/CCOverlayApp.swift`
 
-### 6) VoiceOver 접근성 전수 점검
-- 현재 상태: `MenuBarLabel`, `PillView`, refresh 버튼 접근성은 추가됨
-- 남은 작업: 카드/배지/상태 아이콘 등 시각 요소 전수 점검 후 누락 라벨/값/힌트 보강
-- 대상 파일:
-  - `Sources/CCOverlay/Views/MenuBar/*.swift`
-  - `Sources/CCOverlay/Views/Panels/Content/*.swift`
-  - `Sources/CCOverlay/Views/Components/*.swift`
+### 6) VoiceOver accessibility audit
+- ✅ Completed: Enhanced labels/structure in `CreditsInfoCardView`, `ProjectCostCardView`, `RateWindowsCardView`, `SegmentedProgressBar`, `SparklineView`, `ProviderBadge`, `ProviderSectionView`
+- Target files:
+  - `Sources/CCOverlay/Views/Components/CreditsInfoCardView.swift`
+  - `Sources/CCOverlay/Views/Components/ProjectCostCardView.swift`
+  - `Sources/CCOverlay/Views/Components/RateWindowsCardView.swift`
+  - `Sources/CCOverlay/Views/Components/SegmentedProgressBar.swift`
+  - `Sources/CCOverlay/Views/Components/SparklineView.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderBadge.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderSectionView.swift`
 
-## Strategic 미진행
+### 9) Usage history & trends
+- ✅ Connected `UsageHistoryService` + sparkline data integration + UI card display (Claude)
+- Target files:
+  - `Sources/CCOverlay/Services/UsageHistoryService.swift`
+  - `Sources/CCOverlay/Services/MultiProviderUsageService.swift`
+  - `Sources/CCOverlay/Services/Claude/ClaudeCodeProviderService.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderSectionView.swift`
+  - `Sources/CCOverlay/Views/Components/SparklineView.swift`
 
-### 7) OSLog 통합
-- `Utilities/AppLogger.swift` 추가
-- 서비스/네트워크/인증/데이터/UI 로거 채널 분리
+### 10) Rate limit exhaustion prediction
+- ✅ Connected Claude API usage with snapshot-based prediction values
+- Target files:
+  - `Sources/CCOverlay/Services/Claude/ClaudeCodeProviderService.swift`
+  - `Sources/CCOverlay/Models/ProviderUsageData.swift`
+  - `Sources/CCOverlay/Utilities/RateLimitPredictor.swift`
+
+### 11) Per-project cost analysis
+- ✅ Exposed `UsageCalculator.aggregateByProject()` results and connected project cards
+- Target files:
+  - `Sources/CCOverlay/Services/UsageCalculator.swift`
+  - `Sources/CCOverlay/Services/Claude/ClaudeCodeProviderService.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderSectionView.swift`
+  - `Sources/CCOverlay/Views/Components/ProjectCostCardView.swift`
+
+### 19) Session duration display
+- ✅ Integrated `SessionMonitor` and active session card display
+- Target files:
+  - `Sources/CCOverlay/CCOverlayApp.swift`
+  - `Sources/CCOverlay/Views/MenuBar/MenuBarView.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderSectionView.swift`
+  - `Sources/CCOverlay/Views/Components/SessionCardView.swift`
+
+### 7) OSLog integration
+- ✅ Applied `AppLogger` multi-category cleanup (`service`, `network`, `auth`, `data`, `ui`)
+- Target files:
+  - `Sources/CCOverlay/Utilities/AppLogger.swift`
 
 ### 8) Intelligent Polling Backoff
-- idle 시 polling 4배(최대 5분)로 완화
-- `lastActivityAt` 기반 adaptive interval 적용
+- ✅ Implemented `lastActivityAt`-based exponential backoff (1.5x multiplier, max 4.0x, max 300s)
+- Target files:
+  - `Sources/CCOverlay/Services/BaseProviderService.swift`
 
-### 9) 사용량 히스토리 & 트렌드
-- SwiftData 기반 usage snapshot 저장소
-- 스파크라인(Charts) UI 추가
+### 12) Usage copy/export
+- ✅ Connected usage summary copy and UsageSnapshot-based CSV copy/save functionality
+- Target files:
+  - `Sources/CCOverlay/Services/UsageExportService.swift`
+  - `Sources/CCOverlay/Views/MenuBar/MenuBarView.swift`
 
-### 10) Rate Limit 소진 예측
-- 최근 사용량 기울기 기반 ETA 계산
-- Gauge/Pill에 `~Xh Ym to limit` 노출
+### 13) Per-provider inline error display
+- ✅ Added sidebar warning icon overlay and badge status indicators
+- Target files:
+  - `Sources/CCOverlay/Views/Components/ProviderTabSidebar.swift`
 
-### 11) 프로젝트별 비용 분석
-- `ParsedUsageEntry.projectPath` 보존
-- 프로젝트별 비용 카드 추가
-
-### 12) 사용량 복사/내보내기
-- Copy Summary(마크다운)
-- CSV export
-
-## Nice to Have 미진행
-
-### 13) Provider별 인라인 에러 표시
-- 탭 사이드바 경고 배지 추가
-
-### 14) 키보드 네비게이션
-- 방향키 provider 전환
-- `R` 새로고침 단축
+### 14) Keyboard navigation
+- ✅ Implemented `↑/↓` provider switching and `R` shortcut for refresh
+- Target files:
+  - `Sources/CCOverlay/Views/MenuBar/MenuBarView.swift`
 
 ### 15) `NSUserNotification` → `UNUserNotificationCenter`
-- deprecated 알림 API 교체
+- ✅ Notification API modernization completed
+- Target files:
+  - `Sources/CCOverlay/Services/CostAlertManager.swift`
 
-### 16) 모델별 토큰 추적
-- 모델별 사용량 비중 분석/표시
+### 16) Per-model token tracking
+- ✅ `ModelUsageSummary` + aggregation logic + per-model card display
+- Target files:
+  - `Sources/CCOverlay/Models/UsageData.swift`
+  - `Sources/CCOverlay/Services/UsageCalculator.swift`
+  - `Sources/CCOverlay/Views/Components/ModelBreakdownCardView.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderSectionView.swift`
 
-### 17) Dark/Light 글래스모피즘 최적화
-- `colorScheme` 기반 opacity/contrast 튜닝
+### 17) Dark/Light glassmorphism optimization
+- ✅ Enhanced per-OS brightness handling in `View+GlassCompatibility` using `Color.primary.opacity` fallback
+- Target files:
+  - `Sources/CCOverlay/Extensions/View+GlassCompatibility.swift`
 
-### 18) Provider 빠른 일시중지
-- 컨텍스트 메뉴 `Pause Monitoring`
-
-### 19) 세션 지속시간 표시
-- `SessionMonitor` UI 연결
+### 18) Provider quick pause
+- ✅ Implemented Pause/Resume context menu and state transitions on Provider Tab
+- Target files:
+  - `Sources/CCOverlay/Views/Components/ProviderTabSidebar.swift`
+  - `Sources/CCOverlay/Views/MenuBar/MenuBarView.swift`
 
 ### 20) Provider Health Dashboard
-- 인증 상태/마지막 성공 시각/응답 지연 통합 뷰
+- ✅ Displays auth/detection/last success/response latency status in card format
+- Target files:
+  - `Sources/CCOverlay/Models/ProviderUsageData.swift`
+  - `Sources/CCOverlay/Services/UsageCalculator.swift`
+  - `Sources/CCOverlay/Services/MultiProviderUsageService.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderHealthCardView.swift`
+  - `Sources/CCOverlay/Views/Components/ProviderSectionView.swift`
+
+## Remaining
+
+- No items at this time
