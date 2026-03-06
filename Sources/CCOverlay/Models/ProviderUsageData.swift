@@ -23,6 +23,11 @@ struct ProviderUsageData: Sendable {
     // Token breakdown (optional)
     let tokenBreakdown: TokenBreakdownData?
 
+    // Trend + project analytics
+    let sparklineData: [Double]?
+    let projectCosts: [ProjectCostSummary]?
+    let modelBreakdowns: [ModelUsageSummary]?
+
     // Enterprise quota (Claude-specific, nil for Codex)
     let enterpriseQuota: EnterpriseQuota?
 
@@ -34,7 +39,11 @@ struct ProviderUsageData: Sendable {
     let exhaustionPrediction: RateLimitPrediction?
 
     // State
+    let isDetected: Bool
+    let isAuthenticated: Bool
     let lastActivityAt: Date?     // When tokens were last consumed (nil if unknown)
+    let lastSuccessfulRefresh: Date?
+    let lastResponseDuration: TimeInterval?
     let error: String?
     let lastRefresh: Date?
     let isLoading: Bool
@@ -50,11 +59,18 @@ struct ProviderUsageData: Sendable {
         planName: String? = nil,
         estimatedCost: CostSummary? = nil,
         tokenBreakdown: TokenBreakdownData? = nil,
+        sparklineData: [Double]? = nil,
+        projectCosts: [ProjectCostSummary]? = nil,
+        modelBreakdowns: [ModelUsageSummary]? = nil,
         enterpriseQuota: EnterpriseQuota? = nil,
         creditsInfo: CreditsDisplayInfo? = nil,
         detailedRateWindows: [DetailedRateWindow]? = nil,
         exhaustionPrediction: RateLimitPrediction? = nil,
+        isDetected: Bool = false,
+        isAuthenticated: Bool = false,
         lastActivityAt: Date? = nil,
+        lastSuccessfulRefresh: Date? = nil,
+        lastResponseDuration: TimeInterval? = nil,
         error: String? = nil,
         lastRefresh: Date? = nil,
         isLoading: Bool = false
@@ -69,11 +85,18 @@ struct ProviderUsageData: Sendable {
         self.planName = planName
         self.estimatedCost = estimatedCost
         self.tokenBreakdown = tokenBreakdown
+        self.sparklineData = sparklineData
+        self.projectCosts = projectCosts
+        self.modelBreakdowns = modelBreakdowns
         self.enterpriseQuota = enterpriseQuota
         self.creditsInfo = creditsInfo
         self.detailedRateWindows = detailedRateWindows
         self.exhaustionPrediction = exhaustionPrediction
+        self.isDetected = isDetected
+        self.isAuthenticated = isAuthenticated
         self.lastActivityAt = lastActivityAt
+        self.lastSuccessfulRefresh = lastSuccessfulRefresh
+        self.lastResponseDuration = lastResponseDuration
         self.error = error
         self.lastRefresh = lastRefresh
         self.isLoading = isLoading
@@ -91,6 +114,8 @@ struct ProviderUsageData: Sendable {
             usedPercentage: 0,
             remainingPercentage: 100,
             primaryWindowLabel: provider == .claudeCode ? "5h" : "Daily",
+            isDetected: false,
+            isAuthenticated: false,
             error: error,
             lastRefresh: lastRefresh,
             isLoading: isLoading

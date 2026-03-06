@@ -72,6 +72,14 @@ struct ProjectCostSummary: Identifiable, Sendable {
     let sessionCount: Int
 }
 
+struct ModelUsageSummary: Identifiable, Sendable {
+    var id: String { model }
+    let model: String
+    let tokenUsage: TokenUsage
+    let cost: CostBreakdown
+    let messageCount: Int
+}
+
 struct SessionUsage: Identifiable, Sendable {
     let id: String
     let model: String

@@ -14,6 +14,8 @@ struct CreditsInfoCardView: View {
         .padding(size.padding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(CardBackgroundModifier(useGlass: size == .standard, cornerRadius: size.cornerRadius))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Plan and credits information")
     }
 
     // MARK: - Header
@@ -37,6 +39,7 @@ struct CreditsInfoCardView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(planColor.opacity(0.8), in: Capsule())
+            .accessibilityLabel("Plan \(credits.planType)")
     }
 
     private var planColor: Color {
@@ -84,5 +87,7 @@ struct CreditsInfoCardView: View {
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(valueColor)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
     }
 }

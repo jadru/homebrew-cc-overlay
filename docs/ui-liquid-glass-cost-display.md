@@ -1,87 +1,87 @@
-# UI 리디자인: Liquid Glass + 달러 비용 표시
+# UI Redesign: Liquid Glass + Dollar Cost Display
 
-## 요약
+## Summary
 
-1. API 토큰 기반 **달러($) 비용 계산기** 추가 (모델별 정확한 가격 적용)
-2. **오버레이** — 원형 프로그레스 링 + glass squircle 위젯으로 재설계
-3. **메뉴바 팝오버** — `GlassEffectContainer` + glass 카드 기반 레이아웃
-4. **메뉴바 라벨** — 비용 표시 추가
-
----
-
-## 수정 파일 (10개)
-
-| 파일 | 변경 |
-|------|------|
-| `Models/CostCalculator.swift` | **신규** — 모델별 가격, CostBreakdown, 계산 로직 |
-| `Models/UsageData.swift` | `AggregatedUsage`에 `fiveHourCost`, `dailyCost` 필드 추가 |
-| `Services/UsageCalculator.swift` | `aggregate()`에서 비용 계산 호출 |
-| `Utilities/NumberFormatting.swift` | `formatDollarCost()`, `formatDollarCompact()` 추가 |
-| `Views/Overlay/OverlayView.swift` | **전면 재작성** — 원형 링 + glass squircle |
-| `Views/Overlay/OverlayWindow.swift` | 윈도우 크기 160x90 → 140x140 |
-| `Views/Overlay/OverlayWindowController.swift` | hostingView 크기 동기화 |
-| `Views/MenuBar/MenuBarView.swift` | **전면 재작성** — glass 카드 기반 |
-| `Views/MenuBar/MenuBarLabel.swift` | 달러 비용 추가 표시 |
-| `Tests/CostCalculatorTests.swift` | **신규** — 가격 조회, 비용 계산 테스트 |
+1. Add API token-based **dollar ($) cost calculator** (with accurate per-model pricing)
+2. **Overlay** — Redesigned with circular progress ring + glass squircle widget
+3. **Menu bar popover** — `GlassEffectContainer` + glass card-based layout
+4. **Menu bar label** — Added cost display
 
 ---
 
-## 1. CostCalculator (신규 파일)
+## Modified Files (10)
+
+| File | Change |
+|------|--------|
+| `Models/CostCalculator.swift` | **New** — Per-model pricing, CostBreakdown, calculation logic |
+| `Models/UsageData.swift` | Added `fiveHourCost`, `dailyCost` fields to `AggregatedUsage` |
+| `Services/UsageCalculator.swift` | Added cost calculation call in `aggregate()` |
+| `Utilities/NumberFormatting.swift` | Added `formatDollarCost()`, `formatDollarCompact()` |
+| `Views/Overlay/OverlayView.swift` | **Full rewrite** — Circular ring + glass squircle |
+| `Views/Overlay/OverlayWindow.swift` | Window size 160x90 → 140x140 |
+| `Views/Overlay/OverlayWindowController.swift` | hostingView size sync |
+| `Views/MenuBar/MenuBarView.swift` | **Full rewrite** — Glass card-based |
+| `Views/MenuBar/MenuBarLabel.swift` | Added dollar cost display |
+| `Tests/CostCalculatorTests.swift` | **New** — Price lookup, cost calculation tests |
+
+---
+
+## 1. CostCalculator (New File)
 
 `Sources/Amarillo/Models/CostCalculator.swift`
 
-### 모델별 가격 테이블
+### Per-Model Pricing Table
 
-| 모델 prefix | Input/MTok | Output/MTok | Cache Write/MTok | Cache Read/MTok |
+| Model prefix | Input/MTok | Output/MTok | Cache Write/MTok | Cache Read/MTok |
 |------------|-----------|------------|-----------------|----------------|
 | `claude-opus-4` | $15 | $75 | $18.75 | $1.50 |
 | `claude-sonnet-4` | $3 | $15 | $3.75 | $0.30 |
 | `claude-3-5-haiku` | $0.80 | $4 | $1.00 | $0.08 |
 | fallback (unknown) | $3 | $15 | $3.75 | $0.30 |
 
-### 구조체
+### Structs
 
-- `ModelPricing` — 모델별 MTok 단가 4종
-- `CostBreakdown` — input/output/cacheWrite/cacheRead 비용 + `totalCost` 계산 + `+` 연산자
-- `CostCalculator.cost(for: ParsedUsageEntry)` — 개별 엔트리 비용
-- `CostCalculator.cost(for: [ParsedUsageEntry])` — 엔트리 배열 비용 합산
-- `CostCalculator.cost(for: SessionUsage)` — 세션별 비용
+- `ModelPricing` — 4 per-MTok rates per model
+- `CostBreakdown` — input/output/cacheWrite/cacheRead costs + `totalCost` computation + `+` operator
+- `CostCalculator.cost(for: ParsedUsageEntry)` — Per-entry cost
+- `CostCalculator.cost(for: [ParsedUsageEntry])` — Sum of entry array costs
+- `CostCalculator.cost(for: SessionUsage)` — Per-session cost
 
-핵심: `TokenUsage`는 모델 정보가 없으므로 직접 비용 계산 불가. 반드시 `ParsedUsageEntry`(모델 포함) 단위로 계산 후 합산.
+Key: `TokenUsage` has no model information so cost cannot be calculated directly. Always calculate at the `ParsedUsageEntry` level (which includes model) then aggregate.
 
 ---
 
-## 2. UsageData.swift 수정
+## 2. UsageData.swift Changes
 
-`AggregatedUsage`에 2개 필드 추가:
+Add 2 fields to `AggregatedUsage`:
 
 ```swift
 struct AggregatedUsage: Sendable {
-    // ... 기존 필드 ...
-    let fiveHourCost: CostBreakdown   // 5시간 윈도우 비용
-    let dailyCost: CostBreakdown      // 오늘 비용
+    // ... existing fields ...
+    let fiveHourCost: CostBreakdown   // 5-hour window cost
+    let dailyCost: CostBreakdown      // Today's cost
 }
 ```
 
-`.empty` static도 `.zero` 값으로 업데이트.
+Update `.empty` static with `.zero` values.
 
 ---
 
-## 3. UsageCalculator.swift 수정
+## 3. UsageCalculator.swift Changes
 
-`aggregate()` 메서드에서 CostCalculator 호출 추가:
+Add CostCalculator call in `aggregate()` method:
 
 ```swift
 let windowCost = CostCalculator.cost(for: windowEntries)
 let dailyCost = CostCalculator.cost(for: dailyEntries)
-// AggregatedUsage 생성자에 전달
+// Pass to AggregatedUsage initializer
 ```
 
 ---
 
-## 4. NumberFormatting.swift 수정
+## 4. NumberFormatting.swift Changes
 
-2개 함수 추가:
+Add 2 functions:
 
 ```swift
 static func formatDollarCost(_ amount: Double) -> String
@@ -93,36 +93,36 @@ static func formatDollarCompact(_ amount: Double) -> String
 
 ---
 
-## 5. 오버레이 리디자인
+## 5. Overlay Redesign
 
-`OverlayView.swift` — 전면 재작성
+`OverlayView.swift` — Full rewrite
 
-### 디자인 컨셉
+### Design Concept
 
-현재 (capsule + text only) → **원형 프로그레스 링** 중심의 glass squircle 위젯
+Current (capsule + text only) → **Circular progress ring** centered glass squircle widget
 
 ```
 ┌──────────────────┐
 │                  │
 │    ╭──────╮      │
-│    │ ring │      │  ← 72x72 프로그레스 링
-│    │ 44%  │      │     남은 % 중앙 표시
+│    │ ring │      │  ← 72x72 progress ring
+│    │ 44%  │      │     Remaining % centered
 │    │ left │      │
 │    ╰──────╯      │
-│     $3.70        │  ← 5시간 비용
+│     $3.70        │  ← 5-hour cost
 │                  │
 └──────────────────┘
  .glassEffect(.regular.tint(color), in: .rect(cornerRadius: 28))
 ```
 
-### 뷰 구조
+### View Structure
 
 ```swift
 VStack(spacing: 6) {
-    // 프로그레스 링
+    // Progress ring
     ZStack {
-        Circle().stroke(secondary 0.15, lineWidth: 5)        // 배경 트랙
-        Circle().trim(0...usedPct/100).stroke(tint, 5pt)     // 진행 아크 (애니메이션)
+        Circle().stroke(secondary 0.15, lineWidth: 5)        // Background track
+        Circle().trim(0...usedPct/100).stroke(tint, 5pt)     // Progress arc (animated)
         VStack {
             Text("44%")  // 20pt bold rounded
             Text("left") // 9pt medium secondary
@@ -130,38 +130,38 @@ VStack(spacing: 6) {
     }
     .frame(72x72)
 
-    // 비용 라벨
+    // Cost label
     Text("$3.70")  // 11pt semibold rounded secondary
 }
 .padding(16)
 .glassEffect(.regular.tint(tintColor.opacity(0.3)), in: .rect(cornerRadius: 28))
 ```
 
-### 색상 로직 (tintColor)
+### Color Logic (tintColor)
 
 - remainPct <= 10 → `.red`
 - remainPct <= 30 → `.orange`
 - remainPct <= 60 → `.yellow`
 - else → `.green`
 
-Tint는 `opacity(0.3)`으로 glass 투명성 유지.
+Tint uses `opacity(0.3)` to maintain glass transparency.
 
-### 윈도우 크기 변경
+### Window Size Changes
 
 - `OverlayWindow.swift` contentRect: 160x90 → **140x140**
 - `OverlayWindowController.swift` hostingView.frame: 160x90 → **140x140**
 
 ---
 
-## 6. 메뉴바 팝오버 리디자인
+## 6. Menu Bar Popover Redesign
 
-`MenuBarView.swift` — 전면 재작성
+`MenuBarView.swift` — Full rewrite
 
-### 디자인 컨셉
+### Design Concept
 
-`GlassEffectContainer`로 전체 감싸고, 각 섹션을 glass 카드로 표현.
+Wrap everything in `GlassEffectContainer`, represent each section as glass cards.
 
-### 레이아웃 (width: 300)
+### Layout (width: 300)
 
 ```
 ┌─ GlassEffectContainer ──────────────────┐
@@ -189,46 +189,46 @@ Tint는 `opacity(0.3)`으로 glass 투명성 유지.
 │                                         │
 │  ┌─ glass card (tokens) ──────────────┐ │
 │  │  5-Hour Tokens                     │ │
-│  │  (기존 TokenBreakdownView)          │ │
+│  │  (existing TokenBreakdownView)     │ │
 │  └────────────────────────────────────┘ │
 │                                         │
-│  [Overlay toggle]         [⚙ Settings]  │  ← Settings 버튼: glass capsule interactive
+│  [Overlay toggle]         [⚙ Settings]  │  ← Settings button: glass capsule interactive
 │                                         │
 │  Updated 30s ago                        │
 │                                         │
 └─────────────────────────────────────────┘
 ```
 
-### Glass 사용 포인트
+### Glass Usage Points
 
-- 전체: `GlassEffectContainer { ... }` — 자식 glass 요소 시각적 통일
-- 리프레시 버튼: `.glassEffect(.regular.interactive(), in: .circle)` — 누르면 bounce
-- Primary gauge 카드: `.glassEffect(.regular, in: .rect(cornerRadius: 16))`
-- Window pills (5h/7d/Sonnet): `.glassEffect(.regular, in: .capsule)` — glass 캡슐
-- Cost 카드: `.glassEffect(.regular, in: .rect(cornerRadius: 16))`
-- Token breakdown 카드: `.glassEffect(.regular, in: .rect(cornerRadius: 16))`
-- Settings 버튼: `.glassEffect(.regular.interactive(), in: .capsule)`
+- Overall: `GlassEffectContainer { ... }` — Visual unification for child glass elements
+- Refresh button: `.glassEffect(.regular.interactive(), in: .circle)` — Bounces on press
+- Primary gauge card: `.glassEffect(.regular, in: .rect(cornerRadius: 16))`
+- Window pills (5h/7d/Sonnet): `.glassEffect(.regular, in: .capsule)` — Glass capsules
+- Cost card: `.glassEffect(.regular, in: .rect(cornerRadius: 16))`
+- Token breakdown card: `.glassEffect(.regular, in: .rect(cornerRadius: 16))`
+- Settings button: `.glassEffect(.regular.interactive(), in: .capsule)`
 
-### 헬퍼 함수
+### Helper Functions
 
-- `windowPill(label, bucket)` — glass capsule pill 뷰
-- `costChip(label, amount, color)` — 색상 dot + 비용 텍스트
+- `windowPill(label, bucket)` — Glass capsule pill view
+- `costChip(label, amount, color)` — Color dot + cost text
 - `windowLabel(String)` — "five_hour" → "Session Limit"
 - `formatPlanName(String)` — "max_5" → "Max ($100/mo)"
 
 ---
 
-## 7. 메뉴바 라벨 수정
+## 7. Menu Bar Label Changes
 
-`MenuBarLabel.swift` — 비용 추가 표시 (선택적)
+`MenuBarLabel.swift` — Optional cost display
 
 ```swift
 HStack(spacing: 4) {
     Image(systemName: "chart.bar.fill")
     if hasData {
-        Text("44%")           // 기존: 남은 %
+        Text("44%")           // Existing: remaining %
         if cost > 0 {
-            Text("$3.70")     // 신규: 5시간 비용 (caption2, secondary)
+            Text("$3.70")     // New: 5-hour cost (caption2, secondary)
         }
     }
 }
@@ -236,25 +236,25 @@ HStack(spacing: 4) {
 
 ---
 
-## 구현 순서
+## Implementation Order
 
-1. `CostCalculator.swift` 생성 + `CostCalculatorTests.swift` 생성
-2. `UsageData.swift` — `AggregatedUsage`에 cost 필드 추가
-3. `UsageCalculator.swift` — `aggregate()`에 cost 계산 추가
-4. `NumberFormatting.swift` — 달러 포맷 함수 추가
-5. `OverlayView.swift` — 전면 재작성
-6. `OverlayWindow.swift` — 크기 변경 (140x140)
-7. `OverlayWindowController.swift` — 크기 동기화
-8. `MenuBarView.swift` — 전면 재작성
-9. `MenuBarLabel.swift` — 비용 표시 추가
+1. Create `CostCalculator.swift` + `CostCalculatorTests.swift`
+2. `UsageData.swift` — Add cost fields to `AggregatedUsage`
+3. `UsageCalculator.swift` — Add cost calculation in `aggregate()`
+4. `NumberFormatting.swift` — Add dollar format functions
+5. `OverlayView.swift` — Full rewrite
+6. `OverlayWindow.swift` — Size change (140x140)
+7. `OverlayWindowController.swift` — Size sync
+8. `MenuBarView.swift` — Full rewrite
+9. `MenuBarLabel.swift` — Add cost display
 
 ---
 
-## 검증
+## Verification
 
-1. `swift build` 성공
-2. `swift test` — CostCalculator 테스트 통과
-3. 앱 실행 → 오버레이에 원형 링 + 비용 표시 확인
-4. 메뉴바 팝오버에 glass 카드 레이아웃 확인
-5. 비용이 합리적인 범위인지 확인 (5시간 사용량 기준 $0~$50 정도)
-6. 색상 tint가 사용량에 따라 변하는지 확인
+1. `swift build` succeeds
+2. `swift test` — CostCalculator tests pass
+3. Run app → Verify circular ring + cost display on overlay
+4. Verify glass card layout in menu bar popover
+5. Verify costs are in reasonable range (~$0–$50 for 5-hour usage)
+6. Verify color tint changes based on usage level

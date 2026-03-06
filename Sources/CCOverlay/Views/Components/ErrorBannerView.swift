@@ -59,7 +59,7 @@ struct ErrorBannerView: View {
         .onHover { isHovered = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Error: \(error.title). \(error.message)")
-        .accessibilityHint(error.isRetryable ? "Tap retry to try again" : "")
+        .accessibilityHint(error.isRetryable ? "Tap retry button to try again" : "")
     }
 }
 

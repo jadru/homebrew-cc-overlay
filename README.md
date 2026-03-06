@@ -51,7 +51,7 @@ Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to s
 | Source | Provider | How it works |
 |--------|----------|-------------|
 | **Anthropic API** | Claude Code | OAuth token from `~/.claude/credentials.json` — live 5-hour / weekly buckets, Enterprise quota |
-| **OpenAI API** | Codex CLI | OAuth or API key — daily/weekly rate limits, credit balance |
+| **OpenAI API** | Codex CLI | OAuth only — daily/weekly rate limits, credit balance |
 | **Local JSONL** | Claude Code | Falls back to `~/.claude/projects/**/usage.jsonl` — estimated from logged token counts |
 
 ### Menu bar dropdown
@@ -93,7 +93,6 @@ All settings persist via `UserDefaults` and are accessible from the Settings win
 | Launch at login | Off | Start with macOS |
 | Claude Code enabled | On | Monitor Claude Code usage |
 | Codex enabled | On | Monitor Codex CLI usage |
-| Codex API key | — | Manual API key for Codex (if not using OAuth) |
 
 ### Model pricing
 

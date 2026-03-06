@@ -13,6 +13,8 @@ struct SparklineView: View {
                     .stroke(lineColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Usage trend")
     }
 
     private func sparklinePath(in size: CGSize) -> Path {

@@ -4,14 +4,9 @@ import Observation
 @Observable
 @MainActor
 final class CodexProviderService: BaseProviderService {
-    private let apiKeyService = OpenAIAPIService()
     private var oauthService: CodexOAuthService?
     private var detection: CodexDetector.Detection?
-    private var apiKeySnapshot: OpenAIAPIService.UsageSnapshot?
     private var oauthSnapshot: CodexOAuthService.UsageSnapshot?
-
-    /// Whether we're using OAuth (chatgpt) auth instead of API key
-    private var isOAuthMode: Bool { detection?.chatgptAuth != nil }
 
     init() {
         super.init(provider: .codex)
@@ -19,17 +14,12 @@ final class CodexProviderService: BaseProviderService {
 
     // MARK: - Detection
 
-    /// Detect Codex CLI binary and auth credentials.
-    /// Supports both API key and ChatGPT OAuth modes.
-    func detect(manualAPIKey: String? = nil) async -> Bool {
-        detection = CodexDetector.detect(manualAPIKey: manualAPIKey)
+    /// Detect Codex CLI binary and auth credentials (OAuth only).
+    func detect() async -> Bool {
+        detection = CodexDetector.detect()
         setDetected(detection?.binaryPath != nil)
 
         switch detection?.authMode {
-        case .apiKey(let key):
-            setAuthenticated(true)
-            await apiKeyService.configure(apiKey: key)
-            oauthService = nil
         case .chatgpt(let auth):
             setAuthenticated(true)
             if let existing = oauthService {
@@ -48,11 +38,7 @@ final class CodexProviderService: BaseProviderService {
     // MARK: - Fetch
 
     override func fetchUsage() async {
-        if isOAuthMode {
-            await fetchOAuthUsage()
-        } else {
-            await fetchAPIKeyUsage()
-        }
+        await fetchOAuthUsage()
     }
 
     private func fetchOAuthUsage() async {
@@ -76,27 +62,10 @@ final class CodexProviderService: BaseProviderService {
         }
     }
 
-    private func fetchAPIKeyUsage() async {
-        do {
-            let snap = try await apiKeyService.fetchUsage()
-            trackActivity(newUsedPct: snap.budgetUtilization)
-            self.apiKeySnapshot = snap
-            markRefreshed()
-        } catch {
-            if self.apiKeySnapshot == nil {
-                setError(error.localizedDescription)
-            }
-        }
-    }
-
     // MARK: - Usage Data
 
     override var usageData: ProviderUsageData {
-        if isOAuthMode {
-            return oauthUsageData
-        } else {
-            return apiKeyUsageData
-        }
+        return oauthUsageData
     }
 
     // MARK: - OAuth -> ProviderUsageData
@@ -256,66 +225,15 @@ final class CodexProviderService: BaseProviderService {
             planName: planName,
             creditsInfo: creditsDisplay,
             detailedRateWindows: detailedWindows,
+            isDetected: isDetected,
+            isAuthenticated: isAuthenticated,
             lastActivityAt: lastActivityAt,
+            lastSuccessfulRefresh: lastSuccessfulRefresh,
+            lastResponseDuration: lastResponseDuration,
             error: error,
             lastRefresh: lastRefresh,
             isLoading: isLoading
         )
     }
 
-    // MARK: - API Key -> ProviderUsageData
-
-    private var apiKeyUsageData: ProviderUsageData {
-        guard let snap = apiKeySnapshot else {
-            return .empty(for: .codex, error: error, lastRefresh: lastRefresh, isLoading: isLoading)
-        }
-
-        let primaryLabel: String
-        let usedPct: Double
-        let remainPct: Double
-
-        if let credits = snap.credits, credits.totalGranted > 0 {
-            primaryLabel = "Credits"
-            usedPct = snap.budgetUtilization
-            remainPct = 100.0 - usedPct
-        } else {
-            primaryLabel = "Monthly"
-            usedPct = snap.budgetUtilization
-            remainPct = 100.0 - usedPct
-        }
-
-        var buckets: [RateBucket] = []
-        if snap.billing.hardLimitUSD > 0 || (snap.credits?.totalGranted ?? 0) > 0 {
-            buckets.append(RateBucket(
-                label: primaryLabel,
-                utilization: usedPct,
-                resetsAt: snap.periodEnd,
-                isWarning: usedPct >= AppConstants.warningThresholdPct
-            ))
-        }
-
-        let cost = CostSummary(
-            windowCost: snap.dailyUsageUSD,
-            windowLabel: "today",
-            dailyCost: snap.monthlyUsageUSD,
-            dailyLabel: "Monthly",
-            breakdown: nil
-        )
-
-        return ProviderUsageData(
-            provider: .codex,
-            isAvailable: true,
-            usedPercentage: usedPct,
-            remainingPercentage: remainPct,
-            primaryWindowLabel: primaryLabel,
-            resetsAt: snap.periodEnd,
-            rateLimitBuckets: buckets,
-            planName: snap.billing.planName,
-            estimatedCost: cost,
-            lastActivityAt: lastActivityAt,
-            error: error,
-            lastRefresh: lastRefresh,
-            isLoading: isLoading
-        )
-    }
 }
