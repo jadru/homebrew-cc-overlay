@@ -4,7 +4,31 @@ import SwiftUI
 /// Used in MenuBarView to render each detected provider.
 struct ProviderSectionView: View {
     let data: ProviderUsageData
-    let settings: AppSettings
+    let activeSessions: [ActiveSession]
+
+    private var maxProjectRows: Int {
+        switch data.provider {
+        case .claudeCode, .codex:
+            return 2
+        case .gemini:
+            return 3
+        }
+    }
+
+    private var maxModelRows: Int {
+        switch data.provider {
+        case .codex:
+            return 2
+        case .claudeCode:
+            return 4
+        case .gemini:
+            return 3
+        }
+    }
+
+    private var maxRateWindowRows: Int {
+        data.provider == .codex ? 3 : 4
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -12,8 +36,13 @@ struct ProviderSectionView: View {
             enterpriseQuotaCard
             creditsInfoCard
             costCard
+            modelBreakdownCard
             detailedRateWindowsCard
+            projectCostCard
+            usageTrendCard
+            activeSessionCard
             tokenBreakdownCard
+            healthCard
         }
     }
 
@@ -60,7 +89,11 @@ struct ProviderSectionView: View {
     @ViewBuilder
     private var detailedRateWindowsCard: some View {
         if let windows = data.detailedRateWindows, !windows.isEmpty {
-            RateWindowsCardView(windows: windows, size: .standard)
+            RateWindowsCardView(
+                windows: windows,
+                maxVisibleRows: maxRateWindowRows,
+                size: .standard
+            )
         }
     }
 
@@ -84,6 +117,65 @@ struct ProviderSectionView: View {
         }
     }
 
+    // MARK: - Models
+
+    @ViewBuilder
+    private var modelBreakdownCard: some View {
+        if let models = data.modelBreakdowns, !models.isEmpty {
+            ModelBreakdownCardView(
+                models: models,
+                maxVisibleRows: maxModelRows,
+                size: .standard
+            )
+        }
+    }
+
+    // MARK: - Projects
+
+    @ViewBuilder
+    private var projectCostCard: some View {
+        if let projects = data.projectCosts, !projects.isEmpty {
+            ProjectCostCardView(
+                projects: projects,
+                maxVisibleRows: maxProjectRows,
+                size: .standard
+            )
+        }
+    }
+
+    // MARK: - Usage Trend
+
+    @ViewBuilder
+    private var usageTrendCard: some View {
+        if let points = data.sparklineData, points.count >= 2 {
+            VStack(alignment: .leading, spacing: 10) {
+                CardHeader(
+                    title: "Usage Trend",
+                    iconName: "chart.line.uptrend.xyaxis",
+                    size: .standard
+                )
+                SparklineView(dataPoints: points)
+                    .frame(height: 34)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .modifier(CardBackgroundModifier(useGlass: true, cornerRadius: 16))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                "Usage trend over the last 7 days, latest value \(points.last.map { NumberFormatting.formatDollarCost($0) } ?? "$0.00")"
+            )
+        }
+    }
+
+    // MARK: - Active Sessions
+
+    @ViewBuilder
+    private var activeSessionCard: some View {
+        if data.provider == .claudeCode && !activeSessions.isEmpty {
+            SessionCardView(sessions: activeSessions, size: .standard)
+        }
+    }
+
     // MARK: - Token Breakdown
 
     @ViewBuilder
@@ -98,6 +190,13 @@ struct ProviderSectionView: View {
             .padding(14)
             .compatGlassRoundedRect(cornerRadius: 16)
         }
+    }
+
+    // MARK: - Provider Health
+
+    @ViewBuilder
+    private var healthCard: some View {
+        ProviderHealthCardView(data: data, size: .standard)
     }
 
     // MARK: - Setup Card (shown when provider is not available)
@@ -139,6 +238,8 @@ struct ProviderSectionView: View {
         .padding(.vertical, 24)
         .padding(.horizontal, 16)
         .compatGlassRoundedRect(cornerRadius: 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Provider not set up. \(data.provider.setupInstructions)")
     }
 
 }

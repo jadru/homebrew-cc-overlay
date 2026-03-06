@@ -14,5 +14,6 @@ struct ProviderBadge: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(provider.rawValue)
     }
 }

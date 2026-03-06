@@ -1,7 +1,7 @@
 import Foundation
 
 /// Parses local Gemini CLI telemetry and session data to estimate usage.
-/// Gemini CLI has no remote usage API, so we rely on local files.
+/// Uses local files only (no remote API calls).
 actor GeminiTelemetryParser {
     struct UsageEstimate: Sendable {
         let requestCount: Int
@@ -224,19 +224,12 @@ actor GeminiTelemetryParser {
 
 // MARK: - Gemini Tier
 
-/// Gemini has two distinct rate limit systems depending on auth mode.
-/// OAuth uses Code Assist quotas; API Key uses Developer API quotas.
+/// Gemini currently uses Code Assist quotas for OAuth-authenticated CLI usage.
 enum GeminiTier: Sendable {
-    // OAuth (Code Assist) tiers
     case codeAssistFree          // Personal Gmail only: 60 RPM, 1000 RPD
     case codeAssistPro           // Google AI Pro: 120 RPM, 1500 RPD
     case codeAssistEnterprise    // Standard/Enterprise: 120 RPM, 2000 RPD
     case codeAssistUnknown       // Workspace/unknown tier: use Free limits conservatively
-
-    // API Key (Developer API) tiers — limits are for gemini-2.5-pro
-    case apiFree                 // 5 RPM, 100 RPD
-    case apiPaidTier1            // 150 RPM, 1000 RPD
-    case apiPaidTier2            // 1000 RPM, 10000 RPD
 
     var displayName: String {
         switch self {
@@ -244,9 +237,6 @@ enum GeminiTier: Sendable {
         case .codeAssistPro: return "Pro"
         case .codeAssistEnterprise: return "Enterprise"
         case .codeAssistUnknown: return "Google Account"
-        case .apiFree: return "API Free"
-        case .apiPaidTier1: return "API Paid"
-        case .apiPaidTier2: return "API Tier 2"
         }
     }
 
@@ -257,9 +247,6 @@ enum GeminiTier: Sendable {
         case .codeAssistPro: return (120, 1500)
         case .codeAssistEnterprise: return (120, 2000)
         case .codeAssistUnknown: return (60, 1000) // Conservative: use free limits
-        case .apiFree: return (5, 100)
-        case .apiPaidTier1: return (150, 1000)
-        case .apiPaidTier2: return (1000, 10000)
         }
     }
 }

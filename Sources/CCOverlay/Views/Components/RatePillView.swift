@@ -5,6 +5,8 @@ struct RatePillView: View {
     let label: String
     let percentage: Int
     var showWarningIcon: Bool = false
+    var isSelected: Bool = false
+    var maxLabelWidth: CGFloat? = nil
     var size: Size = .regular
 
     enum Size {
@@ -49,6 +51,14 @@ struct RatePillView: View {
         Color.usageTint(for: Double(percentage))
     }
 
+    private var labelColor: Color {
+        isSelected ? .primary : .secondary
+    }
+
+    private var capsuleTint: Color {
+        isSelected ? tintColor.opacity(0.18) : Color.primary.opacity(0.05)
+    }
+
     var body: some View {
         HStack(spacing: size.spacing) {
             if showWarningIcon {
@@ -58,18 +68,26 @@ struct RatePillView: View {
             }
             Text(label)
                 .font(size.labelFont)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(labelColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: maxLabelWidth, alignment: .leading)
             Text("\(percentage)%")
                 .font(size.percentFont)
                 .foregroundStyle(tintColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: percentage)
         }
-        .fixedSize()
+        .fixedSize(horizontal: maxLabelWidth == nil, vertical: true)
         .padding(.horizontal, size.horizontalPadding)
         .padding(.vertical, size.verticalPadding)
-        .compatGlassCapsule()
+        .compatGlassCapsule(interactive: isSelected, tint: capsuleTint)
+        .opacity(isSelected ? 1.0 : 0.9)
         .animation(.easeInOut(duration: 0.3), value: tintColor)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label) window \(percentage) percent remaining")
     }

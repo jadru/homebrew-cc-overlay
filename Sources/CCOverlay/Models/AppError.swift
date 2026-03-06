@@ -8,6 +8,8 @@ enum AppError: LocalizedError, Equatable {
     case jsonlParseError(file: String)
     case keychainAccessDenied
     case noCredentials
+    case historyStorageUnavailable
+    case historyEmpty(provider: String)
     case unknown(message: String)
 
     var errorDescription: String? {
@@ -17,17 +19,21 @@ enum AppError: LocalizedError, Equatable {
     var title: String {
         switch self {
         case .networkUnavailable:
-            return "Network Unavailable"
+            return "Network Connection Error"
         case .apiError(let statusCode):
             return "API Error (\(statusCode))"
         case .apiUnauthorized:
-            return "Unauthorized"
+            return "Authentication Expired"
         case .jsonlParseError:
             return "Parse Error"
         case .keychainAccessDenied:
             return "Keychain Access Denied"
         case .noCredentials:
             return "No Credentials"
+        case .historyStorageUnavailable:
+            return "History Storage Unavailable"
+        case .historyEmpty:
+            return "No History Data"
         case .unknown:
             return "Error"
         }
@@ -36,17 +42,21 @@ enum AppError: LocalizedError, Equatable {
     var message: String {
         switch self {
         case .networkUnavailable:
-            return "Unable to reach Anthropic API. Check your internet connection."
+            return "Please check your internet connection."
         case .apiError(let statusCode):
-            return "The API returned an error with status code \(statusCode)."
+            return "Server returned error status (\(statusCode))."
         case .apiUnauthorized:
-            return "Your session has expired. Please re-authenticate in Claude Code."
+            return "Session expired. Please re-authenticate in Claude Code."
         case .jsonlParseError(let file):
             return "Failed to parse session file: \(file)"
         case .keychainAccessDenied:
-            return "Unable to access stored credentials. Check Keychain permissions."
+            return "Failed to access stored credentials. Please check Keychain permissions."
         case .noCredentials:
-            return "No OAuth credentials found. Use Claude Code to authenticate."
+            return "No OAuth credentials found. Please re-authenticate with Claude Code."
+        case .historyStorageUnavailable:
+            return "History storage is unavailable. Data saving and CSV export are disabled."
+        case .historyEmpty(let provider):
+            return "No usage records for \(provider). Records will appear here once recent usage is generated."
         case .unknown(let msg):
             return msg
         }
@@ -62,6 +72,8 @@ enum AppError: LocalizedError, Equatable {
             return "doc.badge.ellipsis"
         case .keychainAccessDenied, .noCredentials:
             return "key.slash"
+        case .historyStorageUnavailable, .historyEmpty:
+            return "tray.full"
         case .unknown:
             return "exclamationmark.triangle"
         }
@@ -71,7 +83,7 @@ enum AppError: LocalizedError, Equatable {
         switch self {
         case .networkUnavailable, .apiError, .jsonlParseError:
             return true
-        case .apiUnauthorized, .keychainAccessDenied, .noCredentials, .unknown:
+        case .apiUnauthorized, .keychainAccessDenied, .noCredentials, .historyStorageUnavailable, .historyEmpty, .unknown:
             return false
         }
     }

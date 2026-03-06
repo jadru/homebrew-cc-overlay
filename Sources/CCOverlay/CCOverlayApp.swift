@@ -8,9 +8,11 @@ struct CCOverlayApp: App {
     @State private var settings = AppSettings()
     @State private var costAlertManager = CostAlertManager()
     @State private var updateService = UpdateService()
+    @State private var usageHistoryService: UsageHistoryService?
+    @State private var sessionMonitor = SessionMonitor(autoStart: true)
     @State private var hasInitialized = false
 
-    private let modelContainer: ModelContainer = {
+    private let modelContainer: ModelContainer? = {
         let schema = Schema([UsageSnapshot.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: false)
         do {
@@ -21,7 +23,8 @@ struct CCOverlayApp: App {
                 let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
                 return try ModelContainer(for: schema, configurations: [inMemoryConfig])
             } catch {
-                fatalError("Failed to initialize in-memory ModelContainer: \(error)")
+                AppLogger.data.error("Failed to initialize in-memory ModelContainer: \(error)")
+                return nil
             }
         }
     }()
@@ -30,6 +33,8 @@ struct CCOverlayApp: App {
         MenuBarExtra {
             MenuBarView(
                 multiService: multiService,
+                sessionMonitor: sessionMonitor,
+                usageHistoryService: usageHistoryService,
                 settings: settings,
                 updateService: updateService,
                 onOpenSettings: {
@@ -83,7 +88,17 @@ struct CCOverlayApp: App {
 
         AppLogger.ui.info("Initializing app...")
         DebugFlowLogger.shared.configure(enabled: settings.debugFlowLogging)
-        multiService.configure(settings: settings)
+        if usageHistoryService == nil, let modelContainer {
+            usageHistoryService = UsageHistoryService(modelContainer: modelContainer)
+        }
+
+        if let usageHistoryService {
+            usageHistoryService.pruneOldData()
+            multiService.configure(settings: settings, usageHistoryService: usageHistoryService)
+        } else {
+            multiService.configure(settings: settings)
+        }
+
         multiService.startMonitoring(interval: settings.refreshInterval)
 
         updateService.configure(settings: settings)

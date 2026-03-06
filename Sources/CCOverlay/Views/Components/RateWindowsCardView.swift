@@ -3,18 +3,31 @@ import SwiftUI
 /// Displays detailed rate limit windows with progress bars and reset countdowns.
 struct RateWindowsCardView: View {
     let windows: [DetailedRateWindow]
+    var maxVisibleRows: Int? = nil
     var size: ComponentSize = .standard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             headerRow
-            ForEach(windows) { window in
+            ForEach(displayedWindows) { window in
                 windowRow(window)
+            }
+            if let maxVisibleRows, windows.count > maxVisibleRows {
+                Text("+ \(windows.count - maxVisibleRows) more")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(size.padding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(CardBackgroundModifier(useGlass: size == .standard, cornerRadius: size.cornerRadius))
+    }
+
+    private var displayedWindows: ArraySlice<DetailedRateWindow> {
+        guard let maxVisibleRows else {
+            return windows[...]
+        }
+        return windows.prefix(maxVisibleRows)
     }
 
     // MARK: - Header
@@ -34,6 +47,15 @@ struct RateWindowsCardView: View {
     private func windowRow(_ window: DetailedRateWindow) -> some View {
         let remainPct = window.remainingPercent
         let tint = Color.usageTint(for: remainPct)
+        let accessibilityText = {
+            let labelPrefix = "\(window.label) \(Int(window.usedPercent)) percent used"
+            guard let resetsAt = window.resetsAt, resetsAt > Date() else {
+                return labelPrefix
+            }
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            return "\(labelPrefix), resets \(formatter.localizedString(for: resetsAt, relativeTo: Date()))"
+        }()
 
         VStack(alignment: .leading, spacing: 4) {
             // Label + used percent
@@ -60,11 +82,14 @@ struct RateWindowsCardView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "clock")
                         .font(.system(size: 7))
+                        .accessibilityHidden(true)
                     Text("Resets \(resetsAt, style: .relative)")
                         .font(.system(size: 8))
                 }
                 .foregroundStyle(.tertiary)
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
     }
 }

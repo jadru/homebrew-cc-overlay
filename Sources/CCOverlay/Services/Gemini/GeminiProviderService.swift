@@ -4,14 +4,9 @@ import Observation
 @Observable
 @MainActor
 final class GeminiProviderService: BaseProviderService {
-    private let apiKeyService = GeminiAPIService()
     private var oauthService: GeminiOAuthService?
     private var detection: GeminiDetector.Detection?
-    private var apiKeySnapshot: GeminiUsageSnapshot?
     private var oauthSnapshot: GeminiUsageSnapshot?
-
-    /// Whether we're using Google OAuth instead of API key
-    private var isOAuthMode: Bool { detection?.googleAuth != nil }
 
     init() {
         super.init(provider: .gemini)
@@ -19,17 +14,12 @@ final class GeminiProviderService: BaseProviderService {
 
     // MARK: - Detection
 
-    /// Detect Gemini CLI binary and auth credentials.
-    /// Supports both Google OAuth and API key modes.
-    func detect(manualAPIKey: String? = nil) async -> Bool {
-        detection = GeminiDetector.detect(manualAPIKey: manualAPIKey)
+    /// Detect Gemini CLI binary and auth credentials (OAuth only).
+    func detect() async -> Bool {
+        detection = GeminiDetector.detect()
         setDetected(detection?.binaryPath != nil)
 
         switch detection?.authMode {
-        case .apiKey(let key):
-            setAuthenticated(true)
-            await apiKeyService.configure(apiKey: key)
-            oauthService = nil
         case .googleOAuth(let auth):
             setAuthenticated(true)
             if let existing = oauthService {
@@ -48,11 +38,7 @@ final class GeminiProviderService: BaseProviderService {
     // MARK: - Fetch
 
     override func fetchUsage() async {
-        if isOAuthMode {
-            await fetchOAuthUsage()
-        } else {
-            await fetchAPIKeyUsage()
-        }
+        await fetchOAuthUsage()
     }
 
     private func fetchOAuthUsage() async {
@@ -73,27 +59,10 @@ final class GeminiProviderService: BaseProviderService {
         }
     }
 
-    private func fetchAPIKeyUsage() async {
-        do {
-            let snap = try await apiKeyService.fetchUsage()
-            trackActivity(newUsedPct: snap.rpdUtilization)
-            self.apiKeySnapshot = snap
-            markRefreshed()
-        } catch {
-            if self.apiKeySnapshot == nil {
-                setError(error.localizedDescription)
-            }
-        }
-    }
-
     // MARK: - Usage Data
 
     override var usageData: ProviderUsageData {
-        if isOAuthMode {
-            return oauthUsageData
-        } else {
-            return apiKeyUsageData
-        }
+        return oauthUsageData
     }
 
     private var oauthUsageData: ProviderUsageData {
@@ -110,23 +79,6 @@ final class GeminiProviderService: BaseProviderService {
             costToday: snap.estimatedCostToday,
             model: snap.model,
             planSuffix: snap.accountEmail.map { " (\($0))" }
-        )
-    }
-
-    private var apiKeyUsageData: ProviderUsageData {
-        guard let snap = apiKeySnapshot else {
-            return .empty(for: .gemini, error: error, lastRefresh: lastRefresh, isLoading: isLoading)
-        }
-
-        return buildUsageData(
-            rpdUtilization: snap.rpdUtilization,
-            rpmUtilization: snap.rpmUtilization,
-            tier: snap.tier,
-            inputTokens: snap.estimatedInputTokens,
-            outputTokens: snap.estimatedOutputTokens,
-            costToday: snap.estimatedCostToday,
-            model: snap.model,
-            planSuffix: nil
         )
     }
 
@@ -190,7 +142,11 @@ final class GeminiProviderService: BaseProviderService {
             planName: planName,
             estimatedCost: cost,
             tokenBreakdown: tokenBreakdown,
+            isDetected: isDetected,
+            isAuthenticated: isAuthenticated,
             lastActivityAt: lastActivityAt,
+            lastSuccessfulRefresh: lastSuccessfulRefresh,
+            lastResponseDuration: lastResponseDuration,
             error: error,
             lastRefresh: lastRefresh,
             isLoading: isLoading

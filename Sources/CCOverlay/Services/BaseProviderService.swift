@@ -14,6 +14,8 @@ class BaseProviderService: ProviderServiceProtocol {
     private(set) var error: String?
     private(set) var lastRefresh: Date?
     private(set) var lastActivityAt: Date?
+    private(set) var lastSuccessfulRefresh: Date?
+    private(set) var lastResponseDuration: TimeInterval?
 
     private var lastKnownUsedPct: Double = -1
     private var refreshTimer: Timer?
@@ -29,7 +31,7 @@ class BaseProviderService: ProviderServiceProtocol {
 
     /// Subclasses must override this method.
     func fetchUsage() async {
-        fatalError("Subclass must override fetchUsage()")
+        AppLogger.service.warning("BaseProviderService.fetchUsage() called for \(self.provider.rawValue) without override")
     }
 
     /// Override in subclasses to build provider-specific usage data.
@@ -54,10 +56,12 @@ class BaseProviderService: ProviderServiceProtocol {
     }
 
     func refresh() {
+        let startedAt = Date()
         isLoading = true
         refreshTask?.cancel()
         refreshTask = Task {
             await fetchUsage()
+            self.lastResponseDuration = Date().timeIntervalSince(startedAt)
             isLoading = false
             adjustInterval()
         }
@@ -113,6 +117,7 @@ class BaseProviderService: ProviderServiceProtocol {
 
     func markRefreshed() {
         lastRefresh = Date()
+        lastSuccessfulRefresh = Date()
         error = nil
     }
 

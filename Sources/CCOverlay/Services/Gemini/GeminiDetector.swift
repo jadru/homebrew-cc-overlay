@@ -3,7 +3,6 @@ import Foundation
 enum GeminiDetector {
     /// Auth mode for Gemini CLI
     enum AuthMode: Sendable {
-        case apiKey(String)
         case googleOAuth(GoogleAuth)
     }
 
@@ -22,28 +21,21 @@ enum GeminiDetector {
 
         var isAvailable: Bool { binaryPath != nil && authMode != nil }
 
-        var apiKey: String? {
-            if case .apiKey(let key) = authMode { return key }
-            return nil
-        }
-
         var googleAuth: GoogleAuth? {
             if case .googleOAuth(let auth) = authMode { return auth }
             return nil
         }
     }
 
-    static func detect(manualAPIKey: String? = nil) -> Detection {
+    static func detect() -> Detection {
         let binaryPath = findBinary()
         let configPath = findConfigPath()
         let model = readConfiguredModel()
 
-        // Try Google OAuth first, then fall back to API key
+        // Google OAuth only
         let authMode: AuthMode?
         if let googleAuth = readGoogleAuth() {
             authMode = .googleOAuth(googleAuth)
-        } else if let key = findAPIKey(manualKey: manualAPIKey) {
-            authMode = .apiKey(key)
         } else {
             authMode = nil
         }
@@ -56,8 +48,6 @@ enum GeminiDetector {
         )
 
         let authModeLabel = switch authMode {
-        case .apiKey:
-            "api-key"
         case .googleOAuth:
             "google-oauth"
         case nil:
@@ -145,67 +135,6 @@ enum GeminiDetector {
             refreshToken: nil,
             accountEmail: email
         )
-    }
-
-    // MARK: - API Key Detection (priority: env > .env file > settings.json > manual)
-
-    private static func findAPIKey(manualKey: String?) -> String? {
-        // 1. Environment variable
-        if let key = ProcessInfo.processInfo.environment["GEMINI_API_KEY"],
-           !key.isEmpty
-        {
-            return key
-        }
-
-        // 2. .env file in ~/.gemini/
-        if let key = parseKeyFromEnvFile("\(AppConstants.geminiConfigPath)/.env", varName: "GEMINI_API_KEY") {
-            return key
-        }
-
-        // 3. settings.json
-        if let key = parseKeyFromSettingsJSON() {
-            return key
-        }
-
-        // 4. Manual key from app settings
-        if let key = manualKey, !key.isEmpty {
-            return key
-        }
-
-        return nil
-    }
-
-    private static func parseKeyFromEnvFile(_ path: String, varName: String) -> String? {
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
-        for line in contents.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard trimmed.hasPrefix("\(varName)=") else { continue }
-            var value = String(trimmed.dropFirst(varName.count + 1))
-                .trimmingCharacters(in: .whitespaces)
-            // Remove surrounding quotes
-            if (value.hasPrefix("\"") && value.hasSuffix("\""))
-                || (value.hasPrefix("'") && value.hasSuffix("'"))
-            {
-                value = String(value.dropFirst().dropLast())
-            }
-            return value.isEmpty ? nil : value
-        }
-        return nil
-    }
-
-    private static func parseKeyFromSettingsJSON() -> String? {
-        let path = "\(AppConstants.geminiConfigPath)/settings.json"
-        guard let data = FileManager.default.contents(atPath: path),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-
-        // Check top-level api_key or nested under "auth"
-        if let key = json["api_key"] as? String, !key.isEmpty { return key }
-        if let auth = json["auth"] as? [String: Any],
-           let key = auth["api_key"] as? String, !key.isEmpty
-        { return key }
-
-        return nil
     }
 
     // MARK: - Model Detection

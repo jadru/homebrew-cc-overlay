@@ -9,6 +9,12 @@ struct PillView: View {
     @State private var isHovered = false
     @State private var collapseTask: Task<Void, Never>?
 
+    private enum Layout {
+        static let providerColumnWidth: CGFloat = 46
+        static let rowIndent: CGFloat = 54
+        static let bucketLabelMaxWidth: CGFloat = 86
+    }
+
     private var activeProviders: [CLIProvider] {
         multiService.activeProviders
     }
@@ -110,12 +116,14 @@ struct PillView: View {
             }
         }
         .padding(.horizontal, isExpanded ? 16 : 10)
-        .padding(.vertical, isExpanded ? 14 : 6)
+        .padding(.top, isExpanded ? 14 : 6)
+        .padding(.bottom, isExpanded ? 16 : 6)
         .frame(maxWidth: isExpanded ? 280 : nil)
         .compatGlassRoundedRect(
             cornerRadius: isExpanded ? 20 : 50,
             tint: tintColor.opacity(0.25)
         )
+        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 50, style: .continuous))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isExpanded)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Overlay usage status")
@@ -125,56 +133,109 @@ struct PillView: View {
     // MARK: - Header
 
     private var pillHeader: some View {
-        HStack(spacing: activeProviders.count > 1 ? 8 : 5) {
+        Group {
             if activeProviders.count > 1 {
-                let recentlyActive = multiService.recentlyActiveProviders
-                let critical = criticalData
-
-                // Full display list: recently active (most consumed first) + critical if not already included
-                let fullDisplay: [CLIProvider] = {
-                    var list = recentlyActive
-                    if !list.contains(critical.provider) {
-                        list.append(critical.provider)
-                    }
-                    return list
-                }()
-
-                // Dim display: providers that are neither recently active nor critical
-                let dimDisplay = activeProviders.filter { !fullDisplay.contains($0) }
-
-                ForEach(fullDisplay, id: \.self) { provider in
-                    providerFullChip(data: multiService.usageData(for: provider))
-                }
-                ForEach(dimDisplay, id: \.self) { provider in
-                    providerDimChip(data: multiService.usageData(for: provider))
+                if isExpanded {
+                    expandedMultiProviderHeader
+                } else {
+                    compactMultiProviderHeader
                 }
             } else {
-                // Single provider: colored shortLabel + percentage + time
-                let data = criticalData
-                Text(data.provider.shortLabel)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-                    .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+                singleProviderHeader
+            }
+        }
+    }
 
-                Text(NumberFormatting.formatPercentage(remainPct))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.primary)
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remainPct)
-
-                if let resetsAt = data.resetsAt, resetsAt > Date() {
-                    resetCountdown(resetsAt)
-                }
+    private var compactMultiProviderHeader: some View {
+        HStack(spacing: 6) {
+            ForEach(headerDisplayProviders, id: \.self) { provider in
+                providerCompactHeaderPair(
+                    data: multiService.usageData(for: provider),
+                    isPrimary: provider == criticalData.provider
+                )
             }
 
             if isStale {
-                Image(systemName: "clock.badge.exclamationmark")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.yellow)
-                    .accessibilityHidden(true)
+                staleIndicator
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var expandedMultiProviderHeader: some View {
+        let critical = criticalData
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Remaining")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+
+                if let resetsAt = critical.resetsAt, resetsAt > Date() {
+                    headerDot
+                    Text("reset")
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    headerResetCountdown(resetsAt)
+                }
+
+                Spacer(minLength: 0)
+
+                if isStale {
+                    staleIndicator
+                }
+            }
+
+            HStack(spacing: 6) {
+                ForEach(headerDisplayProviders, id: \.self) { provider in
+                    providerHeaderChip(
+                        data: multiService.usageData(for: provider),
+                        isPrimary: provider == critical.provider
+                    )
+                }
+            }
+        }
+    }
+
+    private var singleProviderHeader: some View {
+        HStack(spacing: 5) {
+            let data = criticalData
+            Text(data.provider.shortLabel)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
+                .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+
+            Text(NumberFormatting.formatPercentage(remainPct))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .contentTransition(.numericText(countsDown: true))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remainPct)
+
+            if let resetsAt = data.resetsAt, resetsAt > Date() {
+                resetCountdown(resetsAt)
+            }
+
+            if isStale {
+                staleIndicator
+            }
+        }
+    }
+
+    private var headerDisplayProviders: [CLIProvider] {
+        guard activeProviders.count > 1 else { return activeProviders }
+
+        let criticalProvider = criticalData.provider
+        var ordered = [criticalProvider]
+
+        for provider in multiService.recentlyActiveProviders where provider != criticalProvider && activeProviders.contains(provider) {
+            ordered.append(provider)
+        }
+        for provider in activeProviders where !ordered.contains(provider) {
+            ordered.append(provider)
+        }
+
+        return ordered
     }
 
     private var accessibilityValue: String {
@@ -182,41 +243,100 @@ struct PillView: View {
             return "No provider usage data available"
         }
 
-        var value = "\(criticalData.provider.rawValue), \(Int(criticalData.remainingPercentage)) percent remaining"
+        var value: String
+        if activeProviders.count > 1 {
+            let summary = headerDisplayProviders.map { provider -> String in
+                let data = multiService.usageData(for: provider)
+                if data.isAvailable {
+                    return "\(provider.rawValue) \(Int(data.remainingPercentage)) percent"
+                }
+                return "\(provider.rawValue) unavailable"
+            }
+            value = "Remaining: \(summary.joined(separator: ", "))"
+        } else {
+            value = "\(criticalData.provider.rawValue), \(Int(criticalData.remainingPercentage)) percent remaining"
+        }
+
         if isStale {
             value += ", data may be stale"
         }
         return value
     }
 
-    /// Full display chip: shortLabel (colored) + percentage + reset countdown.
+    /// Compact header pair used when collapsed.
     @ViewBuilder
-    private func providerFullChip(data: ProviderUsageData) -> some View {
-        Text(data.provider.shortLabel)
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-            .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+    private func providerCompactHeaderPair(data: ProviderUsageData, isPrimary: Bool) -> some View {
+        HStack(spacing: 2) {
+            Text(data.provider.shortLabel)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(isPrimary ? .primary : .secondary)
+                .lineLimit(1)
 
-        Text(NumberFormatting.formatPercentage(data.remainingPercentage))
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-            .monospacedDigit()
-            .foregroundStyle(.primary)
-            .contentTransition(.numericText(countsDown: true))
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
-
-        if let resetsAt = data.resetsAt, resetsAt > Date() {
-            resetCountdown(resetsAt)
+            if data.isAvailable {
+                Text(NumberFormatting.formatPercentage(data.remainingPercentage))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: data.remainingPercentage)
+            } else {
+                Text("--")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
         }
+        .fixedSize()
+        .opacity(isPrimary ? 1.0 : 0.85)
     }
 
-    /// Dim label chip: shortLabel only, reduced opacity.
+    /// Expanded header chip with unified capsule style.
+    private func providerHeaderChip(data: ProviderUsageData, isPrimary: Bool) -> some View {
+        let valueColor: Color = data.isAvailable ? Color.usageTint(for: data.remainingPercentage) : .secondary
+        let capsuleTint: Color = isPrimary
+            ? Color.usageTint(for: data.remainingPercentage).opacity(0.18)
+            : Color.primary.opacity(0.05)
+
+        return HStack(spacing: 4) {
+            Text(data.provider.shortLabel)
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(data.isAvailable ? NumberFormatting.formatPercentage(data.remainingPercentage) : "--")
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(valueColor)
+                .contentTransition(.numericText(countsDown: true))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .compatGlassCapsule(interactive: isPrimary, tint: capsuleTint)
+        .fixedSize()
+    }
+
+    private var staleIndicator: some View {
+        Image(systemName: "clock.badge.exclamationmark")
+            .font(.system(size: 10))
+            .foregroundStyle(.yellow)
+            .accessibilityHidden(true)
+    }
+
+    private var headerDot: some View {
+        Circle()
+            .fill(Color.secondary.opacity(0.45))
+            .frame(width: 2, height: 2)
+            .accessibilityHidden(true)
+    }
+
     @ViewBuilder
-    private func providerDimChip(data: ProviderUsageData) -> some View {
-        Text(data.provider.shortLabel)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-            .opacity(0.7)
-            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+    private func headerResetCountdown(_ resetsAt: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let remaining = resetsAt.timeIntervalSince(context.date)
+            if remaining > 0 {
+                Text(formatCompactDuration(remaining))
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText(countsDown: true))
+            }
+        }
     }
 
     @ViewBuilder
@@ -275,53 +395,144 @@ struct PillView: View {
 
     private func providerRow(data: ProviderUsageData) -> some View {
         let barTint = Color.usageTint(for: data.remainingPercentage)
+        let hasWindowCost = (data.estimatedCost?.windowCost ?? 0) > 0
 
-        return VStack(spacing: 4) {
-            // Row: icon + label + progress bar + percentage + cost
-            HStack(spacing: 6) {
-                Image(systemName: data.provider.iconName)
-                    .font(.system(size: 8))
-                    .foregroundStyle(.tertiary)
-                Text(data.provider.shortLabel)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+        return VStack(alignment: .leading, spacing: 5) {
+            // Row: provider + progress bar + remaining + window cost
+            HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    Image(systemName: data.provider.iconName)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text(data.provider.shortLabel)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(width: Layout.providerColumnWidth, alignment: .leading)
 
                 SegmentedProgressBar(
                     progress: data.remainingPercentage,
                     tint: barTint,
-                    height: 5,
+                    height: 6,
                     cornerRadius: 999
                 )
+                .frame(height: 6)
 
                 Text(NumberFormatting.formatPercentage(data.remainingPercentage))
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(barTint)
                     .contentTransition(.numericText(countsDown: true))
                     .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
+                    .frame(width: 40, alignment: .trailing)
 
-                if let cost = data.estimatedCost, cost.windowCost > 0 {
-                    Text(NumberFormatting.formatDollarCompact(cost.windowCost))
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
+                Text(hasWindowCost ? NumberFormatting.formatDollarCompact(data.estimatedCost?.windowCost ?? 0) : "—")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(hasWindowCost ? Color.secondary : Color.secondary.opacity(0.65))
+                    .contentTransition(.numericText())
+                    .frame(width: 50, alignment: .trailing)
             }
 
-            // Rate limit pills
+            HStack(spacing: 6) {
+                Text("\(data.primaryWindowLabel) remaining")
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+
+                if let resetsAt = data.resetsAt, resetsAt > Date() {
+                    rowMetaDot
+                    rowResetCountdown(resetsAt)
+                }
+
+                if let cost = data.estimatedCost, cost.windowCost > 0 {
+                    rowMetaDot
+                    Text(cost.windowLabel)
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.leading, Layout.rowIndent)
+
             if !data.rateLimitBuckets.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(data.rateLimitBuckets) { bucket in
+                        let remaining = remainingPercent(for: bucket)
                         RatePillView(
-                            label: bucket.label,
-                            percentage: 100 - Int(min(bucket.utilization, 100)),
+                            label: compactBucketLabel(bucket.label),
+                            percentage: remaining,
+                            showWarningIcon: bucket.isWarning,
+                            isSelected: bucket.label == data.primaryWindowLabel,
+                            maxLabelWidth: Layout.bucketLabelMaxWidth,
                             size: .compact
                         )
+                        .help(bucketHelpText(bucket, remaining: remaining))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, Layout.rowIndent)
             }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+    }
+
+    private var rowMetaDot: some View {
+        Circle()
+            .fill(Color.secondary.opacity(0.45))
+            .frame(width: 2, height: 2)
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func rowResetCountdown(_ resetsAt: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let remaining = resetsAt.timeIntervalSince(context.date)
+            if remaining > 0 {
+                Text("reset \(formatCompactDuration(remaining))")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText(countsDown: true))
+            }
+        }
+    }
+
+    private func remainingPercent(for bucket: RateBucket) -> Int {
+        let remaining = 100 - Int(bucket.utilization.rounded())
+        return max(0, min(100, remaining))
+    }
+
+    private func bucketHelpText(_ bucket: RateBucket, remaining: Int) -> String {
+        if remaining == 0 {
+            return "\(bucket.label) window exhausted. Wait for reset."
+        }
+        if bucket.isWarning {
+            return "\(bucket.label) window is nearing its limit."
+        }
+        return "\(bucket.label) window \(remaining)% remaining."
+    }
+
+    private func compactBucketLabel(_ label: String) -> String {
+        let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = normalized.lowercased()
+        let standardWindows = ["5h", "7d", "daily", "per min", "weekly", "monthly", "credits", "per minute", "per hour"]
+
+        if standardWindows.contains(lower) || normalized.count <= 12 {
+            return normalized
+        }
+
+        if lower.contains("gpt") || lower.contains("claude") || lower.contains("gemini") || lower.contains("codex") {
+            return "Model"
+        }
+
+        if let first = normalized.split(separator: "-").first, first.count <= 10 {
+            return String(first)
+        }
+
+        return String(normalized.prefix(10))
     }
 
     // MARK: - Single Provider
@@ -393,19 +604,20 @@ struct PillView: View {
                 .padding(.horizontal, 8)
 
             HStack {
-                Text("Today")
+                Text("Today total")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
                 Text(NumberFormatting.formatDollarCost(cost))
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
                     .contentTransition(.numericText())
                     .animation(.spring(response: 0.4, dampingFraction: 0.8), value: cost)
             }
         }
+        .padding(.bottom, 2)
     }
 
     // MARK: - Enterprise Seat

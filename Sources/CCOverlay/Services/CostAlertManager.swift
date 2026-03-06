@@ -31,14 +31,38 @@ extension UNUserNotificationCenter: CostNotificationCenter {
     }
 }
 
+/// A no-op notification center for environments without a proper app bundle.
+private final class NoopNotificationCenter: CostNotificationCenter {
+    func getAuthorizationStatus(completion: @escaping (UNAuthorizationStatus) -> Void) {
+        completion(.denied)
+    }
+    func requestAuthorization(completion: @escaping (Bool) -> Void) {
+        completion(false)
+    }
+    func addNotificationRequest(_ request: UNNotificationRequest, completion: @escaping (Error?) -> Void) {
+        completion(nil)
+    }
+}
+
 @Observable
 final class CostAlertManager {
     private var lastAlertedThreshold: Double = 0
     private var lastWeeklyAlertedThreshold: Double = 0
-    private let notificationCenter: CostNotificationCenter
+    private var notificationCenter: CostNotificationCenter {
+        if let _notificationCenter { return _notificationCenter }
+        let center: CostNotificationCenter
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            center = UNUserNotificationCenter.current()
+        } else {
+            center = NoopNotificationCenter()
+        }
+        _notificationCenter = center
+        return center
+    }
+    private var _notificationCenter: CostNotificationCenter?
 
-    init(notificationCenter: CostNotificationCenter = UNUserNotificationCenter.current()) {
-        self.notificationCenter = notificationCenter
+    init(notificationCenter: CostNotificationCenter? = nil) {
+        self._notificationCenter = notificationCenter
     }
 
     func check(usedPercentage: Double, settings: AppSettings) {

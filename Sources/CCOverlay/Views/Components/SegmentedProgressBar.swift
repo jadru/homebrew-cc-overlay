@@ -23,5 +23,6 @@ struct SegmentedProgressBar: View {
             }
         }
         .frame(height: height)
+        .accessibilityHidden(true)
     }
 }

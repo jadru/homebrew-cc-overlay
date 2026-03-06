@@ -74,4 +74,22 @@ struct UsageCalculator: Sendable {
         }
         .sorted { $0.cost.totalCost > $1.cost.totalCost }
     }
+
+    /// Group entries by model and compute per-model token summaries.
+    static func aggregateByModel(entries: [ParsedUsageEntry], now: Date = Date()) -> [ModelUsageSummary] {
+        let dailyEntries = todayEntries(from: entries, now: now)
+        let grouped = Dictionary(grouping: dailyEntries) { $0.model.isEmpty ? "unknown" : $0.model }
+
+        return grouped.map { model, modelEntries in
+            let tokens = sumTokens(modelEntries)
+            let cost = CostCalculator.cost(for: modelEntries)
+            return ModelUsageSummary(
+                model: model,
+                tokenUsage: tokens,
+                cost: cost,
+                messageCount: modelEntries.count
+            )
+        }
+        .sorted { $0.cost.totalCost > $1.cost.totalCost }
+    }
 }

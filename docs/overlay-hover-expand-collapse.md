@@ -1,31 +1,31 @@
-# Overlay Hover Expand/Collapse 리디자인
+# Overlay Hover Expand/Collapse Redesign
 
-Overlay를 평소에는 아주 작은 퍼센트 pill로 표시하고, 마우스 호버 시 부드러운 애니메이션과 함께 펼쳐서 전체 정보를 보여준다.
+Display the overlay as a tiny percentage pill by default, and smoothly expand it on mouse hover with animation to show full information.
 
-## 핵심 동작
+## Core Behavior
 
-- **Compact (기본)**: 작은 glass capsule에 `72%` + 컬러 indicator만 표시 (~50x26)
-- **Expanded (호버)**: 현재처럼 gauge ring + cost + sessions 표시 (~130x180)
-- **전환**: spring 애니메이션으로 부드럽게 morphing
-- click-through 모드에서는 항상 compact (hover 감지 불가)
+- **Compact (default)**: Small glass capsule showing `72%` + color indicator only (~50x26)
+- **Expanded (hover)**: Shows gauge ring + cost + sessions as currently (~130x180)
+- **Transition**: Smooth morphing with spring animation
+- Click-through mode always shows compact (hover detection unavailable)
 
-## 수정 파일
+## Modified Files
 
-### `Sources/Amarillo/Views/Overlay/OverlayView.swift` (전면 재작성)
+### `Sources/Amarillo/Views/Overlay/OverlayView.swift` (full rewrite)
 
-`@State private var isExpanded = false`로 상태 관리.
+State management with `@State private var isExpanded = false`.
 
-**Compact 상태**:
+**Compact state**:
 ```
 ┌──────────┐
-│ ● 72%    │  ← 컬러 dot + 퍼센트, glass capsule
+│ ● 72%    │  ← color dot + percentage, glass capsule
 └──────────┘
 ```
-- tintColor dot (4px) + 퍼센트 텍스트 (size 13, bold, monospaced rounded)
+- tintColor dot (4px) + percentage text (size 13, bold, monospaced rounded)
 - `.glassEffect(.regular.tint(tintColor.opacity(0.3)), in: .capsule)`
 - padding: horizontal 10, vertical 6
 
-**Expanded 상태**:
+**Expanded state**:
 ```
 ┌─────────────────┐
 │    ╭──────╮     │
@@ -33,46 +33,46 @@ Overlay를 평소에는 아주 작은 퍼센트 pill로 표시하고, 마우스 
 │    │ left │     │
 │    ╰──────╯     │
 │     $3.50       │ ← cost
-│    ● 2 active   │ ← sessions (있을 때만)
+│    ● 2 active   │ ← sessions (only when present)
 │                 │
-│  5h 56% · 7d 72%│ ← rate limit windows (API 데이터 있을 때)
+│  5h 56% · 7d 72%│ ← rate limit windows (when API data available)
 └─────────────────┘
 ```
-- gauge ring: 64x64 (현재 72에서 약간 축소)
-- 모든 보조 텍스트는 opacity transition으로 fade in
+- gauge ring: 64x64 (slightly reduced from current 72)
+- All secondary text fades in with opacity transition
 - `.glassEffect(.regular.tint(tintColor.opacity(0.3)), in: .rect(cornerRadius: 24))`
 - padding: 14
 
-**애니메이션**:
+**Animation**:
 - `.onHover { hovering in withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { isExpanded = hovering } }`
 - gauge ring: `.scaleEffect` + `.opacity` transition
-- 보조 텍스트 (cost, sessions, windows): `.opacity` + `.offset` transition (아래에서 위로 올라오면서 나타남)
-- compact 퍼센트 텍스트: expanded 시 `.opacity(0)`으로 fade out
+- Secondary text (cost, sessions, windows): `.opacity` + `.offset` transition (slides up from below)
+- Compact percentage text: fades out with `.opacity(0)` when expanded
 
 ### `Sources/Amarillo/Views/Overlay/OverlayWindow.swift`
 
-- `contentRect`를 compact 기본 사이즈가 아닌 expanded 최대 사이즈로 설정 (~180x220)
-- 배경이 투명이므로 실제 보이는 것은 glass capsule만
+- Set `contentRect` to expanded max size (~180x220) instead of compact default
+- Background is transparent so only the glass capsule is visible
 
 ### `Sources/Amarillo/Views/Overlay/OverlayWindowController.swift`
 
-- `hostingView.frame`을 expanded 최대 크기에 맞게 변경 (~180x220)
-- 위치 계산 시 `overlayPosition`에 따라 anchor 방향 고려:
-  - topRight → 우측 상단 고정, 왼쪽+아래로 확장
-  - topLeft → 좌측 상단 고정, 오른쪽+아래로 확장
-  - bottomRight → 우측 하단 고정, 왼쪽+위로 확장
-  - bottomLeft → 좌측 하단 고정, 오른쪽+위로 확장
+- Change `hostingView.frame` to match expanded max size (~180x220)
+- Position calculation considers anchor direction based on `overlayPosition`:
+  - topRight → anchored top-right, expands left+down
+  - topLeft → anchored top-left, expands right+down
+  - bottomRight → anchored bottom-right, expands left+up
+  - bottomLeft → anchored bottom-left, expands right+up
 
-OverlayView에서 `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment:)`를 사용하여 적절한 코너에 정렬.
+Use `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment:)` in OverlayView to align to the appropriate corner.
 
-`settings.overlayPosition`을 OverlayView에 전달하여 alignment 계산에 사용.
+Pass `settings.overlayPosition` to OverlayView for alignment calculation.
 
 ## Verification
 
-1. `swift build` 성공
-2. 앱 실행 후 overlay 확인:
-   - 기본: 작은 pill에 퍼센트만 보임
-   - 마우스 hover: spring 애니메이션으로 부드럽게 펼쳐짐
-   - 마우스 벗어남: 부드럽게 접힘
-3. click-through 모드에서는 항상 compact
-4. 4개 position 모두에서 올바른 방향으로 확장되는지 확인
+1. `swift build` succeeds
+2. Run app and verify overlay:
+   - Default: small pill showing only percentage
+   - Mouse hover: smoothly expands with spring animation
+   - Mouse leave: smoothly collapses
+3. Click-through mode always shows compact
+4. All 4 positions expand in the correct direction

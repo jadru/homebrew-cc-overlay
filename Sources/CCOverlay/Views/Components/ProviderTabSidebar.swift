@@ -5,8 +5,11 @@ import SwiftUI
 struct ProviderTabSidebar: View {
     let providers: [CLIProvider]
     let activeProviders: Set<CLIProvider>
+    let pausedProviders: Set<CLIProvider>
+    let providerErrors: [CLIProvider: String]
     @Binding var selectedProvider: CLIProvider?
     var onSettingsTapped: () -> Void
+    var onPauseResumeTapped: (CLIProvider) -> Void
 
     var body: some View {
         VStack(spacing: 6) {
@@ -30,20 +33,45 @@ struct ProviderTabSidebar: View {
     private func tabButton(for provider: CLIProvider) -> some View {
         let isActive = activeProviders.contains(provider)
         let isSelected = selectedProvider == provider
+        let isPaused = pausedProviders.contains(provider)
+        let hasError = providerErrors[provider] != nil
 
         Button {
             withAnimation(.snappy(duration: 0.2)) {
                 selectedProvider = provider
             }
         } label: {
-            Image(systemName: provider.iconName)
-                .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .frame(width: 34, height: 34)
-                .contentShape(Rectangle())
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: provider.iconName)
+                    .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
+                    .padding(4)
+
+                if isPaused || hasError {
+                    HStack(spacing: 2) {
+                        if hasError {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.orange)
+                        }
+
+                        if isPaused {
+                            Image(systemName: "pause.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    .padding(3)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .accessibilityHidden(true)
+                    .offset(x: 3, y: -3)
+                }
+            }
         }
         .buttonStyle(.borderless)
-        .opacity(isActive ? 1.0 : 0.35)
+        .opacity((isActive ? 1.0 : 0.35) * (isPaused ? 0.45 : 1.0))
         .background {
             if isSelected {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -52,8 +80,22 @@ struct ProviderTabSidebar: View {
             }
         }
         .animation(.snappy(duration: 0.2), value: isSelected)
+        .contextMenu {
+            Button {
+                onPauseResumeTapped(provider)
+            } label: {
+                Label(
+                    isPaused ? "Resume" : "Pause",
+                    systemImage: isPaused ? "play.fill" : "pause.fill"
+                )
+            }
+        }
         .help(provider.rawValue)
-        .accessibilityLabel(provider.rawValue)
+        .accessibilityLabel(
+            "\(provider.rawValue)"
+            + (isPaused ? ", paused" : "")
+            + (hasError ? ", has warning" : "")
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 

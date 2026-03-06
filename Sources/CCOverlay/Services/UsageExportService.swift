@@ -62,6 +62,30 @@ enum UsageExportService {
         return lines.joined(separator: "\n")
     }
 
+    static func csvExport(snapshots: [UsageSnapshot]) -> String {
+        var lines: [String] = []
+        lines.append("timestamp,provider,interval_type,project,session_id,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_cost")
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+
+        for snapshot in snapshots.sorted(by: { $0.timestamp < $1.timestamp }) {
+            let ts = formatter.string(from: snapshot.timestamp)
+            let totalCost = String(format: "%.6f", snapshot.totalCost)
+            let provider = snapshot.provider.replacingOccurrences(of: "\"", with: "'")
+            let interval = snapshot.intervalType.replacingOccurrences(of: "\"", with: "'")
+            let project = snapshot.projectName?.replacingOccurrences(of: "\"", with: "'") ?? ""
+            let sessionId = ""
+            let model = ""
+
+            lines.append(
+                "\(ts),\(provider),\(interval),\(project),\(sessionId),\(model),\(snapshot.inputTokens),\(snapshot.outputTokens),\(snapshot.cacheCreationTokens),\(snapshot.cacheReadTokens),\(totalCost)"
+            )
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: - Clipboard
 
     @MainActor

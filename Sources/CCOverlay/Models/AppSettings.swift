@@ -27,9 +27,8 @@ final class AppSettings {
         static let lastUpdateCheck = "lastUpdateCheck"
         static let claudeCodeEnabled = "claudeCodeEnabled"
         static let codexEnabled = "codexEnabled"
-        static let codexAPIKey = "codexAPIKey"
         static let geminiEnabled = "geminiEnabled"
-        static let geminiAPIKey = "geminiAPIKey"
+        static let pausedProviders = "pausedProviders"
     }
 
     // MARK: - General
@@ -216,30 +215,6 @@ final class AppSettings {
         set { withMutation(keyPath: \.codexEnabled) { UserDefaults.standard.set(newValue, forKey: Key.codexEnabled) } }
     }
 
-    var codexAPIKey: String? {
-        get {
-            access(keyPath: \.codexAPIKey)
-            return KeychainHelper.readCodexAPIKey()
-        }
-        set {
-            withMutation(keyPath: \.codexAPIKey) {
-                guard let newValue, !newValue.isEmpty else {
-                    do {
-                        try KeychainHelper.deleteCodexAPIKey()
-                    } catch {
-                        AppLogger.data.error("Failed to delete Codex API key: \(error.localizedDescription)")
-                    }
-                    return
-                }
-                do {
-                    try KeychainHelper.saveCodexAPIKey(newValue)
-                } catch {
-                    AppLogger.data.error("Failed to save Codex API key: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
-
     // MARK: - Gemini Settings
 
     var geminiEnabled: Bool {
@@ -250,28 +225,36 @@ final class AppSettings {
         set { withMutation(keyPath: \.geminiEnabled) { UserDefaults.standard.set(newValue, forKey: Key.geminiEnabled) } }
     }
 
-    var geminiAPIKey: String? {
+    // MARK: - Pause Controls
+
+    var pausedProviders: Set<CLIProvider> {
         get {
-            access(keyPath: \.geminiAPIKey)
-            return KeychainHelper.readGeminiAPIKey()
+            access(keyPath: \.pausedProviders)
+            let raw = UserDefaults.standard.stringArray(forKey: Key.pausedProviders) ?? []
+            return Set(raw.compactMap(CLIProvider.init(rawValue:)))
         }
         set {
-            withMutation(keyPath: \.geminiAPIKey) {
-                guard let newValue, !newValue.isEmpty else {
-                    do {
-                        try KeychainHelper.deleteGeminiAPIKey()
-                    } catch {
-                        AppLogger.data.error("Failed to delete Gemini API key: \(error.localizedDescription)")
-                    }
-                    return
-                }
-                do {
-                    try KeychainHelper.saveGeminiAPIKey(newValue)
-                } catch {
-                    AppLogger.data.error("Failed to save Gemini API key: \(error.localizedDescription)")
-                }
+            withMutation(keyPath: \.pausedProviders) {
+                UserDefaults.standard.set(
+                    Array(newValue).map(\.rawValue),
+                    forKey: Key.pausedProviders
+                )
             }
         }
+    }
+
+    func isProviderPaused(_ provider: CLIProvider) -> Bool {
+        pausedProviders.contains(provider)
+    }
+
+    func setProviderPaused(_ provider: CLIProvider, paused: Bool) {
+        var updated = pausedProviders
+        if paused {
+            updated.insert(provider)
+        } else {
+            updated.remove(provider)
+        }
+        pausedProviders = updated
     }
 
     func isEnabled(_ provider: CLIProvider) -> Bool {
@@ -300,46 +283,7 @@ final class AppSettings {
             Key.claudeCodeEnabled: true,
             Key.codexEnabled: true,
             Key.geminiEnabled: true,
+            Key.pausedProviders: [],
         ])
-
-        migrateLegacyAPIKeysToKeychainIfNeeded()
-    }
-
-    private func migrateLegacyAPIKeysToKeychainIfNeeded() {
-        migrateLegacyAPIKeyIfNeeded(
-            userDefaultsKey: Key.codexAPIKey,
-            existingKeyInKeychain: KeychainHelper.readCodexAPIKey(),
-            saveToKeychain: { try KeychainHelper.saveCodexAPIKey($0) }
-        )
-
-        migrateLegacyAPIKeyIfNeeded(
-            userDefaultsKey: Key.geminiAPIKey,
-            existingKeyInKeychain: KeychainHelper.readGeminiAPIKey(),
-            saveToKeychain: { try KeychainHelper.saveGeminiAPIKey($0) }
-        )
-    }
-
-    private func migrateLegacyAPIKeyIfNeeded(
-        userDefaultsKey: String,
-        existingKeyInKeychain: String?,
-        saveToKeychain: (String) throws -> Void
-    ) {
-        let defaults = UserDefaults.standard
-        guard let legacyValue = defaults.string(forKey: userDefaultsKey), !legacyValue.isEmpty else {
-            return
-        }
-
-        if existingKeyInKeychain != nil {
-            defaults.removeObject(forKey: userDefaultsKey)
-            return
-        }
-
-        do {
-            try saveToKeychain(legacyValue)
-            defaults.removeObject(forKey: userDefaultsKey)
-        } catch {
-            AppLogger.data.error("Failed to migrate legacy key for \(userDefaultsKey): \(error.localizedDescription)")
-            // Keep legacy value in UserDefaults as fallback when migration fails.
-        }
     }
 }
