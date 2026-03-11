@@ -27,7 +27,7 @@ struct TokenBreakdownView: View {
                         .font(.caption.weight(.medium))
                     Spacer()
                     Text("")
-                    Text(NumberFormatting.formatTokenCount(usage.totalTokens))
+                    Text(NumberFormatting.formatTokenCount(usage.rawTokens))
                         .font(.system(.caption, design: .monospaced).weight(.medium))
                         .contentTransition(.numericText())
                 }
@@ -45,7 +45,7 @@ struct TokenBreakdownView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title): \(NumberFormatting.formatTokenCount(usage.totalTokens)) total tokens, \(NumberFormatting.formatWeightedCost(usage.weightedCost)) weighted cost")
+        .accessibilityLabel("\(title): \(NumberFormatting.formatTokenCount(usage.rawTokens)) total tokens, \(NumberFormatting.formatWeightedCost(usage.weightedCost)) weighted cost")
     }
 
     @ViewBuilder

@@ -41,6 +41,7 @@ actor CodexOAuthService {
 
     struct AdditionalLimit: Sendable {
         let limitName: String
+        let meteredFeature: String?
         let primaryWindow: RateLimitWindow?
     }
 
@@ -159,11 +160,16 @@ actor CodexOAuthService {
         if let additional = json["additional_rate_limits"] as? [[String: Any]] {
             for item in additional {
                 let name = item["limit_name"] as? String ?? item["metered_feature"] as? String ?? "unknown"
+                let meteredFeature = item["metered_feature"] as? String
                 var limPrimary: RateLimitWindow?
                 if let rl = item["rate_limit"] as? [String: Any] {
                     limPrimary = parseWindow(rl["primary_window"])
                 }
-                additionalLimits.append(AdditionalLimit(limitName: name, primaryWindow: limPrimary))
+                additionalLimits.append(AdditionalLimit(
+                    limitName: name,
+                    meteredFeature: meteredFeature,
+                    primaryWindow: limPrimary
+                ))
             }
         }
 

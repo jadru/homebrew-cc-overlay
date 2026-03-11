@@ -12,7 +12,7 @@ extension ProviderUsageData {
     }
 
     var gaugeWarningPercentage: Int? {
-        guard let weeklyBucket = rateLimitBuckets.first(where: { $0.label == "7d" }) else {
+        guard let weeklyBucket = rateLimitBuckets.first(where: { $0.label == "7d" || $0.label == "1w" }) else {
             return nil
         }
         return Int(min(max(weeklyBucket.utilization, 0), 100))

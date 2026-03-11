@@ -86,6 +86,7 @@ enum CodexDetector {
     private static func findBinary() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let candidates = [
+            "\(home)/Library/Application Support/com.conductor.app/bin/codex",
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex",
             "\(home)/.local/bin/codex",

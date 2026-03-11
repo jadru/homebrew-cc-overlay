@@ -1,3 +1,26 @@
+# v0.8.0
+
+## 메뉴바 리프레시, 오버레이 내비게이션, 프로바이더 파싱 안정화
+
+> [English](RELEASE_NOTES.md)
+
+### 주요 변경
+
+- **메뉴바 재설계** — 더 넓고 스크롤 가능한 패널, 정리된 프로바이더 헤더, 빠른 액션 클러스터, 개선된 빈 상태 안내 추가
+- **프로바이더 요약 카드** — Claude Code, Codex, Gemini를 빠르게 비교할 수 있는 compact/standard 요약 카드 추가
+- **오버레이 상세 탐색** — 확장 pill에서 프로바이더 선택, pin 고정, 세션 리셋/최근 활동 정보, stale 상태 표시 개선
+- **Settings 정리** — 설정을 더 명확한 섹션으로 재구성하고, 고급 인증 정보와 fallback 튜닝은 disclosure로 분리
+- **Claude OAuth 파싱 강화** — 중첩 payload 형태 지원, 잘못된 응답의 안전한 zero-bucket 처리, 플랜 식별자 정규화, Keychain access denied 대응 추가
+- **한도 표시 정규화 개선** — Claude fallback 추정이 감지된 플랜 티어와 세션 소진 예측을 사용하고, Codex 게이지는 가장 제한적인 window를 기준으로 더 읽기 쉬운 라벨을 표시
+- **회귀 테스트 추가** — OAuth 응답 파서와 프로바이더 사용량 정규화에 대한 집중 테스트 추가
+
+### Brew 릴리즈 메모
+
+- 릴리즈 자동화(`.github/workflows/release.yml`)가 태그 기준으로 Homebrew formula URL/SHA를 갱신하고 tap 저장소와 동기화
+- 이번 릴리즈 태그: `v0.8.0`
+
+---
+
 # v0.7.0
 
 ## Quick Wins: 안정성, 보안, 접근성

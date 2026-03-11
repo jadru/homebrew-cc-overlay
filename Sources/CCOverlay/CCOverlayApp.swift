@@ -42,7 +42,7 @@ struct CCOverlayApp: App {
             .onChange(of: multiService.usedPercentage) { _, newValue in
                 costAlertManager.check(usedPercentage: newValue, settings: settings)
             }
-            .onChange(of: multiService.claudeOAuthUsage.rateLimitBuckets.first(where: { $0.label == "7d" })?.utilization ?? 0) { _, weeklyPct in
+            .onChange(of: multiService.claudeOAuthUsage.rateLimitBuckets.first(where: { $0.label == "7d" || $0.label == "1w" })?.utilization ?? 0) { _, weeklyPct in
                 costAlertManager.checkWeekly(utilization: weeklyPct, settings: settings)
             }
             .onChange(of: settings.globalHotkeyEnabled) { _, _ in

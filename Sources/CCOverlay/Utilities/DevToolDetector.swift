@@ -18,6 +18,8 @@ enum DevToolDetector {
         "com.sublimetext.3",
         // Claude
         "com.anthropic.claudefordesktop",
+        // Codex
+        "com.openai.codex",
         // Conductor
         "com.conductor.app",
     ]
