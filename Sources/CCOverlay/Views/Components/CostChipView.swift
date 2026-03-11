@@ -52,6 +52,12 @@ struct CostBreakdownChips: View {
         HStack(spacing: size == .compact ? 8 : 12) {
             CostChipView(label: "In", amount: inputCost, color: .blue, size: size)
             CostChipView(label: "Out", amount: outputCost, color: .purple, size: size)
+            if cacheWriteCost >= 0.001 {
+                CostChipView(label: "Cache+", amount: cacheWriteCost, color: .orange, size: size)
+            }
+            if cacheReadCost >= 0.001 {
+                CostChipView(label: "Cache", amount: cacheReadCost, color: .mint, size: size)
+            }
         }
     }
 }

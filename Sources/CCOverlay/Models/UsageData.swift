@@ -31,6 +31,12 @@ struct TokenUsage: Sendable, Equatable {
     let cacheCreationInputTokens: Int
     let cacheReadInputTokens: Int
 
+    /// Raw tokens used for token count display:
+    /// cache read tokens are intentionally excluded from this view.
+    var rawTokens: Int {
+        inputTokens + outputTokens + cacheCreationInputTokens
+    }
+
     var totalTokens: Int {
         inputTokens + outputTokens + cacheCreationInputTokens + cacheReadInputTokens
     }

@@ -108,19 +108,17 @@ final class CodexProviderService: BaseProviderService {
 
         let primaryUsedPct = Double(snap.primaryWindow?.usedPercent ?? 0)
         let secondaryUsedPct = Double(snap.secondaryWindow?.usedPercent ?? 0)
-
-        // If secondary window is actively blocking, clamp gauge to 100%
-        let secondaryIsBlocking = (snap.secondaryWindow?.resetAfterSeconds ?? 0) > 0 && secondaryUsedPct >= 100
-        let effectiveUsedPct = secondaryIsBlocking ? 100.0 : primaryUsedPct
+        let effectiveUsedPct = Self.effectiveUsedPercentage(
+            primaryUsedPct: primaryUsedPct,
+            secondaryWindow: snap.secondaryWindow,
+            additionalLimits: snap.additionalLimits
+        )
         let remainPct = 100.0 - effectiveUsedPct
 
-        let primaryLabel: String
-        if let pw = snap.primaryWindow, pw.limitWindowSeconds > 0 {
-            let hours = pw.limitWindowSeconds / 3600
-            primaryLabel = hours > 0 ? "\(hours)h" : "\(pw.limitWindowSeconds / 60)m"
-        } else {
-            primaryLabel = "5h"
-        }
+        let primaryLabel = Self.normalizedWindowLabel(
+            windowSeconds: snap.primaryWindow?.limitWindowSeconds ?? 0,
+            fallback: "5h"
+        )
 
         var resetsAt: Date?
         if let pw = snap.primaryWindow, pw.resetAt > 0 {
@@ -138,13 +136,10 @@ final class CodexProviderService: BaseProviderService {
             ))
         }
         if let sw = snap.secondaryWindow {
-            let secondaryLabel: String
-            if sw.limitWindowSeconds > 0 {
-                let days = sw.limitWindowSeconds / Int(AppConstants.secondsPerDay)
-                secondaryLabel = days > 0 ? "\(days)d" : "\(sw.limitWindowSeconds / 3600)h"
-            } else {
-                secondaryLabel = "7d"
-            }
+            let secondaryLabel = Self.normalizedWindowLabel(
+                windowSeconds: sw.limitWindowSeconds,
+                fallback: "1w"
+            )
             var secondaryResets: Date?
             if sw.resetAt > 0 {
                 secondaryResets = Date(timeIntervalSince1970: TimeInterval(sw.resetAt))
@@ -158,12 +153,16 @@ final class CodexProviderService: BaseProviderService {
         }
         for limit in snap.additionalLimits {
             if let pw = limit.primaryWindow {
+                let limitLabel = Self.normalizedAdditionalLimitLabel(
+                    limitName: limit.limitName,
+                    meteredFeature: limit.meteredFeature
+                )
                 var limitResets: Date?
                 if pw.resetAt > 0 {
                     limitResets = Date(timeIntervalSince1970: TimeInterval(pw.resetAt))
                 }
                 buckets.append(RateBucket(
-                    label: limit.limitName,
+                    label: limitLabel,
                     utilization: Double(pw.usedPercent),
                     resetsAt: limitResets,
                     isWarning: pw.usedPercent >= Int(AppConstants.warningThresholdPct)
@@ -204,13 +203,10 @@ final class CodexProviderService: BaseProviderService {
             ))
         }
         if let sw = snap.secondaryWindow {
-            let secLabel: String
-            if sw.limitWindowSeconds > 0 {
-                let days = sw.limitWindowSeconds / Int(AppConstants.secondsPerDay)
-                secLabel = days > 0 ? "\(days)d" : "\(sw.limitWindowSeconds / 3600)h"
-            } else {
-                secLabel = "7d"
-            }
+            let secLabel = Self.normalizedWindowLabel(
+                windowSeconds: sw.limitWindowSeconds,
+                fallback: "1w"
+            )
             var secResets: Date?
             if sw.resetAt > 0 {
                 secResets = Date(timeIntervalSince1970: TimeInterval(sw.resetAt))
@@ -228,13 +224,17 @@ final class CodexProviderService: BaseProviderService {
         }
         for limit in snap.additionalLimits {
             if let pw = limit.primaryWindow {
+                let limitLabel = Self.normalizedAdditionalLimitLabel(
+                    limitName: limit.limitName,
+                    meteredFeature: limit.meteredFeature
+                )
                 var limitResets: Date?
                 if pw.resetAt > 0 {
                     limitResets = Date(timeIntervalSince1970: TimeInterval(pw.resetAt))
                 }
                 detailedWindows.append(DetailedRateWindow(
-                    id: limit.limitName,
-                    label: limit.limitName,
+                    id: limitLabel,
+                    label: limitLabel,
                     usedPercent: Double(pw.usedPercent),
                     remainingPercent: 100.0 - Double(pw.usedPercent),
                     windowDuration: "",
@@ -261,6 +261,60 @@ final class CodexProviderService: BaseProviderService {
             lastRefresh: lastRefresh,
             isLoading: isLoading
         )
+    }
+
+    nonisolated static func normalizedWindowLabel(windowSeconds: Int, fallback: String) -> String {
+        guard windowSeconds > 0 else { return fallback }
+
+        if windowSeconds % Int(AppConstants.secondsPerDay) == 0 {
+            let days = windowSeconds / Int(AppConstants.secondsPerDay)
+            if days == 7 {
+                return "1w"
+            }
+            return "\(days)d"
+        }
+
+        let hours = windowSeconds / 3600
+        if hours > 0 {
+            return "\(hours)h"
+        }
+
+        return "\(windowSeconds / 60)m"
+    }
+
+    nonisolated static func normalizedAdditionalLimitLabel(limitName: String, meteredFeature: String?) -> String {
+        let candidates = [limitName, meteredFeature ?? ""].map { $0.lowercased() }
+
+        if candidates.contains(where: { $0.contains("spark") }) {
+            return "Spark"
+        }
+        if candidates.contains(where: { $0.contains("sonnet") }) {
+            return "Sonnet"
+        }
+
+        let trimmed = limitName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Session" }
+        return trimmed
+    }
+
+    nonisolated static func effectiveUsedPercentage(
+        primaryUsedPct: Double,
+        secondaryWindow: CodexOAuthService.RateLimitWindow?,
+        additionalLimits: [CodexOAuthService.AdditionalLimit]
+    ) -> Double {
+        var candidates = [primaryUsedPct]
+
+        if let secondaryWindow {
+            candidates.append(Double(secondaryWindow.usedPercent))
+        }
+
+        for limit in additionalLimits {
+            if let primaryWindow = limit.primaryWindow {
+                candidates.append(Double(primaryWindow.usedPercent))
+            }
+        }
+
+        return min(candidates.max() ?? primaryUsedPct, 100)
     }
 
     // MARK: - API Key -> ProviderUsageData

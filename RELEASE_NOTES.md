@@ -1,3 +1,26 @@
+# v0.8.0
+
+## Menubar Refresh, Overlay Navigation, Provider Parsing Hardening
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Menubar redesign** — Wider scrollable panel, clearer provider header, quick action cluster, and richer empty-state guidance
+- **Cross-provider summary cards** — New compact/standard provider summary cards for fast comparison across Claude Code, Codex, and Gemini
+- **Overlay drill-down** — Expanded pill now supports provider selection, pinned expansion, session reset/last-active details, and better stale-state cues
+- **Settings cleanup** — App settings are regrouped into clearer sections, with advanced credentials and fallback tuning hidden behind disclosure controls
+- **Claude OAuth parsing hardening** — OAuth usage parsing now handles nested payload shapes, safer malformed responses, normalized plan identifiers, and Keychain access-denied handling
+- **Better limit normalization** — Claude fallback estimation now uses detected plan tiers and session exhaustion prediction; Codex gauges now reflect the most constrained active window with friendlier labels
+- **Regression coverage** — Added focused tests for OAuth response parsing and provider usage normalization
+
+### Brew Release Notes
+
+- Release automation (`.github/workflows/release.yml`) updates Homebrew formula URL/SHA automatically from tag and syncs to the tap repo
+- For this release, create/push tag: `v0.8.0`
+
+---
+
 # v0.7.0
 
 ## Quick Wins: Stability, Security, Accessibility

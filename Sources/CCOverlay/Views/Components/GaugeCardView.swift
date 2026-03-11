@@ -11,6 +11,8 @@ struct GaugeCardView: View {
     var size: Size = .standard
     var title: String = "Session Limit"
 
+    @State private var animatedPercentage: Double = 0
+
     struct RateLimitBucket {
         let label: String
         let percentage: Int
@@ -20,26 +22,26 @@ struct GaugeCardView: View {
 
     enum Size {
         case compact   // For ClaudeUsagePanelView (68x68)
-        case standard  // For MenuBarView (88x88)
+        case standard  // For MenuBarView (76x76)
 
         var gaugeSize: CGFloat {
             switch self {
             case .compact: return 68
-            case .standard: return 88
+            case .standard: return 76
             }
         }
 
         var lineWidth: CGFloat {
             switch self {
             case .compact: return 5
-            case .standard: return 8
+            case .standard: return 7
             }
         }
 
         var percentageFont: Font {
             switch self {
             case .compact: return .system(size: 18, weight: .bold, design: .rounded)
-            case .standard: return .system(size: 24, weight: .bold, design: .rounded)
+            case .standard: return .system(size: 22, weight: .bold, design: .rounded)
             }
         }
 
@@ -77,6 +79,18 @@ struct GaugeCardView: View {
         .padding(.horizontal, size == .compact ? 10 : 14)
         .frame(maxWidth: .infinity)
         .modifier(CardBackgroundModifier(useGlass: size == .standard, cornerRadius: size == .compact ? 14 : 16))
+        .overlay {
+            if size == .standard {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(tintColor.opacity(0.12), lineWidth: 1)
+            }
+        }
+        .onAppear(perform: animateGaugeOnAppear)
+        .onChange(of: remainingPercentage) { _, newValue in
+            withAnimation(DesignTokens.Animation.reveal) {
+                animatedPercentage = newValue
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Usage gauge")
         .accessibilityValue("\(Int(remainingPercentage)) percent remaining")
@@ -113,13 +127,31 @@ struct GaugeCardView: View {
     private var gaugeCircle: some View {
         ZStack {
             Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            tintColor.opacity(size == .compact ? 0.0 : 0.2),
+                            tintColor.opacity(0.03),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 10,
+                        endRadius: size.gaugeSize * 0.78
+                    )
+                )
+                .frame(
+                    width: size == .compact ? size.gaugeSize : size.gaugeSize + 18,
+                    height: size == .compact ? size.gaugeSize : size.gaugeSize + 18
+                )
+
+            Circle()
                 .stroke(Color.secondary.opacity(size == .compact ? 0.08 : 0.12), lineWidth: size.lineWidth)
 
             Circle()
-                .trim(from: 0, to: remainingPercentage / 100)
+                .trim(from: 0, to: animatedPercentage / 100)
                 .stroke(tintColor, style: StrokeStyle(lineWidth: size.lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: remainingPercentage)
+                .animation(DesignTokens.Animation.reveal, value: animatedPercentage)
 
             VStack(spacing: size == .compact ? 1 : 2) {
                 Text(NumberFormatting.formatPercentage(remainingPercentage))
@@ -181,7 +213,26 @@ struct GaugeCardView: View {
         if let predictionText {
             Text(predictionText)
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color.surfaceElevated)
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(tintColor.opacity(0.14), lineWidth: 0.75)
+                )
+        }
+    }
+
+    private func animateGaugeOnAppear() {
+        animatedPercentage = 0
+        DispatchQueue.main.async {
+            withAnimation(DesignTokens.Animation.reveal) {
+                animatedPercentage = remainingPercentage
+            }
         }
     }
 }

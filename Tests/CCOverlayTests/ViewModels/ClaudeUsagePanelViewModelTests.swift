@@ -4,14 +4,24 @@ import SwiftUI
 
 @Suite("Color.usageTint Tests")
 struct ColorUsageTintTests {
+    private let warningRed = Color(red: 0.97, green: 0.37, blue: 0.19)
 
-    @Test("Returns red for critical usage (≤10%)")
+    @Test("Returns red for critical usage (≤5%)")
     func criticalUsageTintColor() {
-        let color = Color.usageTint(for: 5.0)
+        let color = Color.usageTint(for: 4.0)
         #expect(color == .red)
 
-        let colorAt10 = Color.usageTint(for: 10.0)
-        #expect(colorAt10 == .red)
+        let colorAt5 = Color.usageTint(for: 5.0)
+        #expect(colorAt5 == .red)
+    }
+
+    @Test("Returns custom warning red for low remaining usage (≤15%)")
+    func lowRemainingWarningTintColor() {
+        let color = Color.usageTint(for: 10.0)
+        #expect(color == warningRed)
+
+        let colorAt15 = Color.usageTint(for: 15.0)
+        #expect(colorAt15 == warningRed)
     }
 
     @Test("Returns orange for warning usage (≤30%)")
@@ -23,16 +33,25 @@ struct ColorUsageTintTests {
         #expect(colorAt30 == .orange)
     }
 
-    @Test("Returns yellow for moderate usage (≤60%)")
+    @Test("Returns yellow for moderate usage (≤50%)")
     func moderateUsageTintColor() {
         let color = Color.usageTint(for: 50.0)
         #expect(color == .yellow)
 
-        let colorAt60 = Color.usageTint(for: 60.0)
-        #expect(colorAt60 == .yellow)
+        let colorAt31 = Color.usageTint(for: 31.0)
+        #expect(colorAt31 == .yellow)
     }
 
-    @Test("Returns green for healthy usage (>60%)")
+    @Test("Returns mint for steady usage (≤70%)")
+    func steadyUsageTintColor() {
+        let color = Color.usageTint(for: 60.0)
+        #expect(color == .mint)
+
+        let colorAt70 = Color.usageTint(for: 70.0)
+        #expect(colorAt70 == .mint)
+    }
+
+    @Test("Returns green for healthy usage (>70%)")
     func healthyUsageTintColor() {
         let color = Color.usageTint(for: 75.0)
         #expect(color == .green)
@@ -41,13 +60,22 @@ struct ColorUsageTintTests {
         #expect(colorAt100 == .green)
     }
 
-    @Test("Boundary between critical and warning")
-    func boundaryBetweenCriticalAndWarning() {
-        let color10 = Color.usageTint(for: 10.0)
-        let color11 = Color.usageTint(for: 11.0)
+    @Test("Boundary between critical and low warning")
+    func boundaryBetweenCriticalAndLowWarning() {
+        let color5 = Color.usageTint(for: 5.0)
+        let color6 = Color.usageTint(for: 6.0)
 
-        #expect(color10 == .red)
-        #expect(color11 == .orange)
+        #expect(color5 == .red)
+        #expect(color6 == warningRed)
+    }
+
+    @Test("Boundary between low warning and warning")
+    func boundaryBetweenLowWarningAndWarning() {
+        let color15 = Color.usageTint(for: 15.0)
+        let color16 = Color.usageTint(for: 16.0)
+
+        #expect(color15 == warningRed)
+        #expect(color16 == .orange)
     }
 
     @Test("Boundary between warning and moderate")
@@ -59,13 +87,22 @@ struct ColorUsageTintTests {
         #expect(color31 == .yellow)
     }
 
-    @Test("Boundary between moderate and healthy")
-    func boundaryBetweenModerateAndHealthy() {
-        let color60 = Color.usageTint(for: 60.0)
-        let color61 = Color.usageTint(for: 61.0)
+    @Test("Boundary between moderate and steady")
+    func boundaryBetweenModerateAndSteady() {
+        let color50 = Color.usageTint(for: 50.0)
+        let color51 = Color.usageTint(for: 51.0)
 
-        #expect(color60 == .yellow)
-        #expect(color61 == .green)
+        #expect(color50 == .yellow)
+        #expect(color51 == .mint)
+    }
+
+    @Test("Boundary between steady and healthy")
+    func boundaryBetweenSteadyAndHealthy() {
+        let color70 = Color.usageTint(for: 70.0)
+        let color71 = Color.usageTint(for: 71.0)
+
+        #expect(color70 == .mint)
+        #expect(color71 == .green)
     }
 }
 

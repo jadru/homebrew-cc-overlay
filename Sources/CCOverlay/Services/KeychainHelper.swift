@@ -31,7 +31,18 @@ enum KeychainHelper {
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
-        guard status == errSecSuccess, let data = result as? Data else {
+        switch status {
+        case errSecSuccess:
+            break
+        case errSecItemNotFound:
+            throw KeychainError.notFound
+        case errSecAuthFailed, errSecInteractionNotAllowed:
+            throw KeychainError.accessDenied
+        default:
+            throw KeychainError.operationFailed(status)
+        }
+
+        guard let data = result as? Data else {
             throw KeychainError.notFound
         }
 
@@ -152,14 +163,21 @@ enum KeychainHelper {
     enum KeychainError: LocalizedError {
         case notFound
         case invalidFormat
+        case accessDenied
         case operationFailed(OSStatus)
 
         var errorDescription: String? {
             switch self {
             case .notFound: return "Credential not found in Keychain"
             case .invalidFormat: return "Invalid credential format in Keychain"
+            case .accessDenied: return "Keychain access denied — open Keychain Access, find \"Claude Code-credentials\", and allow this app"
             case .operationFailed(let status): return "Keychain operation failed (\(status))"
             }
+        }
+
+        var isAccessDenied: Bool {
+            if case .accessDenied = self { return true }
+            return false
         }
     }
 }

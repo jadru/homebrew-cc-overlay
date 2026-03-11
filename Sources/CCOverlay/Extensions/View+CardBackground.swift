@@ -7,16 +7,35 @@ struct CardBackgroundModifier: ViewModifier {
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if useGlass {
             content
                 .compatGlassRoundedRect(cornerRadius: cornerRadius)
         } else {
             content
                 .background(
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(Color.primary.opacity(0.03))
+                    shape
+                        .fill(Color.surfaceElevated)
+                        .overlay(
+                            shape
+                                .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
+                                .blur(radius: 1)
+                                .offset(y: 1)
+                                .mask(
+                                    shape.fill(
+                                        LinearGradient(
+                                            colors: [.black, .clear],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                )
+                        )
                 )
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                .overlay(
+                    shape.strokeBorder(Color.white.opacity(0.05), lineWidth: 0.75)
+                )
+                .clipShape(shape)
         }
     }
 }

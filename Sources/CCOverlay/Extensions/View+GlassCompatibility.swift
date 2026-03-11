@@ -1,6 +1,8 @@
 import SwiftUI
 
 extension View {
+    private var glassFallbackBorderOpacity: Double { 0.18 }
+
     @ViewBuilder
     func compatGlassCircle(interactive: Bool = false, tint: Color? = nil) -> some View {
         #if compiler(>=6.2)
@@ -22,7 +24,7 @@ extension View {
                 .background((tint ?? .clear), in: Circle())
                 .overlay(
                     Circle().strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : 0.14),
+                        Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
                         lineWidth: 0.8
                     )
                 )
@@ -33,7 +35,7 @@ extension View {
             .background((tint ?? .clear), in: Circle())
             .overlay(
                 Circle().strokeBorder(
-                    Color.white.opacity(interactive ? 0.22 : 0.14),
+                    Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
                     lineWidth: 0.8
                 )
             )
@@ -61,7 +63,7 @@ extension View {
                 .background((tint ?? .clear), in: Capsule())
                 .overlay(
                     Capsule().strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : 0.14),
+                        Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
                         lineWidth: 0.8
                     )
                 )
@@ -72,7 +74,7 @@ extension View {
             .background((tint ?? .clear), in: Capsule())
             .overlay(
                 Capsule().strokeBorder(
-                    Color.white.opacity(interactive ? 0.22 : 0.14),
+                    Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
                     lineWidth: 0.8
                 )
             )
@@ -111,7 +113,7 @@ extension View {
                 .background((tint ?? .clear), in: shape)
                 .overlay(
                     shape.strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : 0.14),
+                        Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
                         lineWidth: 0.8
                     )
                 )
@@ -123,7 +125,7 @@ extension View {
             .background((tint ?? .clear), in: shape)
             .overlay(
                 shape.strokeBorder(
-                    Color.white.opacity(interactive ? 0.22 : 0.14),
+                    Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
                     lineWidth: 0.8
                 )
             )

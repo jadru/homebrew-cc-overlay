@@ -4,33 +4,63 @@ import SwiftUI
 /// Used in MenuBarView to render each detected provider.
 struct ProviderSectionView: View {
     let data: ProviderUsageData
+    let allProviderData: [(CLIProvider, ProviderUsageData)]
+    @Binding var selectedProvider: CLIProvider?
+    let activeProviders: Set<CLIProvider>
     let settings: AppSettings
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
+            ProviderSummaryCardView(
+                allProviderData: allProviderData,
+                selectedProvider: $selectedProvider,
+                activeProviders: activeProviders
+            )
             gaugeCard
+            sessionDetailsCard
             enterpriseQuotaCard
             creditsInfoCard
             costCard
             detailedRateWindowsCard
             tokenBreakdownCard
         }
+        .id(data.provider)
+        .transition(
+            .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            )
+        )
     }
-
-    // MARK: - Gauge
 
     @ViewBuilder
     private var gaugeCard: some View {
         if data.isAvailable {
+            let buckets: [GaugeCardView.RateLimitBucket] = data.rateLimitBuckets.map { bucket in
+                .init(
+                    label: bucket.label,
+                    percentage: 100 - Int(min(bucket.utilization, 100)),
+                    showWarning: bucket.isWarning,
+                    dimmed: !bucket.isWarning
+                )
+            }
+
+            let weeklyWarning: Int? = {
+                if let weekly = data.rateLimitBuckets.first(where: { $0.isWarning }) {
+                    return Int(min(weekly.utilization, 100))
+                }
+                return nil
+            }()
+
             GaugeCardView(
                 remainingPercentage: data.remainingPercentage,
                 resetsAt: data.resetsAt,
-                weeklyWarningPercentage: data.gaugeWarningPercentage,
+                weeklyWarningPercentage: weeklyWarning,
                 showLiveIndicator: true,
-                rateLimitBuckets: data.gaugeRateLimitBuckets,
-                predictionText: data.exhaustionPrediction?.formattedTimeRemaining,
+                rateLimitBuckets: buckets,
+                predictionText: data.provider == .claudeCode ? nil : data.exhaustionPrediction?.formattedTimeRemaining,
                 size: .standard,
-                title: "\(data.primaryWindowLabel) Limit"
+                title: data.provider == .claudeCode ? "Session Left" : "\(data.primaryWindowLabel) Left"
             )
         } else {
             providerSetupCard
@@ -38,6 +68,11 @@ struct ProviderSectionView: View {
     }
 
     // MARK: - Enterprise Quota (Claude only)
+
+    @ViewBuilder
+    private var sessionDetailsCard: some View {
+        ProviderSessionDetailsView(data: data, size: .standard)
+    }
 
     @ViewBuilder
     private var enterpriseQuotaCard: some View {
@@ -96,7 +131,7 @@ struct ProviderSectionView: View {
                 )
             }
             .padding(14)
-            .compatGlassRoundedRect(cornerRadius: 16)
+            .cardBackground(useGlass: true, cornerRadius: 16)
         }
     }
 
@@ -138,7 +173,7 @@ struct ProviderSectionView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
         .padding(.horizontal, 16)
-        .compatGlassRoundedRect(cornerRadius: 16)
+        .cardBackground(useGlass: true, cornerRadius: 16)
     }
 
 }
