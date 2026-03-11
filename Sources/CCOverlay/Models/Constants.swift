@@ -75,12 +75,33 @@ enum PlanTier: String, CaseIterable, Identifiable, Sendable {
 
     /// Map an API subscription type string to a display name.
     static func displayName(for subscriptionType: String) -> String {
-        switch subscriptionType {
-        case "max_5": return "Max ($100/mo)"
-        case "max_20": return "Max ($200/mo)"
-        case "pro": return "Pro ($20/mo)"
-        case let s where s.hasPrefix("enterprise"): return "Enterprise"
-        default: return subscriptionType
+        if let tier = fromUsageIdentifier(subscriptionType) {
+            return tier.rawValue
+        }
+        return subscriptionType
+    }
+
+    static func fromUsageIdentifier(_ identifier: String?) -> PlanTier? {
+        guard let normalized = identifier?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !normalized.isEmpty
+        else {
+            return nil
+        }
+
+        switch normalized {
+        case "pro", "default_claude_pro":
+            return .pro
+        case "max_5", "max5", "max ($100/mo)",
+             "default_claude_max_5x":
+            return .max5
+        case "max_20", "max20", "max ($200/mo)",
+             "default_claude_max_20x":
+            return .max20
+        case let value where value.hasPrefix("enterprise"):
+            return .enterprise
+        default:
+            AppLogger.data.warning("PlanTier: unrecognized '\(normalized)'")
+            return nil
         }
     }
 }
@@ -110,7 +131,7 @@ enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.7.0"
+    static let version = "0.8.0"
     static let githubRepo = "jadru/cc-overlay"
     static let updateCheckInterval: TimeInterval = 86400 // 24h
 

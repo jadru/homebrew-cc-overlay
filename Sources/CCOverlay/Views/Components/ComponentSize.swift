@@ -21,8 +21,8 @@ enum ComponentSize {
 
     var cornerRadius: CGFloat {
         switch self {
-        case .compact: return 14
-        case .standard: return 16
+        case .compact: return DesignTokens.CornerRadius.medium
+        case .standard: return DesignTokens.CornerRadius.card
         }
     }
 }

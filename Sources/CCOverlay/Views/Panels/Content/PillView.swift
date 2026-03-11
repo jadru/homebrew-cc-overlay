@@ -2,12 +2,13 @@ import SwiftUI
 
 struct PillView: View {
     let multiService: MultiProviderUsageService
-    let settings: AppSettings
+    @Bindable var settings: AppSettings
     var onSizeChange: ((CGSize) -> Void)?
 
     @State private var isExpanded = false
     @State private var isHovered = false
     @State private var collapseTask: Task<Void, Never>?
+    @State private var expandedSelectedProvider: CLIProvider?
 
     private var activeProviders: [CLIProvider] {
         multiService.activeProviders
@@ -18,7 +19,7 @@ struct PillView: View {
     private var criticalData: ProviderUsageData {
         let available = activeProviders
             .map { multiService.usageData(for: $0) }
-            .filter { $0.isAvailable }
+            .filter(\.isAvailable)
         let usable = available.filter { $0.remainingPercentage > 5 }
         return (usable.isEmpty ? available : usable)
             .min { $0.remainingPercentage < $1.remainingPercentage }
@@ -37,19 +38,37 @@ struct PillView: View {
         multiService.isStale(lastRefresh: criticalData.lastRefresh)
     }
 
+    private var collapsedProviderSummary: String {
+        activeProviders.map(\.shortLabel).joined(separator: " | ")
+    }
+
+    private var allProviderData: [(CLIProvider, ProviderUsageData)] {
+        CLIProvider.allCases.map { ($0, multiService.usageData(for: $0)) }
+    }
+
+    private var activeProviderSet: Set<CLIProvider> {
+        Set(activeProviders)
+    }
+
+    private var expandedSelectedData: ProviderUsageData {
+        if let provider = expandedSelectedProvider {
+            return multiService.usageData(for: provider)
+        }
+        return criticalData
+    }
+
     var body: some View {
         contentCard
             .fixedSize()
             .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
                 onSizeChange?(newSize)
             }
-            .onHover { hovering in
-                handleHover(hovering)
-            }
+            .onHover(perform: handleHover)
             .onAppear {
                 if settings.pillAlwaysExpanded {
                     isExpanded = true
                 }
+                syncExpandedSelection(with: activeProviders)
                 DebugFlowLogger.shared.log(
                     stage: .display,
                     message: "overlay.pill.appear",
@@ -60,14 +79,16 @@ struct PillView: View {
                 )
             }
             .onDisappear {
+                collapseTask?.cancel()
                 DebugFlowLogger.shared.log(stage: .display, message: "overlay.pill.disappear")
             }
             .onChange(of: settings.pillAlwaysExpanded) { _, alwaysExpanded in
-                withAnimation(.snappy(duration: 0.25)) {
-                    isExpanded = alwaysExpanded
+                withAnimation(DesignTokens.Animation.selection) {
+                    isExpanded = alwaysExpanded || isHovered
                 }
             }
             .onChange(of: multiService.activeProviders) { _, providers in
+                syncExpandedSelection(with: providers)
                 DebugFlowLogger.shared.log(
                     stage: .display,
                     message: "overlay.pill.providers.changed",
@@ -76,105 +97,80 @@ struct PillView: View {
             }
     }
 
-    private func handleHover(_ hovering: Bool) {
-        guard !settings.pillClickThrough else { return }
-        guard !settings.pillAlwaysExpanded else { return }
-
-        isHovered = hovering
-        collapseTask?.cancel()
-
-        if hovering {
-            withAnimation(.snappy(duration: 0.25)) {
-                isExpanded = true
-            }
-        } else {
-            collapseTask = Task {
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { return }
-                withAnimation(.snappy(duration: 0.25)) {
-                    isExpanded = false
-                }
-            }
-        }
-    }
-
     private var contentCard: some View {
-        VStack(spacing: isExpanded ? 10 : 0) {
-            pillHeader
+        VStack(alignment: .leading, spacing: isExpanded ? 10 : 0) {
             if isExpanded {
                 expandedDetails
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.9).combined(with: .opacity),
-                        removal: .opacity
-                    ))
+            } else {
+                pillHeader
             }
         }
-        .padding(.horizontal, isExpanded ? 16 : 10)
-        .padding(.vertical, isExpanded ? 14 : 6)
-        .frame(maxWidth: isExpanded ? 280 : nil)
+        .padding(.horizontal, isExpanded ? 16 : 6)
+        .padding(.vertical, isExpanded ? 14 : 4)
+        .frame(maxWidth: isExpanded ? DesignTokens.Layout.expandedPillWidth : nil, alignment: .leading)
         .compatGlassRoundedRect(
-            cornerRadius: isExpanded ? 20 : 50,
+            cornerRadius: isExpanded ? DesignTokens.CornerRadius.panel : 50,
             tint: tintColor.opacity(0.25)
         )
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isExpanded)
+        .overlay(alignment: .topTrailing) {
+            if isExpanded, isStale || (!settings.pillClickThrough && (isHovered || settings.pillAlwaysExpanded)) {
+                overlayAccessoryCluster
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
+            }
+        }
+        .animation(DesignTokens.Animation.selection, value: isExpanded)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Overlay usage status")
         .accessibilityValue(accessibilityValue)
     }
 
-    // MARK: - Header
-
     private var pillHeader: some View {
-        HStack(spacing: activeProviders.count > 1 ? 8 : 5) {
-            if activeProviders.count > 1 {
-                let recentlyActive = multiService.recentlyActiveProviders
-                let critical = criticalData
+        HStack(spacing: 6) {
+            compactSummaryHeader
+            overlayAccessoryCluster
+        }
+    }
 
-                // Full display list: recently active (most consumed first) + critical if not already included
-                let fullDisplay: [CLIProvider] = {
-                    var list = recentlyActive
-                    if !list.contains(critical.provider) {
-                        list.append(critical.provider)
-                    }
-                    return list
-                }()
+    private var compactSummaryHeader: some View {
+        ProviderSummaryCardView(
+            allProviderData: allProviderData,
+            selectedProvider: $expandedSelectedProvider,
+            activeProviders: activeProviderSet,
+            size: .compact,
+            showsCardBackground: false
+        )
+        .allowsHitTesting(false)
+    }
 
-                // Dim display: providers that are neither recently active nor critical
-                let dimDisplay = activeProviders.filter { !fullDisplay.contains($0) }
-
-                ForEach(fullDisplay, id: \.self) { provider in
-                    providerFullChip(data: multiService.usageData(for: provider))
+    @ViewBuilder
+    private var overlayAccessoryCluster: some View {
+        if isStale || (!settings.pillClickThrough && (isExpanded || isHovered || settings.pillAlwaysExpanded)) {
+            HStack(spacing: 6) {
+                if isStale {
+                    Image(systemName: "clock.badge.exclamationmark")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.yellow)
+                        .accessibilityHidden(true)
                 }
-                ForEach(dimDisplay, id: \.self) { provider in
-                    providerDimChip(data: multiService.usageData(for: provider))
+
+                if !settings.pillClickThrough && (isExpanded || isHovered || settings.pillAlwaysExpanded) {
+                    pinButton
                 }
-            } else {
-                // Single provider: colored shortLabel + percentage + time
-                let data = criticalData
-                Text(data.provider.shortLabel)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-                    .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
-
-                Text(NumberFormatting.formatPercentage(remainPct))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.primary)
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remainPct)
-
-                if let resetsAt = data.resetsAt, resetsAt > Date() {
-                    resetCountdown(resetsAt)
-                }
-            }
-
-            if isStale {
-                Image(systemName: "clock.badge.exclamationmark")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.yellow)
-                    .accessibilityHidden(true)
             }
         }
+    }
+
+    private var pinButton: some View {
+        Button(action: togglePinned) {
+            Image(systemName: settings.pillAlwaysExpanded ? "pin.fill" : "pin")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(settings.pillAlwaysExpanded ? Color.brandAccent : .secondary)
+                .frame(width: 18, height: 18)
+        }
+        .buttonStyle(.plain)
+        .help(settings.pillAlwaysExpanded ? "Unpin expanded pill" : "Pin expanded pill")
+        .accessibilityLabel(settings.pillAlwaysExpanded ? "Unpin expanded pill" : "Pin expanded pill")
     }
 
     private var accessibilityValue: String {
@@ -189,34 +185,35 @@ struct PillView: View {
         return value
     }
 
-    /// Full display chip: shortLabel (colored) + percentage + reset countdown.
-    @ViewBuilder
-    private func providerFullChip(data: ProviderUsageData) -> some View {
-        Text(data.provider.shortLabel)
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-            .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+    private func handleHover(_ hovering: Bool) {
+        guard !settings.pillClickThrough else { return }
+        guard !settings.pillAlwaysExpanded else { return }
 
-        Text(NumberFormatting.formatPercentage(data.remainingPercentage))
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-            .monospacedDigit()
-            .foregroundStyle(.primary)
-            .contentTransition(.numericText(countsDown: true))
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
+        isHovered = hovering
+        collapseTask?.cancel()
 
-        if let resetsAt = data.resetsAt, resetsAt > Date() {
-            resetCountdown(resetsAt)
+        if hovering {
+            withAnimation(DesignTokens.Animation.selection) {
+                isExpanded = true
+            }
+        } else {
+            collapseTask = Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    withAnimation(DesignTokens.Animation.selection) {
+                        isExpanded = false
+                    }
+                }
+            }
         }
     }
 
-    /// Dim label chip: shortLabel only, reduced opacity.
-    @ViewBuilder
-    private func providerDimChip(data: ProviderUsageData) -> some View {
-        Text(data.provider.shortLabel)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-            .opacity(0.7)
-            .animation(.easeInOut(duration: 0.3), value: data.remainingPercentage)
+    private func togglePinned() {
+        settings.pillAlwaysExpanded.toggle()
+        withAnimation(DesignTokens.Animation.selection) {
+            isExpanded = settings.pillAlwaysExpanded || isHovered
+        }
     }
 
     @ViewBuilder
@@ -242,15 +239,23 @@ struct PillView: View {
 
     // MARK: - Expanded Details
 
+    @ViewBuilder
     private var expandedDetails: some View {
-        VStack(spacing: 12) {
-            if activeProviders.count > 1 {
-                verticalProviderRows
+        VStack(alignment: .leading, spacing: 12) {
+            if activeProviders.isEmpty {
+                Text("No active providers to display.")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
             } else {
-                singleProviderGauge
+                ProviderSummaryCardView(
+                    allProviderData: allProviderData,
+                    selectedProvider: $expandedSelectedProvider,
+                    activeProviders: activeProviderSet
+                )
+
+                overlayDetailSection
             }
 
-            // Daily cost (optional, aggregated across all providers)
             if settings.pillShowDailyCost {
                 let totalDailyCost = activeProviders.reduce(0.0) { sum, provider in
                     sum + (multiService.usageData(for: provider).estimatedCost?.dailyCost ?? 0)
@@ -262,133 +267,73 @@ struct PillView: View {
         }
     }
 
-    // MARK: - Multi Provider (vertical rows)
+    // MARK: - Selected Provider Details
 
-    private var verticalProviderRows: some View {
-        VStack(spacing: 10) {
-            ForEach(activeProviders) { provider in
-                let data = multiService.usageData(for: provider)
-                providerRow(data: data)
-            }
-        }
-    }
-
-    private func providerRow(data: ProviderUsageData) -> some View {
-        let barTint = Color.usageTint(for: data.remainingPercentage)
-
-        return VStack(spacing: 4) {
-            // Row: icon + label + progress bar + percentage + cost
-            HStack(spacing: 6) {
-                Image(systemName: data.provider.iconName)
-                    .font(.system(size: 8))
-                    .foregroundStyle(.tertiary)
-                Text(data.provider.shortLabel)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-
-                SegmentedProgressBar(
-                    progress: data.remainingPercentage,
-                    tint: barTint,
-                    height: 5,
-                    cornerRadius: 999
-                )
-
-                Text(NumberFormatting.formatPercentage(data.remainingPercentage))
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(barTint)
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
-
-                if let cost = data.estimatedCost, cost.windowCost > 0 {
-                    Text(NumberFormatting.formatDollarCompact(cost.windowCost))
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
-            }
-
-            // Rate limit pills
-            if !data.rateLimitBuckets.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(data.rateLimitBuckets) { bucket in
-                        RatePillView(
-                            label: bucket.label,
-                            percentage: 100 - Int(min(bucket.utilization, 100)),
-                            size: .compact
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-
-    // MARK: - Single Provider
-
-    private var singleProviderGauge: some View {
+    @ViewBuilder
+    private var overlayDetailSection: some View {
+        let data = expandedSelectedData
         VStack(spacing: 12) {
-            gaugeSection
-
-            if criticalData.isAvailable, !criticalData.rateLimitBuckets.isEmpty {
-                rateLimitSection
+            if data.isAvailable {
+                selectedProviderGaugeCard(for: data)
+                ProviderSessionDetailsView(data: data, size: .compact)
             }
 
-            if let eq = criticalData.enterpriseQuota, eq.isAvailable {
+            if let eq = data.enterpriseQuota, eq.isAvailable {
                 enterpriseSeatSection(eq)
             }
+
+            if !data.isAvailable {
+                Text(data.provider.setupHint)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12)
+            }
         }
     }
 
-    private var gaugeSection: some View {
-        return ZStack {
-            Circle()
-                .stroke(Color.secondary.opacity(0.1), lineWidth: 5)
-            Circle()
-                .trim(from: 0, to: remainPct / 100)
-                .stroke(tintColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: remainPct)
-
-            VStack(spacing: 2) {
-                if let cost = criticalData.estimatedCost {
-                    Text(NumberFormatting.formatDollarCompact(cost.windowCost))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
-                } else {
-                    Text(NumberFormatting.formatPercentage(remainPct))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText(countsDown: true))
-                }
-
-                Text(criticalData.estimatedCost != nil ? criticalData.primaryWindowLabel : "remaining")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.quaternary)
-            }
+    private func selectedProviderGaugeCard(for data: ProviderUsageData) -> some View {
+        let buckets: [GaugeCardView.RateLimitBucket] = data.rateLimitBuckets.map { bucket in
+            .init(
+                label: bucket.label,
+                percentage: 100 - Int(min(bucket.utilization, 100)),
+                showWarning: bucket.isWarning,
+                dimmed: !bucket.isWarning
+            )
         }
-        .frame(width: 64, height: 64)
+
+        let weeklyWarning: Int? = {
+            if let weekly = data.rateLimitBuckets.first(where: { $0.isWarning }) {
+                return Int(min(weekly.utilization, 100))
+            }
+            return nil
+        }()
+
+        return GaugeCardView(
+            remainingPercentage: data.remainingPercentage,
+            resetsAt: data.resetsAt,
+            weeklyWarningPercentage: weeklyWarning,
+            showLiveIndicator: true,
+            rateLimitBuckets: buckets,
+            predictionText: data.exhaustionPrediction?.formattedTimeRemaining,
+            size: .compact,
+            title: data.provider == .claudeCode ? "Session Left" : "\(data.primaryWindowLabel) Left"
+        )
     }
 
-    private var rateLimitSection: some View {
-        HStack(spacing: 8) {
-            ForEach(criticalData.rateLimitBuckets) { bucket in
-                RatePillView(
-                    label: bucket.label,
-                    percentage: 100 - Int(min(bucket.utilization, 100)),
-                    showWarningIcon: bucket.isWarning,
-                    size: .compact
-                )
-                .opacity(bucket.isWarning ? 1.0 : 0.5)
-            }
+    private func syncExpandedSelection(with providers: [CLIProvider]) {
+        if let expandedSelectedProvider, CLIProvider.allCases.contains(expandedSelectedProvider) {
+            return
         }
+
+        expandedSelectedProvider = providers.first ?? criticalData.provider
     }
 
     private func dailyCostSection(cost: Double) -> some View {
         VStack(spacing: 6) {
             Rectangle()
-                .fill(Color.secondary.opacity(0.1))
+                .fill(Color.dividerSubtle)
                 .frame(height: 0.5)
                 .padding(.horizontal, 8)
 
@@ -408,15 +353,13 @@ struct PillView: View {
         }
     }
 
-    // MARK: - Enterprise Seat
-
     private func enterpriseSeatSection(_ quota: EnterpriseQuota) -> some View {
         let remaining = quota.individualLimit.remainingDollars
         let remainPctSeat = quota.primaryRemainingPercentage
 
         return VStack(spacing: 6) {
             Rectangle()
-                .fill(Color.secondary.opacity(0.1))
+                .fill(Color.dividerSubtle)
                 .frame(height: 0.5)
                 .padding(.horizontal, 8)
 
