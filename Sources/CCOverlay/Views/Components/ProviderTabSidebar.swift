@@ -5,23 +5,37 @@ import SwiftUI
 struct ProviderTabSidebar: View {
     let providers: [CLIProvider]
     let activeProviders: Set<CLIProvider>
+    let providerData: [CLIProvider: Double]
     @Binding var selectedProvider: CLIProvider?
     var onSettingsTapped: () -> Void
 
+    @Namespace private var selectionNamespace
+    @State private var bouncingProvider: CLIProvider?
+
     var body: some View {
-        VStack(spacing: 6) {
-            ForEach(providers) { provider in
-                tabButton(for: provider)
+        VStack(spacing: 0) {
+            VStack(spacing: 8) {
+                ForEach(providers) { provider in
+                    tabButton(for: provider)
+                }
             }
 
-            Spacer()
+            Spacer(minLength: 12)
 
-            settingsButton
-            quitButton
+            Rectangle()
+                .fill(Color.dividerSubtle)
+                .frame(height: 0.5)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 10)
+
+            VStack(spacing: 8) {
+                settingsButton
+                quitButton
+            }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 5)
-        .frame(width: 44)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 6)
+        .frame(width: DesignTokens.Layout.sidebarWidth)
     }
 
     // MARK: - Provider Tab Button
@@ -32,26 +46,50 @@ struct ProviderTabSidebar: View {
         let isSelected = selectedProvider == provider
 
         Button {
-            withAnimation(.snappy(duration: 0.2)) {
+            withAnimation(DesignTokens.Animation.selection) {
                 selectedProvider = provider
             }
-        } label: {
-            Image(systemName: provider.iconName)
-                .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .frame(width: 34, height: 34)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .opacity(isActive ? 1.0 : 0.35)
-        .background {
-            if isSelected {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.18))
-                    .transition(.opacity)
+            withAnimation(DesignTokens.Animation.bounce) {
+                bouncingProvider = provider
             }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(240))
+                if bouncingProvider == provider {
+                    bouncingProvider = nil
+                }
+            }
+        } label: {
+            ZStack {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.clear)
+                        .compatGlassRoundedRect(
+                            cornerRadius: 14,
+                            tint: Color.brandAccent.opacity(0.18)
+                        )
+                        .matchedGeometryEffect(id: "providerSelection", in: selectionNamespace)
+                }
+
+                VStack(spacing: 4) {
+                    Image(systemName: provider.iconName)
+                        .font(.system(size: 17, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .scaleEffect(bouncingProvider == provider ? 1.15 : 1.0)
+
+                    Circle()
+                        .fill(Color.usageTint(for: providerData[provider] ?? 100))
+                        .frame(width: 5, height: 5)
+                        .opacity(isActive ? 1.0 : 0.4)
+                }
+                .frame(width: DesignTokens.Layout.sidebarButton, height: DesignTokens.Layout.sidebarButton)
+            }
+            .frame(width: DesignTokens.Layout.sidebarButton, height: DesignTokens.Layout.sidebarButton)
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .animation(.snappy(duration: 0.2), value: isSelected)
+        .buttonStyle(.plain)
+        .opacity(isActive ? 1.0 : 0.35)
+        .animation(DesignTokens.Animation.selection, value: isSelected)
+        .animation(DesignTokens.Animation.bounce, value: bouncingProvider == provider)
         .help(provider.rawValue)
         .accessibilityLabel(provider.rawValue)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -61,31 +99,33 @@ struct ProviderTabSidebar: View {
 
     @ViewBuilder
     private var settingsButton: some View {
-        Button(action: onSettingsTapped) {
-            Image(systemName: "gear")
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
-                .frame(width: 34, height: 34)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .help("Settings")
-        .accessibilityLabel("Settings")
+        utilityButton(systemName: "gear", help: "Settings", action: onSettingsTapped)
     }
 
     @ViewBuilder
     private var quitButton: some View {
-        Button {
+        utilityButton(systemName: "power", help: "Quit") {
             NSApplication.shared.terminate(nil)
-        } label: {
-            Image(systemName: "power")
+        }
+    }
+
+    private func utilityButton(
+        systemName: String,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
-                .frame(width: 34, height: 34)
-                .contentShape(Rectangle())
+                .frame(width: DesignTokens.Layout.sidebarButton, height: DesignTokens.Layout.sidebarButton)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.surfaceElevated.opacity(0.9))
+                )
         }
-        .buttonStyle(.borderless)
-        .help("Quit")
-        .accessibilityLabel("Quit")
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
     }
 }

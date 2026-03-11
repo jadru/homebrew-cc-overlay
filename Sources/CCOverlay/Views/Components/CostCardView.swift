@@ -57,26 +57,28 @@ struct CostCardView: View {
         HStack(spacing: 0) {
             costColumn(
                 value: NumberFormatting.formatDollarCost(fiveHourCost.totalCost),
-                label: windowLabel
+                label: windowLabel,
+                amount: fiveHourCost.totalCost
             )
 
-            Rectangle()
-                .fill(Color.secondary.opacity(size == .compact ? 0.1 : 0.15))
-                .frame(width: size == .compact ? 0.5 : 1, height: dividerHeight)
+            Capsule()
+                .fill(Color.dividerSubtle)
+                .frame(width: size == .compact ? 4 : 6, height: dividerHeight)
 
             costColumn(
                 value: NumberFormatting.formatDollarCost(dailyCost.totalCost),
-                label: dailyLabel
+                label: dailyLabel,
+                amount: dailyCost.totalCost
             )
         }
     }
 
     @ViewBuilder
-    private func costColumn(value: String, label: String) -> some View {
+    private func costColumn(value: String, label: String, amount: Double) -> some View {
         VStack(spacing: size == .compact ? 2 : 3) {
             Text(value)
                 .font(valueFont)
-                .foregroundStyle(.primary)
+                .foregroundStyle(amount > 0 ? Color.brandAccent : .primary)
                 .contentTransition(.numericText())
             Text(label)
                 .font(labelFont)

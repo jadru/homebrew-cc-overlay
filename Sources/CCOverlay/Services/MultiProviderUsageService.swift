@@ -158,7 +158,9 @@ final class MultiProviderUsageService {
     private func createAndDetect(for provider: CLIProvider) async -> (any ProviderServiceProtocol)? {
         switch provider {
         case .claudeCode:
-            let service = ClaudeCodeProviderService()
+            let service = ClaudeCodeProviderService {
+                self.settings?.weightedCostLimit ?? PlanTier.pro.weightedCostLimit
+            }
             return service.detect() ? service : nil
         case .codex:
             let service = CodexProviderService()

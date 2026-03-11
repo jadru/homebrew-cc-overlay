@@ -49,6 +49,21 @@ struct RatePillView: View {
         Color.usageTint(for: Double(percentage))
     }
 
+    private var compactLabel: String {
+        if label.contains("Codex-Spark") { return "Spark" }
+        if label.contains("Sonnet") { return "Sonnet" }
+        if label.count <= 14 { return label }
+        return String(label.prefix(12)) + "…"
+    }
+
+    private var labelMaxWidth: CGFloat {
+        switch size {
+        case .compact: return 72
+        case .regular: return 88
+        case .large: return 118
+        }
+    }
+
     var body: some View {
         HStack(spacing: size.spacing) {
             if showWarningIcon {
@@ -56,16 +71,19 @@ struct RatePillView: View {
                     .font(.system(size: size == .compact ? 7 : 8))
                     .foregroundStyle(.orange)
             }
-            Text(label)
+            Text(compactLabel)
                 .font(size.labelFont)
                 .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: labelMaxWidth, alignment: .leading)
             Text("\(percentage)%")
                 .font(size.percentFont)
                 .foregroundStyle(tintColor)
+                .layoutPriority(1)
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: percentage)
         }
-        .fixedSize()
         .padding(.horizontal, size.horizontalPadding)
         .padding(.vertical, size.verticalPadding)
         .compatGlassCapsule()

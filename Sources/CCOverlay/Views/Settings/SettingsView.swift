@@ -5,6 +5,9 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
     let updateService: UpdateService
+    @State private var codexKeyDisclosureExpanded = false
+    @State private var geminiKeyDisclosureExpanded = false
+    @State private var advancedDisclosureExpanded = false
     private let weightedLimitFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -19,21 +22,18 @@ struct SettingsView: View {
             overlaySection
             displaySection
             alertsSection
-            developerSection
-            rateLimitsSection
-            dataSection
-            startupSection
-            updatesSection
+            appSection
+            advancedSection
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 700)
+        .frame(width: DesignTokens.Layout.settingsWidth, height: DesignTokens.Layout.settingsHeight)
     }
 
     // MARK: - Providers Section
 
     @ViewBuilder
     private var providersSection: some View {
-        Section("Providers") {
+        Section {
             ForEach(CLIProvider.allCases) { provider in
                 let isActive = multiService.activeProviders.contains(provider)
 
@@ -58,19 +58,6 @@ struct SettingsView: View {
             Toggle("Enable Codex", isOn: $settings.codexEnabled)
             Toggle("Enable Gemini", isOn: $settings.geminiEnabled)
 
-            LabeledContent("Codex API Key") {
-                SecureField("sk-...", text: Binding(
-                    get: { settings.codexAPIKey ?? "" },
-                    set: { settings.codexAPIKey = $0.isEmpty ? nil : $0 }
-                ))
-                .frame(width: 200)
-                .textFieldStyle(.roundedBorder)
-            }
-
-            Text("API key is read from: OPENAI_API_KEY env > ~/.codex/config.toml > manual entry above")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-
             // Codex auth status indicator
             providerAuthStatusRow(
                 for: .codex,
@@ -84,19 +71,6 @@ struct SettingsView: View {
                 notFoundText: "~/.codex/auth.json not found — install Codex CLI first"
             )
 
-            LabeledContent("Gemini API Key") {
-                SecureField("AIza...", text: Binding(
-                    get: { settings.geminiAPIKey ?? "" },
-                    set: { settings.geminiAPIKey = $0.isEmpty ? nil : $0 }
-                ))
-                .frame(width: 200)
-                .textFieldStyle(.roundedBorder)
-            }
-
-            Text("API key is read from: GEMINI_API_KEY env > ~/.gemini/.env > manual entry above")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-
             // Gemini auth status indicator
             providerAuthStatusRow(
                 for: .gemini,
@@ -109,6 +83,47 @@ struct SettingsView: View {
                 },
                 notFoundText: "~/.gemini not found — install Gemini CLI first"
             )
+
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { codexKeyDisclosureExpanded || geminiKeyDisclosureExpanded },
+                    set: { newValue in
+                        codexKeyDisclosureExpanded = newValue
+                        geminiKeyDisclosureExpanded = newValue
+                    }
+                ),
+                content: {
+                    VStack(alignment: .leading, spacing: 10) {
+                        LabeledContent("Codex manual key") {
+                            SecureField("sk-...", text: Binding(
+                                get: { settings.codexAPIKey ?? "" },
+                                set: { settings.codexAPIKey = $0.isEmpty ? nil : $0 }
+                            ))
+                            .frame(width: 200)
+                            .textFieldStyle(.roundedBorder)
+                        }
+
+                        LabeledContent("Gemini manual key") {
+                            SecureField("AIza...", text: Binding(
+                                get: { settings.geminiAPIKey ?? "" },
+                                set: { settings.geminiAPIKey = $0.isEmpty ? nil : $0 }
+                            ))
+                            .frame(width: 200)
+                            .textFieldStyle(.roundedBorder)
+                        }
+
+                        Text("OAuth is the default. Manual API keys are only needed for fallback or non-OAuth setups.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.top, 4)
+                },
+                label: {
+                    Label("Advanced credentials", systemImage: "key.horizontal")
+                }
+            )
+        } header: {
+            sectionHeader("Providers", systemImage: "square.grid.2x2")
         }
     }
 
@@ -155,7 +170,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var overlaySection: some View {
-        Section("Overlay") {
+        Section {
             Toggle("Show floating overlay", isOn: $settings.showOverlay)
 
             Toggle("Always expanded", isOn: $settings.pillAlwaysExpanded)
@@ -178,6 +193,8 @@ struct SettingsView: View {
 
             Toggle("Click-through mode", isOn: $settings.pillClickThrough)
                 .disabled(!settings.showOverlay)
+        } header: {
+            sectionHeader("Overlay", systemImage: "capsule.portrait")
         }
     }
 
@@ -185,7 +202,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var displaySection: some View {
-        Section("Display") {
+        Section {
             Picker("Menu bar indicator", selection: $settings.menuBarIndicatorStyle) {
                 ForEach(MenuBarIndicatorStyle.allCases) { style in
                     Text(style.rawValue).tag(style)
@@ -193,6 +210,8 @@ struct SettingsView: View {
             }
 
             Toggle("Global hotkey (\u{2318}\u{21E7}A)", isOn: $settings.globalHotkeyEnabled)
+        } header: {
+            sectionHeader("Display", systemImage: "menubar.rectangle")
         }
     }
 
@@ -200,7 +219,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var alertsSection: some View {
-        Section("Alerts") {
+        Section {
             Toggle("Cost threshold alerts", isOn: $settings.costAlertEnabled)
 
             if settings.costAlertEnabled {
@@ -236,139 +255,16 @@ struct SettingsView: View {
                     }
                 }
             }
+        } header: {
+            sectionHeader("Alerts", systemImage: "bell.badge")
         }
     }
 
-    @ViewBuilder
-    private var developerSection: some View {
-        Section("Developer") {
-            Toggle("UI flow logging", isOn: $settings.debugFlowLogging)
-            Text("Log provider detection/render/notification transitions for local GUI validation")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    // MARK: - Rate Limits Section
+    // MARK: - App Section
 
     @ViewBuilder
-    private var rateLimitsSection: some View {
-        Section("Rate Limits") {
-            ForEach(multiService.activeProviders) { provider in
-                let data = multiService.usageData(for: provider)
-
-                if multiService.activeProviders.count > 1 {
-                    HStack(spacing: 4) {
-                        Image(systemName: provider.iconName)
-                            .font(.system(size: 10))
-                        Text(provider.rawValue)
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(.primary)
-                }
-
-                if data.isAvailable {
-                    LabeledContent("Source") {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 6, height: 6)
-                            Text(provider == .claudeCode ? "Anthropic API (live)" :
-                                 provider == .codex ? "OpenAI (live)" :
-                                 "Google AI (estimated)")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if let plan = data.planName {
-                        LabeledContent("Plan") {
-                            Text(plan).foregroundStyle(.secondary)
-                        }
-                    }
-
-                    ForEach(data.rateLimitBuckets) { bucket in
-                        rateBucketRow(bucket)
-                    }
-
-                    // Claude-specific enterprise quota
-                    if let enterprise = data.enterpriseQuota, enterprise.isAvailable {
-                        Divider()
-                        enterpriseSettingsRows(enterprise)
-                    }
-                } else {
-                    providerSetupHint(for: provider)
-                }
-
-                if multiService.activeProviders.count > 1 && provider != multiService.activeProviders.last {
-                    Divider()
-                }
-            }
-
-            // Show hints for providers that are enabled but not active
-            ForEach(CLIProvider.allCases) { provider in
-                if !multiService.activeProviders.contains(provider) && settings.isEnabled(provider) {
-                    if !multiService.activeProviders.isEmpty {
-                        Divider()
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: provider.iconName)
-                            .font(.system(size: 10))
-                        Text(provider.rawValue)
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(.tertiary)
-                    providerSetupHint(for: provider)
-                }
-            }
-
-            if CLIProvider.allCases.allSatisfy({ !settings.isEnabled($0) }) {
-                Text("All providers are disabled — enable one in Providers above")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
-
-    // MARK: - Data Section
-
-    @ViewBuilder
-    private var dataSection: some View {
-        Section("Data") {
-            Picker("Claude plan tier", selection: $settings.planTier) {
-                ForEach(PlanTier.allCases) { tier in
-                    Text(tier.rawValue).tag(tier)
-                }
-            }
-
-            if settings.planTier == .custom {
-                LabeledContent("Custom weighted limit") {
-                    TextField(
-                        "5,000,000",
-                        value: $settings.customWeightedLimit,
-                        formatter: weightedLimitFormatter
-                    )
-                    .frame(width: 140)
-                    .textFieldStyle(.roundedBorder)
-                }
-            }
-
-            Picker("Refresh interval", selection: $settings.refreshInterval) {
-                Text("15 seconds").tag(15.0 as TimeInterval)
-                Text("30 seconds").tag(30.0 as TimeInterval)
-                Text("1 minute").tag(60.0 as TimeInterval)
-                Text("5 minutes").tag(300.0 as TimeInterval)
-            }
-            .onChange(of: settings.refreshInterval) { _, newValue in
-                multiService.updateRefreshInterval(newValue)
-            }
-        }
-    }
-
-    // MARK: - Startup Section
-
-    @ViewBuilder
-    private var startupSection: some View {
-        Section("Startup") {
+    private var appSection: some View {
+        Section {
             Toggle("Launch at login", isOn: $settings.launchAtLogin)
                 .onChange(of: settings.launchAtLogin) { _, enabled in
                     let service = SMAppService.mainApp
@@ -382,14 +278,7 @@ struct SettingsView: View {
                         settings.launchAtLogin = !enabled
                     }
                 }
-        }
-    }
 
-    // MARK: - Updates Section
-
-    @ViewBuilder
-    private var updatesSection: some View {
-        Section("Updates") {
             Toggle("Automatic updates", isOn: $settings.autoUpdateEnabled)
 
             LabeledContent("Current version") {
@@ -414,6 +303,62 @@ struct SettingsView: View {
 
                 updateStatusIndicator
             }
+        } header: {
+            sectionHeader("App", systemImage: "switch.2")
+        }
+    }
+
+    // MARK: - Advanced Section
+
+    @ViewBuilder
+    private var advancedSection: some View {
+        Section {
+            DisclosureGroup(
+                isExpanded: $advancedDisclosureExpanded,
+                content: {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("Refresh interval", selection: $settings.refreshInterval) {
+                            Text("15 seconds").tag(15.0 as TimeInterval)
+                            Text("30 seconds").tag(30.0 as TimeInterval)
+                            Text("1 minute").tag(60.0 as TimeInterval)
+                            Text("5 minutes").tag(300.0 as TimeInterval)
+                        }
+                        .onChange(of: settings.refreshInterval) { _, newValue in
+                            multiService.updateRefreshInterval(newValue)
+                        }
+
+                        Picker("Claude fallback plan", selection: $settings.planTier) {
+                            ForEach(PlanTier.allCases) { tier in
+                                Text(tier.rawValue).tag(tier)
+                            }
+                        }
+
+                        if settings.planTier == .custom {
+                            LabeledContent("Custom weighted limit") {
+                                TextField(
+                                    "5,000,000",
+                                    value: $settings.customWeightedLimit,
+                                    formatter: weightedLimitFormatter
+                                )
+                                .frame(width: 140)
+                                .textFieldStyle(.roundedBorder)
+                            }
+                        }
+
+                        Toggle("UI flow logging", isOn: $settings.debugFlowLogging)
+
+                        Text("Only change these if OAuth detection or Claude fallback estimation needs tuning.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.top, 4)
+                },
+                label: {
+                    Label("Advanced", systemImage: "slider.horizontal.3")
+                }
+            )
+        } header: {
+            sectionHeader("Advanced", systemImage: "slider.horizontal.3")
         }
     }
 
@@ -534,5 +479,11 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private func sectionHeader(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.primary)
     }
 }
