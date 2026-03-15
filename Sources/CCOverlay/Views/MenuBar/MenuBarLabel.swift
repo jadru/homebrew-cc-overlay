@@ -28,6 +28,10 @@ struct MenuBarLabel: View {
         Color.usageTint(for: remainPct)
     }
 
+    private var visibleProviders: [CLIProvider] {
+        multiService.activeProviders.filter { settings.isMenuBarVisible($0) }
+    }
+
     private var hasDualProviders: Bool {
         multiService.activeProviders.count > 1
     }
@@ -101,24 +105,11 @@ struct MenuBarLabel: View {
                 .frame(minWidth: hasDualProviders ? 9 : 5, minHeight: 16)
                 .fixedSize()
         case .percentage:
-            if hasDualProviders && !recentlyActive.isEmpty {
-                recentlyActiveIcons
-            } else if hasDualProviders {
-                dualProviderIcons
-            } else if let data = criticalData {
-                Image(systemName: data.provider.iconName)
-                    .symbolRenderingMode(.hierarchical)
-                    .font(.system(size: 11))
-            } else {
-                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                    .symbolRenderingMode(.hierarchical)
-            }
-            if hasData && recentlyActive.isEmpty {
-                Text(NumberFormatting.formatPercentage(remainPct))
-                    .font(.system(.caption, design: .monospaced))
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: remainPct)
-            }
+            Image(nsImage: renderedPercentageLabelImage())
+                .fixedSize()
+        case .detailed:
+            Image(nsImage: renderedDetailedLabelImage())
+                .fixedSize()
         }
     }
 
@@ -183,35 +174,88 @@ struct MenuBarLabel: View {
         return value
     }
 
-    // MARK: - Dual Provider Icons
+    // MARK: - NSImage Label Renderers
 
-    @ViewBuilder
-    private var dualProviderIcons: some View {
-        HStack(spacing: 2) {
-            ForEach(multiService.activeProviders) { provider in
-                Circle()
-                    .fill(menuBarForegroundColor.opacity(0.9))
-                    .frame(width: 5, height: 5)
+    private func renderedPercentageLabelImage() -> NSImage {
+        let providers = visibleProviders
+        let boldFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
+        let regularFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        let color = NSColor.black
+
+        let attributed = NSMutableAttributedString()
+        if providers.isEmpty {
+            attributed.append(NSAttributedString(string: "--", attributes: [.font: boldFont, .foregroundColor: color]))
+        } else {
+            for (index, provider) in providers.enumerated() {
+                if index > 0 {
+                    attributed.append(NSAttributedString(string: " ", attributes: [.font: regularFont, .foregroundColor: color]))
+                }
+                let data = multiService.usageData(for: provider)
+                attributed.append(NSAttributedString(string: provider.shortLabel, attributes: [.font: boldFont, .foregroundColor: color]))
+                attributed.append(NSAttributedString(string: " \(NumberFormatting.formatPercentage(data.remainingPercentage))", attributes: [.font: regularFont, .foregroundColor: color]))
             }
         }
+
+        return renderAttributedStringToImage(attributed)
     }
 
-    /// Recently active providers: icon + percentage, sorted by most consumed first.
-    @ViewBuilder
-    private var recentlyActiveIcons: some View {
-        HStack(spacing: 3) {
-            ForEach(recentlyActive, id: \.self) { provider in
+    private func renderedDetailedLabelImage() -> NSImage {
+        let providers = visibleProviders
+        let boldFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
+        let regularFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        let color = NSColor.black
+
+        let attributed = NSMutableAttributedString()
+        if providers.isEmpty {
+            attributed.append(NSAttributedString(string: "--", attributes: [.font: boldFont, .foregroundColor: color]))
+        } else {
+            for (index, provider) in providers.enumerated() {
+                if index > 0 {
+                    attributed.append(NSAttributedString(string: " ", attributes: [.font: regularFont, .foregroundColor: color]))
+                }
                 let data = multiService.usageData(for: provider)
-                Image(systemName: provider.iconName)
-                    .symbolRenderingMode(.hierarchical)
-                    .font(.system(size: 10))
-                    .foregroundStyle(menuBarForegroundColor)
-                Text(NumberFormatting.formatPercentage(data.remainingPercentage))
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(menuBarForegroundColor)
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: data.remainingPercentage)
+                attributed.append(NSAttributedString(string: provider.shortLabel, attributes: [.font: boldFont, .foregroundColor: color]))
+                if data.rateLimitBuckets.isEmpty {
+                    let text = " \(shortBucketLabel(data.primaryWindowLabel)):\(NumberFormatting.formatPercentage(data.remainingPercentage))"
+                    attributed.append(NSAttributedString(string: text, attributes: [.font: regularFont, .foregroundColor: color]))
+                } else {
+                    for bucket in data.rateLimitBuckets {
+                        let pctStr = NumberFormatting.formatPercentage(100 - bucket.utilization)
+                        let text = " \(shortBucketLabel(bucket.label)):\(pctStr)"
+                        attributed.append(NSAttributedString(string: text, attributes: [.font: regularFont, .foregroundColor: color]))
+                    }
+                }
             }
+        }
+
+        return renderAttributedStringToImage(attributed)
+    }
+
+    private func renderAttributedStringToImage(_ attributed: NSMutableAttributedString) -> NSImage {
+        let size = attributed.size()
+        let imageSize = NSSize(width: ceil(size.width) + 2, height: 16)
+        let image = NSImage(size: imageSize)
+        image.lockFocus()
+        defer {
+            image.unlockFocus()
+            image.isTemplate = true
+        }
+        let yOffset = (imageSize.height - size.height) / 2
+        attributed.draw(at: NSPoint(x: 1, y: yOffset))
+        return image
+    }
+
+    // MARK: - Helpers
+
+    private func shortBucketLabel(_ label: String) -> String {
+        switch label.lowercased() {
+        case "5h": return "5h"
+        case "1w", "7d": return "1w"
+        case "sonnet": return "S"
+        case "spark": return "Sp"
+        case "daily": return "D"
+        case "credits", "cr": return "Cr"
+        default: return String(label.prefix(2))
         }
     }
 

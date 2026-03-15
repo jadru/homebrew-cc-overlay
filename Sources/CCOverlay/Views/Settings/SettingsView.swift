@@ -209,6 +209,12 @@ struct SettingsView: View {
                 }
             }
 
+            ForEach(CLIProvider.allCases) { provider in
+                if multiService.activeProviders.contains(provider) {
+                    Toggle("Show \(provider.shortLabel) in menu bar", isOn: menuBarVisibilityBinding(for: provider))
+                }
+            }
+
             Toggle("Global hotkey (\u{2318}\u{21E7}A)", isOn: $settings.globalHotkeyEnabled)
         } header: {
             sectionHeader("Display", systemImage: "menubar.rectangle")
@@ -478,6 +484,14 @@ struct SettingsView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
+        }
+    }
+
+    private func menuBarVisibilityBinding(for provider: CLIProvider) -> Binding<Bool> {
+        switch provider {
+        case .claudeCode: return $settings.menuBarShowClaudeCode
+        case .codex: return $settings.menuBarShowCodex
+        case .gemini: return $settings.menuBarShowGemini
         }
     }
 
