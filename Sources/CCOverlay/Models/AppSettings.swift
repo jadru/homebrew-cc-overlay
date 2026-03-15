@@ -30,6 +30,9 @@ final class AppSettings {
         static let codexAPIKey = "codexAPIKey"
         static let geminiEnabled = "geminiEnabled"
         static let geminiAPIKey = "geminiAPIKey"
+        static let menuBarShowClaudeCode = "menuBarShowClaudeCode"
+        static let menuBarShowCodex = "menuBarShowCodex"
+        static let menuBarShowGemini = "menuBarShowGemini"
     }
 
     // MARK: - General
@@ -274,6 +277,40 @@ final class AppSettings {
         }
     }
 
+    // MARK: - Menu Bar Visibility
+
+    var menuBarShowClaudeCode: Bool {
+        get {
+            access(keyPath: \.menuBarShowClaudeCode)
+            return UserDefaults.standard.object(forKey: Key.menuBarShowClaudeCode) as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.menuBarShowClaudeCode) { UserDefaults.standard.set(newValue, forKey: Key.menuBarShowClaudeCode) } }
+    }
+
+    var menuBarShowCodex: Bool {
+        get {
+            access(keyPath: \.menuBarShowCodex)
+            return UserDefaults.standard.object(forKey: Key.menuBarShowCodex) as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.menuBarShowCodex) { UserDefaults.standard.set(newValue, forKey: Key.menuBarShowCodex) } }
+    }
+
+    var menuBarShowGemini: Bool {
+        get {
+            access(keyPath: \.menuBarShowGemini)
+            return UserDefaults.standard.object(forKey: Key.menuBarShowGemini) as? Bool ?? true
+        }
+        set { withMutation(keyPath: \.menuBarShowGemini) { UserDefaults.standard.set(newValue, forKey: Key.menuBarShowGemini) } }
+    }
+
+    func isMenuBarVisible(_ provider: CLIProvider) -> Bool {
+        switch provider {
+        case .claudeCode: return menuBarShowClaudeCode
+        case .codex: return menuBarShowCodex
+        case .gemini: return menuBarShowGemini
+        }
+    }
+
     func isEnabled(_ provider: CLIProvider) -> Bool {
         switch provider {
         case .claudeCode: return claudeCodeEnabled
@@ -300,6 +337,9 @@ final class AppSettings {
             Key.claudeCodeEnabled: true,
             Key.codexEnabled: true,
             Key.geminiEnabled: true,
+            Key.menuBarShowClaudeCode: true,
+            Key.menuBarShowCodex: true,
+            Key.menuBarShowGemini: true,
         ])
 
         migrateLegacyAPIKeysToKeychainIfNeeded()

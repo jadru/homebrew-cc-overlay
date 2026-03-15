@@ -31,7 +31,8 @@ jobs:
 
       - name: Package
         run: |
-          tar -czf cc-overlay-${{ github.ref_name }}-macos.tar.gz cc-overlay
+          cp Sources/CCOverlay/Info.plist .
+          tar -czf cc-overlay-${{ github.ref_name }}-macos.tar.gz cc-overlay Info.plist
           shasum -a 256 cc-overlay-${{ github.ref_name }}-macos.tar.gz | tee sha256.txt
 
       - name: Create Release
