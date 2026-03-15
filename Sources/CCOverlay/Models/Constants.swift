@@ -123,6 +123,7 @@ enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
     case pieChart = "Pie Chart"
     case barChart = "Bar Chart"
     case percentage = "Percentage"
+    case detailed = "Detailed"
 
     var id: String { rawValue }
 }

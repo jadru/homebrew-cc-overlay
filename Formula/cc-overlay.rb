@@ -8,12 +8,19 @@ class CcOverlay < Formula
   depends_on :macos => :sequoia
 
   def install
-    bin.install "cc-overlay"
-    # Entitlements for outbound network access (prevents repeated macOS permission dialogs)
+    # .app bundle structure required by macOS GUI frameworks
+    # (UNUserNotificationCenter, SwiftData, etc.)
+    app_dir = prefix/"CC-Overlay.app/Contents"
+    (app_dir/"MacOS").mkpath
+
+    (app_dir/"MacOS").install "cc-overlay"
+    app_dir.install "Info.plist"
+
     entitlements = buildpath/"cc-overlay.entitlements"
     entitlements.write <<~XML
       <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+        "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
       <plist version="1.0">
       <dict>
           <key>com.apple.security.network.client</key>
@@ -23,13 +30,16 @@ class CcOverlay < Formula
     XML
     system "codesign", "--force", "--sign", "-",
            "--entitlements", entitlements,
-           "--timestamp=none", bin/"cc-overlay"
+           "--timestamp=none", app_dir/"MacOS/cc-overlay"
+
+    bin.install_symlink app_dir/"MacOS/cc-overlay"
   end
 
   service do
-    run [opt_bin/"cc-overlay"]
+    run [opt_prefix/"CC-Overlay.app/Contents/MacOS/cc-overlay"]
     keep_alive crashed: true
     log_path var/"log/cc-overlay.log"
+    process_type :interactive
   end
 
   test do
