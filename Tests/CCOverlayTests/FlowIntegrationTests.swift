@@ -49,6 +49,28 @@ final class FlowIntegrationTests: XCTestCase {
 
     // MARK: - Alert flow
 
+    func testAlertFlow_NotificationCenterResolvesLazily() {
+        var providerCallCount = 0
+        let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
+        let manager = CostAlertManager(notificationCenterProvider: {
+            providerCallCount += 1
+            return notificationCenter
+        })
+        let settings = AppSettings()
+        settings.costAlertEnabled = true
+        settings.alertWarningThreshold = 70
+        settings.alertCriticalThreshold = 90
+
+        XCTAssertEqual(providerCallCount, 0)
+
+        manager.check(usedPercentage: 65, settings: settings)
+        XCTAssertEqual(providerCallCount, 0)
+
+        manager.check(usedPercentage: 72, settings: settings)
+        XCTAssertEqual(providerCallCount, 1)
+        XCTAssertEqual(notificationCenter.deliveredRequests.count, 1)
+    }
+
     func testAlertFlow_ThresholdTransitionsTriggerNotifications() {
         let sink = TestFlowEventSink()
         let notificationCenter = MockNotificationCenter(initialStatus: .authorized)

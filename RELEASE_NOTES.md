@@ -1,3 +1,24 @@
+# v0.9.1
+
+## Launch Reliability: macOS 15 Brew Recovery, Safer Startup, Codex GUI Overlay
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **macOS 15 Homebrew recovery guidance** — Added a documented cleanup/reinstall path for users stuck on the old `opt_bin` LaunchAgent after upgrading from `0.8.x`
+- **Safer notification startup** — `CostAlertManager` now resolves `UNUserNotificationCenter` lazily so launch no longer depends on notification center initialization during app startup
+- **Codex GUI overlay whitelist** — Codex desktop helper bundle IDs are now accepted so the floating overlay stays visible when Codex helper processes own focus events
+- **Regression coverage** — Added tests for lazy notification-center resolution and Codex helper whitelist handling
+
+### Release Notes
+
+- Source version metadata now matches the shipped release (`0.9.1`) instead of the stale `0.8.0` value left in the app bundle metadata
+- Release automation (`.github/workflows/release.yml`) will build/tag/package the macOS artifact and sync the Homebrew formula to the tap on tag push
+- For this release, create/push tag: `v0.9.1`
+
+---
+
 # v0.8.0
 
 ## Menubar Refresh, Overlay Navigation, Provider Parsing Hardening

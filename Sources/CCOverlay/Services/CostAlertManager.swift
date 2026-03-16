@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 @preconcurrency import UserNotifications
 
 protocol CostNotificationCenter {
@@ -35,10 +36,17 @@ extension UNUserNotificationCenter: CostNotificationCenter {
 final class CostAlertManager {
     private var lastAlertedThreshold: Double = 0
     private var lastWeeklyAlertedThreshold: Double = 0
-    private let notificationCenter: CostNotificationCenter
+    @ObservationIgnored
+    private let notificationCenterProvider: () -> CostNotificationCenter
+    @ObservationIgnored
+    private var cachedNotificationCenter: CostNotificationCenter?
 
-    init(notificationCenter: CostNotificationCenter = UNUserNotificationCenter.current()) {
-        self.notificationCenter = notificationCenter
+    init(notificationCenter: CostNotificationCenter) {
+        self.notificationCenterProvider = { notificationCenter }
+    }
+
+    init(notificationCenterProvider: @escaping () -> CostNotificationCenter = { UNUserNotificationCenter.current() }) {
+        self.notificationCenterProvider = notificationCenterProvider
     }
 
     func check(usedPercentage: Double, settings: AppSettings) {
@@ -105,10 +113,11 @@ final class CostAlertManager {
     }
 
     private func sendNotification(title: String, body: String) {
-        notificationCenter.getAuthorizationStatus { status in
+        let center = notificationCenter()
+        center.getAuthorizationStatus { status in
             guard status == .authorized || status == .provisional else {
                 if status == .notDetermined {
-                    self.notificationCenter.requestAuthorization { granted in
+                    center.requestAuthorization { granted in
                         guard granted else { return }
                         self.deliverNotification(title: title, body: body)
                     }
@@ -131,7 +140,7 @@ final class CostAlertManager {
             trigger: nil
         )
 
-        notificationCenter.addNotificationRequest(request) { error in
+        notificationCenter().addNotificationRequest(request) { error in
             if let error {
                 AppLogger.data.error("Failed to deliver notification: \(error.localizedDescription)")
                 DebugFlowLogger.shared.log(
@@ -146,5 +155,15 @@ final class CostAlertManager {
                 )
             }
         }
+    }
+
+    private func notificationCenter() -> CostNotificationCenter {
+        if let cachedNotificationCenter {
+            return cachedNotificationCenter
+        }
+
+        let center = notificationCenterProvider()
+        cachedNotificationCenter = center
+        return center
     }
 }

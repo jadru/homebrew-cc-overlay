@@ -31,6 +31,24 @@ brew install cc-overlay
 brew services start cc-overlay
 ```
 
+If you upgraded from `0.8.x` and the service still fails to launch on macOS 15, refresh the LaunchAgent so it stops pointing at the old `opt_bin` path:
+
+```bash
+brew services stop cc-overlay
+rm -f ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist
+brew uninstall cc-overlay
+brew untap jadru/cc-overlay
+brew tap jadru/cc-overlay
+brew install cc-overlay
+brew services start cc-overlay
+```
+
+After reinstall, `~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist` should point to:
+
+```text
+/opt/homebrew/opt/cc-overlay/CC-Overlay.app/Contents/MacOS/cc-overlay
+```
+
 ### Build from source
 
 Requires **Swift 6.0+** and **macOS 15+** (Sequoia) SDK.

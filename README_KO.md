@@ -31,6 +31,24 @@ brew install cc-overlay
 brew services start cc-overlay
 ```
 
+`0.8.x`에서 업그레이드한 뒤 macOS 15에서 서비스가 계속 뜨지 않으면, 기존 LaunchAgent가 예전 `opt_bin` 경로를 가리키는 상태일 수 있습니다. 아래 순서로 LaunchAgent를 새로 만드세요.
+
+```bash
+brew services stop cc-overlay
+rm -f ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist
+brew uninstall cc-overlay
+brew untap jadru/cc-overlay
+brew tap jadru/cc-overlay
+brew install cc-overlay
+brew services start cc-overlay
+```
+
+재설치 후 `~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist`의 실행 경로는 아래와 같아야 합니다.
+
+```text
+/opt/homebrew/opt/cc-overlay/CC-Overlay.app/Contents/MacOS/cc-overlay
+```
+
 ### 소스에서 빌드
 
 **Swift 6.0+** 및 **macOS 15+** (Sequoia) SDK 필요.

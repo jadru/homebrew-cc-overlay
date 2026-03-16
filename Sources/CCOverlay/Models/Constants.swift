@@ -132,7 +132,7 @@ enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.8.0"
+    static let version = "0.9.1"
     static let githubRepo = "jadru/cc-overlay"
     static let updateCheckInterval: TimeInterval = 86400 // 24h
 
