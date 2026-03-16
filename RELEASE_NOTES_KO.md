@@ -1,3 +1,24 @@
+# v0.9.1
+
+## 실행 안정성: macOS 15 Brew 복구, 더 안전한 시작, Codex GUI 오버레이
+
+> [English](RELEASE_NOTES.md)
+
+### 주요 변경
+
+- **macOS 15 Homebrew 복구 가이드 추가** — `0.8.x`에서 업그레이드 후 예전 `opt_bin` LaunchAgent에 걸린 사용자를 위한 정리/재설치 절차 문서화
+- **알림 초기화 안전성 개선** — `CostAlertManager`가 `UNUserNotificationCenter`를 지연 초기화하도록 바꿔 앱 시작 시점의 notification center 초기화 의존성을 제거
+- **Codex GUI 오버레이 whitelist 보강** — Codex 데스크톱 helper 번들 ID도 허용해 Codex helper 프로세스가 포커스를 잡아도 플로팅 오버레이가 유지되도록 개선
+- **회귀 테스트 추가** — notification center 지연 초기화와 Codex helper whitelist 동작을 검증하는 테스트 추가
+
+### 릴리즈 메모
+
+- 앱 번들 메타데이터의 버전 문자열을 실제 배포 버전인 `0.9.1`로 맞춰 기존의 stale `0.8.0` 값 문제를 정리
+- 릴리즈 자동화(`.github/workflows/release.yml`)가 태그 푸시 시 macOS 아티팩트를 빌드/패키징하고 Homebrew formula를 tap과 동기화
+- 이번 릴리즈 태그: `v0.9.1`
+
+---
+
 # v0.8.0
 
 ## 메뉴바 리프레시, 오버레이 내비게이션, 프로바이더 파싱 안정화

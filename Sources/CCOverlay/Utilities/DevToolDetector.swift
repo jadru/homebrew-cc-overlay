@@ -26,6 +26,7 @@ enum DevToolDetector {
 
     static let whitelistedPrefixes: [String] = [
         "com.jetbrains.",
+        "com.openai.codex",
     ]
 
     static func isWhitelisted(_ bundleId: String) -> Bool {
