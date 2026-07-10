@@ -3,6 +3,41 @@ import XCTest
 
 @MainActor
 final class MultiProviderUsageServiceTests: XCTestCase {
+    func testProviderDetectionParticipatesInLoadingState() async {
+        var pendingDetection: CheckedContinuation<Void, Never>?
+        var shouldSuspend = true
+        var factoryCallCount = 0
+        let service = MultiProviderUsageService { _, _ in
+            factoryCallCount += 1
+            if shouldSuspend {
+                shouldSuspend = false
+                await withCheckedContinuation { pendingDetection = $0 }
+            }
+            return nil
+        }
+        defer { service.stopMonitoring() }
+
+        service.startMonitoring()
+        XCTAssertTrue(service.isLoading)
+
+        for _ in 0..<100 where pendingDetection == nil {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        guard let pendingDetection else {
+            return XCTFail("Provider detection did not start")
+        }
+
+        service.refresh()
+        await Task.yield()
+        XCTAssertEqual(factoryCallCount, 1)
+
+        pendingDetection.resume()
+        for _ in 0..<100 where service.isLoading {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        XCTAssertFalse(service.isLoading)
+    }
+
     func testRefreshRemovesProviderAfterAuthenticationIsRevoked() async {
         let claude = MockProviderService(provider: .claudeCode)
         let codex = MockProviderService(provider: .codex)

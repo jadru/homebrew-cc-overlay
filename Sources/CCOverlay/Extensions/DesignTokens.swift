@@ -20,6 +20,7 @@ enum DesignTokens {
         static let sidebarWidth: CGFloat = 52
         static let sidebarButton: CGFloat = 40
         static let menuBarPanelWidth: CGFloat = 420
+        static let menuBarPanelEmptyMinHeight: CGFloat = 220
         static let menuBarPanelMinHeight: CGFloat = 420
         static let menuBarPanelMaxHeight: CGFloat = 560
         static let expandedPillWidth: CGFloat = 300
