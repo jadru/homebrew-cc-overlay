@@ -18,7 +18,8 @@ class CcOverlay < Formula
       system "codesign", "--force", "--sign", "-", "--timestamp=none", app_dir/"MacOS/cc-overlay"
     end
 
-    bin.install_symlink prefix/"CC-Overlay.app/Contents/MacOS/cc-overlay"
+    executable = prefix/"CC-Overlay.app/Contents/MacOS/cc-overlay"
+    bin.write_exec_script executable
   end
 
   test do
