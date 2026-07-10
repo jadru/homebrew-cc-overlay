@@ -8,18 +8,22 @@ class CcOverlay < Formula
   depends_on :macos => :sequoia
 
   def install
-    if (buildpath/"CC-Overlay.app").directory?
-      prefix.install "CC-Overlay.app"
-    else
-      app_dir = prefix/"CC-Overlay.app/Contents"
-      (app_dir/"MacOS").mkpath
-      (app_dir/"MacOS").install "cc-overlay"
-      app_dir.install "Info.plist"
-      system "codesign", "--force", "--sign", "-", "--timestamp=none", app_dir/"MacOS/cc-overlay"
+    app_bundle = buildpath
+    unless app_bundle.directory? && app_bundle.basename.to_s == "CC-Overlay.app"
+      odie "Release archive must contain CC-Overlay.app"
     end
 
+    destination = prefix/"CC-Overlay.app"
+    destination.mkpath
+    system "ditto", app_bundle/"Contents", destination/"Contents"
+
     executable = prefix/"CC-Overlay.app/Contents/MacOS/cc-overlay"
-    bin.write_exec_script executable
+    wrapper = bin/"cc-overlay"
+    wrapper.write <<~SH
+      #!/bin/bash
+      exec "#{executable}" "$@"
+    SH
+    wrapper.chmod 0755
   end
 
   test do
