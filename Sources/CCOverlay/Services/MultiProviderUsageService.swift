@@ -7,8 +7,9 @@ final class MultiProviderUsageService {
     typealias ProviderServiceFactory = @MainActor (CLIProvider, AppSettings?) async -> (any ProviderServiceProtocol)?
 
     private(set) var activeProviders: [CLIProvider] = []
+    private(set) var isDetectingProviders = false
     var isLoading: Bool {
-        services.values.contains { $0.isLoading }
+        isDetectingProviders || services.values.contains { $0.isLoading }
     }
 
     private var services: [CLIProvider: any ProviderServiceProtocol] = [:]
@@ -18,6 +19,7 @@ final class MultiProviderUsageService {
     private var isMonitoring = false
     private var monitoringInterval = AppConstants.defaultRefreshInterval
     private var monitoredProviders = Set<CLIProvider>()
+    private var detectionGeneration = 0
 
     init(serviceFactory: ProviderServiceFactory? = nil) {
         self.serviceFactory = serviceFactory ?? Self.defaultServiceFactory
@@ -76,7 +78,9 @@ final class MultiProviderUsageService {
         detectionTask?.cancel()
         isMonitoring = true
         monitoringInterval = interval
+        let generation = beginProviderDetection()
         detectionTask = Task {
+            defer { finishProviderDetection(generation) }
             await detectProviders()
             guard !Task.isCancelled else { return }
             startServicesIfNeeded()
@@ -87,6 +91,8 @@ final class MultiProviderUsageService {
         detectionTask?.cancel()
         detectionTask = nil
         isMonitoring = false
+        detectionGeneration += 1
+        isDetectingProviders = false
         monitoredProviders.removeAll()
         for service in services.values {
             service.stopMonitoring()
@@ -94,8 +100,12 @@ final class MultiProviderUsageService {
     }
 
     func refresh() {
-        Task { [weak self] in
+        guard !isLoading else { return }
+
+        let generation = beginProviderDetection()
+        detectionTask = Task { [weak self] in
             guard let self else { return }
+            defer { finishProviderDetection(generation) }
             await detectProviders()
             guard !Task.isCancelled else { return }
             startServicesIfNeeded()
@@ -108,6 +118,17 @@ final class MultiProviderUsageService {
                 }
             }
         }
+    }
+
+    private func beginProviderDetection() -> Int {
+        detectionGeneration += 1
+        isDetectingProviders = true
+        return detectionGeneration
+    }
+
+    private func finishProviderDetection(_ generation: Int) {
+        guard detectionGeneration == generation else { return }
+        isDetectingProviders = false
     }
 
     func updateRefreshInterval(_ interval: TimeInterval) {

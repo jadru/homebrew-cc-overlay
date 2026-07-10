@@ -2,6 +2,14 @@ import AppKit
 import SwiftUI
 
 struct MenuBarView: View {
+    enum PanelState: Equatable {
+        case ready
+        case loading
+        case failed
+        case noProviders
+        case noUsage
+    }
+
     let multiService: MultiProviderUsageService
     @Bindable var settings: AppSettings
     let updateService: UpdateService
@@ -18,11 +26,29 @@ struct MenuBarView: View {
         Set(availableProviders)
     }
 
+    private var displayedProvider: CLIProvider? {
+        if let selectedProvider, availableProviders.contains(selectedProvider) {
+            return selectedProvider
+        }
+        return availableProviders.first
+    }
+
+    private var panelState: PanelState {
+        Self.resolvePanelState(
+            activeProviders: multiService.activeProviders,
+            availableProviders: availableProviders,
+            isLoading: multiService.isLoading,
+            hasError: multiService.error != nil
+        )
+    }
+
     var body: some View {
         contentArea
         .frame(width: DesignTokens.Layout.menuBarPanelWidth)
         .frame(
-            minHeight: availableProviders.isEmpty ? 0 : DesignTokens.Layout.menuBarPanelMinHeight,
+            minHeight: panelState == .ready
+                ? DesignTokens.Layout.menuBarPanelMinHeight
+                : DesignTokens.Layout.menuBarPanelEmptyMinHeight,
             maxHeight: DesignTokens.Layout.menuBarPanelMaxHeight,
             alignment: .topLeading
         )
@@ -66,17 +92,7 @@ struct MenuBarView: View {
     private var contentArea: some View {
         ScrollView {
             VStack(spacing: 10) {
-                if let provider = selectedProvider, availableProviders.contains(provider) {
-                    commandHeader
-                    if availableProviders.count > 1 {
-                        providerRail
-                    }
-                    let data = multiService.usageData(for: provider)
-                    ProviderSectionView(data: data)
-                } else {
-                    overflowMenu
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
+                panelContent
 
                 UpdateBannerView(updateService: updateService)
                 footerSection
@@ -90,31 +106,132 @@ struct MenuBarView: View {
     // MARK: - Header
 
     @ViewBuilder
-    private var commandHeader: some View {
-        if let provider = selectedProvider {
-            let data = multiService.usageData(for: provider)
-            HStack(alignment: .center, spacing: 12) {
-                ProviderIconView(provider: provider, size: 18, fallbackColor: .primary)
-                    .frame(width: 34, height: 34)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(provider.rawValue)
-                            .font(.system(size: 17, weight: .bold))
-                            .lineLimit(1)
-                            .layoutPriority(1)
-
-                        statusBadge(for: data)
-                    }
-
-                    Text(headerSubtitle(for: data))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+    private var panelContent: some View {
+        switch panelState {
+        case .ready:
+            if let provider = displayedProvider {
+                commandHeader(for: provider)
+                if availableProviders.count > 1 {
+                    providerRail
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
+                ProviderSectionView(data: multiService.usageData(for: provider))
             }
+        case .loading, .failed, .noProviders, .noUsage:
+            unavailableContent
+        }
+    }
+
+    private func commandHeader(for provider: CLIProvider) -> some View {
+        let data = multiService.usageData(for: provider)
+        return HStack(alignment: .center, spacing: 12) {
+            ProviderIconView(provider: provider, size: 18, fallbackColor: .primary)
+                .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(provider.rawValue)
+                        .font(.system(size: 17, weight: .bold))
+                        .lineLimit(1)
+                        .layoutPriority(1)
+
+                    statusBadge(for: data)
+                }
+
+                Text(headerSubtitle(for: data))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Unavailable State
+
+    private var unavailableContent: some View {
+        VStack(spacing: 0) {
+            unavailableMessage
+                .frame(maxWidth: .infinity, minHeight: 150)
+
+            HStack(spacing: 8) {
+                Button(action: refreshData) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(panelState == .loading)
+
+                Button(action: { onOpenSettings?() }) {
+                    Label("Settings", systemImage: "gearshape")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Spacer()
+
+                overflowMenu
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var unavailableMessage: some View {
+        let presentation = unavailablePresentation
+
+        VStack(spacing: 10) {
+            if panelState == .loading {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 34, height: 34)
+            } else {
+                Image(systemName: presentation.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(presentation.tint)
+                    .frame(width: 34, height: 34)
+                    .compatGlassCircle(tint: presentation.tint.opacity(0.08))
+            }
+
+            VStack(spacing: 4) {
+                Text(presentation.title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                Text(presentation.message)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: 300)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var unavailablePresentation: (title: String, message: String, icon: String, tint: Color) {
+        switch panelState {
+        case .ready:
+            return ("Usage ready", "Current provider usage is available.", "checkmark", .mint)
+        case .loading:
+            return ("Loading usage", "Fetching the latest provider limits.", "arrow.clockwise", .secondary)
+        case .failed:
+            let error = AppError.from(multiService.error ?? "Usage could not be loaded.")
+            return (error.title, error.message, error.icon, .red)
+        case .noProviders:
+            return (
+                "No providers found",
+                "CC-Overlay couldn't find a signed-in Claude Code or Codex CLI.",
+                "terminal",
+                .secondary
+            )
+        case .noUsage:
+            return (
+                "No current usage",
+                "Connected providers have no current usage window to display.",
+                "chart.bar.xaxis",
+                .secondary
+            )
         }
     }
 
@@ -182,7 +299,7 @@ struct MenuBarView: View {
 
     private var overflowMenu: some View {
         Menu {
-            if let provider = selectedProvider {
+            if let provider = displayedProvider {
                 Button {
                     let data = multiService.usageData(for: provider)
                     UsageExportService.copyToClipboard(UsageExportService.markdownSummary(data: data))
@@ -194,6 +311,7 @@ struct MenuBarView: View {
             Button(action: refreshData) {
                 Label("Refresh usage", systemImage: "arrow.clockwise")
             }
+            .disabled(multiService.isLoading)
 
             Divider()
 
@@ -208,8 +326,14 @@ struct MenuBarView: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
         }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: true, vertical: true)
         .accessibilityLabel("More actions")
+        .help("More actions")
     }
 
     // MARK: - Footer
@@ -259,12 +383,35 @@ struct MenuBarView: View {
     }
 
     private func refreshData() {
+        guard !multiService.isLoading else { return }
+
         DebugFlowLogger.shared.log(
             stage: .display,
             message: "menuBar.refresh.tapped",
             details: ["provider": selectedProvider?.rawValue ?? "none"]
         )
         multiService.refresh()
+    }
+
+    static func resolvePanelState(
+        activeProviders: [CLIProvider],
+        availableProviders: [CLIProvider],
+        isLoading: Bool,
+        hasError: Bool
+    ) -> PanelState {
+        if !availableProviders.isEmpty {
+            return .ready
+        }
+        if isLoading {
+            return .loading
+        }
+        if hasError {
+            return .failed
+        }
+        if activeProviders.isEmpty {
+            return .noProviders
+        }
+        return .noUsage
     }
 
     private func installKeyMonitorIfNeeded() {
@@ -292,6 +439,7 @@ struct MenuBarView: View {
             selectedProvider = providers[index - 1]
             return true
         case "r":
+            guard !multiService.isLoading else { return true }
             refreshData()
             return true
         default:

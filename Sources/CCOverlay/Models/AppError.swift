@@ -36,11 +36,11 @@ enum AppError: LocalizedError, Equatable {
     var message: String {
         switch self {
         case .networkUnavailable:
-            return "Unable to reach Anthropic API. Check your internet connection."
+            return "Unable to reach the usage service. Check your internet connection."
         case .apiError(let statusCode):
             return "The API returned an error with status code \(statusCode)."
         case .apiUnauthorized:
-            return "Your session has expired. Please re-authenticate in Claude Code."
+            return "Your session has expired. Sign in again with the provider CLI."
         case .jsonlParseError(let file):
             return "Failed to parse session file: \(file)"
         case .keychainAccessDenied:
