@@ -4,13 +4,24 @@ import Observation
 @Observable
 @MainActor
 final class MultiProviderUsageService {
+    typealias ProviderServiceFactory = @MainActor (CLIProvider, AppSettings?) async -> (any ProviderServiceProtocol)?
+
     private(set) var activeProviders: [CLIProvider] = []
-    private(set) var isLoading = false
+    var isLoading: Bool {
+        services.values.contains { $0.isLoading }
+    }
 
     private var services: [CLIProvider: any ProviderServiceProtocol] = [:]
     private var settings: AppSettings?
+    private var detectionTask: Task<Void, Never>?
+    private let serviceFactory: ProviderServiceFactory
+    private var isMonitoring = false
+    private var monitoringInterval = AppConstants.defaultRefreshInterval
+    private var monitoredProviders = Set<CLIProvider>()
 
-    init() {}
+    init(serviceFactory: ProviderServiceFactory? = nil) {
+        self.serviceFactory = serviceFactory ?? Self.defaultServiceFactory
+    }
 
     /// Bind settings for reading provider enable/disable and API keys.
     func configure(settings: AppSettings) {
@@ -21,6 +32,11 @@ final class MultiProviderUsageService {
 
     func usageData(for provider: CLIProvider) -> ProviderUsageData {
         services[provider]?.usageData ?? .empty(for: provider)
+    }
+
+    /// Providers with usage data ready for display.
+    var availableProviders: [CLIProvider] {
+        activeProviders.filter { usageData(for: $0).isAvailable }
     }
 
     /// The provider with the lowest remaining percentage (most critical).
@@ -57,26 +73,39 @@ final class MultiProviderUsageService {
     // MARK: - Monitoring
 
     func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
-        Task {
+        detectionTask?.cancel()
+        isMonitoring = true
+        monitoringInterval = interval
+        detectionTask = Task {
             await detectProviders()
-            for service in services.values {
-                service.startMonitoring(interval: interval)
-            }
+            guard !Task.isCancelled else { return }
+            startServicesIfNeeded()
         }
     }
 
     func stopMonitoring() {
+        detectionTask?.cancel()
+        detectionTask = nil
+        isMonitoring = false
+        monitoredProviders.removeAll()
         for service in services.values {
             service.stopMonitoring()
         }
     }
 
     func refresh() {
-        Task {
-            await detectProviders(skipExisting: true)
+        Task { [weak self] in
+            guard let self else { return }
+            await detectProviders()
+            guard !Task.isCancelled else { return }
+            startServicesIfNeeded()
 
             for service in services.values {
-                service.refresh()
+                if let baseService = service as? BaseProviderService {
+                    baseService.refresh(forceNetwork: true)
+                } else {
+                    service.refresh()
+                }
             }
         }
     }
@@ -88,28 +117,36 @@ final class MultiProviderUsageService {
 
     // MARK: - Detection
 
-    private func detectProviders(skipExisting: Bool = false) async {
+    private func detectProviders() async {
         let interval = settings?.refreshInterval ?? AppConstants.defaultRefreshInterval
         DebugFlowLogger.shared.log(
             stage: .detection,
             message: "scan.start",
             details: [
-                "skipExisting": "\(skipExisting)",
                 "interval": "\(interval)"
             ]
         )
 
-        var changed = false
-
         for providerType in CLIProvider.allCases {
-            guard let settings, settings.isEnabled(providerType) else { continue }
-            if skipExisting && services[providerType] != nil {
+            if let existing = services[providerType] {
+                let isStillAvailable = await existing.revalidate(settings: settings)
+                if isStillAvailable {
+                    DebugFlowLogger.shared.log(
+                        stage: .detection,
+                        provider: providerType,
+                        message: "detect.retained"
+                    )
+                    continue
+                }
+
+                existing.stopMonitoring()
+                services.removeValue(forKey: providerType)
+                monitoredProviders.remove(providerType)
                 DebugFlowLogger.shared.log(
                     stage: .detection,
                     provider: providerType,
-                    message: "detect.skip.existing"
+                    message: "detect.removed"
                 )
-                continue
             }
 
             DebugFlowLogger.shared.log(
@@ -120,10 +157,6 @@ final class MultiProviderUsageService {
 
             if let service = await createAndDetect(for: providerType) {
                 services[providerType] = service
-                if skipExisting {
-                    service.startMonitoring(interval: interval)
-                }
-                changed = true
                 DebugFlowLogger.shared.log(
                     stage: .detection,
                     provider: providerType,
@@ -150,24 +183,36 @@ final class MultiProviderUsageService {
             )
         }
 
-        if changed || !skipExisting {
-            activeProviders = nextActiveProviders
-        }
+        activeProviders = nextActiveProviders
     }
 
     private func createAndDetect(for provider: CLIProvider) async -> (any ProviderServiceProtocol)? {
+        await serviceFactory(provider, settings)
+    }
+
+    private func startServicesIfNeeded() {
+        guard isMonitoring else { return }
+        for provider in activeProviders {
+            guard let service = services[provider], monitoredProviders.insert(provider).inserted else { continue }
+            service.startMonitoring(interval: monitoringInterval)
+        }
+    }
+
+    private static func defaultServiceFactory(
+        for provider: CLIProvider,
+        settings: AppSettings?
+    ) async -> (any ProviderServiceProtocol)? {
         switch provider {
         case .claudeCode:
             let service = ClaudeCodeProviderService {
-                self.settings?.weightedCostLimit ?? PlanTier.pro.weightedCostLimit
+                settings?.weightedCostLimit ?? PlanTier.pro.weightedCostLimit
+            } oauthAccessEnabled: {
+                settings?.claudeOAuthEnabled ?? false
             }
             return service.detect() ? service : nil
         case .codex:
             let service = CodexProviderService()
-            return await service.detect(manualAPIKey: settings?.codexAPIKey) ? service : nil
-        case .gemini:
-            let service = GeminiProviderService()
-            return await service.detect(manualAPIKey: settings?.geminiAPIKey) ? service : nil
+            return await service.revalidate(settings: settings) ? service : nil
         }
     }
 
@@ -196,7 +241,7 @@ final class MultiProviderUsageService {
 
     var staleThreshold: TimeInterval {
         let interval = settings?.refreshInterval ?? AppConstants.defaultRefreshInterval
-        return max(interval * 2, AppConstants.defaultRefreshInterval)
+        return max(interval * 2, interval + AppConstants.oauthTimeoutInterval)
     }
 
     func isStale(lastRefresh: Date?) -> Bool {

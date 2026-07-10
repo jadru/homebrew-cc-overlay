@@ -5,7 +5,6 @@ import Foundation
 enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
     case claudeCode = "Claude Code"
     case codex = "Codex"
-    case gemini = "Gemini"
 
     var id: String { rawValue }
 
@@ -13,7 +12,6 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .claudeCode: return "brain"
         case .codex: return "terminal.fill"
-        case .gemini: return "sparkles"
         }
     }
 
@@ -22,7 +20,6 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .claudeCode: return "CC"
         case .codex: return "CX"
-        case .gemini: return "GM"
         }
     }
 
@@ -32,8 +29,15 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
             return "Install Claude Code and sign in\nnpm i -g @anthropic-ai/claude-code"
         case .codex:
             return "Install Codex CLI and authenticate\nnpm i -g @openai/codex && codex --login"
-        case .gemini:
-            return "Install Gemini CLI and authenticate\nnpm i -g @google/gemini-cli"
+        }
+    }
+
+    var setupCommand: String {
+        switch self {
+        case .claudeCode:
+            return "npm i -g @anthropic-ai/claude-code"
+        case .codex:
+            return "npm i -g @openai/codex && codex --login"
         }
     }
 
@@ -43,8 +47,6 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
             return "Install Claude Code and sign in to see rate limits"
         case .codex:
             return "Install Codex CLI and run 'codex --login' to see rate limits"
-        case .gemini:
-            return "Install Gemini CLI and run 'gemini' to authenticate"
         }
     }
 }
@@ -117,23 +119,13 @@ enum TokenCostWeight {
     static let cacheRead: Double = 0.1
 }
 
-// MARK: - Menu Bar Indicator Style
-
-enum MenuBarIndicatorStyle: String, CaseIterable, Identifiable, Sendable {
-    case pieChart = "Pie Chart"
-    case barChart = "Bar Chart"
-    case percentage = "Percentage"
-    case detailed = "Detailed"
-
-    var id: String { rawValue }
-}
-
-
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.9.1"
-    static let githubRepo = "jadru/cc-overlay"
+    static let version = "0.10.0"
+    static let githubRepo = "jadru/homebrew-cc-overlay"
+    static let homebrewTap = "jadru/cc-overlay"
+    static let homebrewFormula = "\(homebrewTap)/cc-overlay"
     static let updateCheckInterval: TimeInterval = 86400 // 24h
 
     static let claudeProjectsPath: String = {
@@ -146,14 +138,10 @@ enum AppConstants {
         return "\(home)/.codex"
     }()
 
-    static let geminiConfigPath: String = {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/.gemini"
-    }()
-
     static let defaultRefreshInterval: TimeInterval = 60
     static let fiveHourWindowSeconds: TimeInterval = 5 * 60 * 60
     static let sessionScanInterval: TimeInterval = 5
+    static let claudeTranscriptLookback: TimeInterval = 24 * 60 * 60
 
     // Thresholds
     static let defaultWarningThresholdPct: Double = 70
@@ -163,15 +151,13 @@ enum AppConstants {
     // Activity detection
     static let activityWindowSeconds: TimeInterval = 5 * 60
 
-    // Polling backoff
-    static let backoffMultiplier: Double = 1.5
-    static let maxBackoffMultiplier: Double = 4.0
-    static let maxRefreshInterval: TimeInterval = 300
-
     // Time
     static let secondsPerDay: TimeInterval = 86400
 
     // Network
     static let apiTimeoutInterval: TimeInterval = 10
     static let oauthTimeoutInterval: TimeInterval = 15
+    static let minimumNetworkRetryInterval: TimeInterval = 15
+    static let maximumNetworkRetryInterval: TimeInterval = 5 * 60
+    static let idleNetworkRefreshInterval: TimeInterval = 2 * 60
 }

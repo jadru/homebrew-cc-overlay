@@ -1,3 +1,24 @@
+# v0.10.0
+
+## 신뢰할 수 있는 사용량, 네이티브 오버레이, 서명된 배포
+
+> [English](RELEASE_NOTES.md)
+
+### 주요 변경
+
+- **신뢰 가능한 프로바이더 lifecycle** — 매 갱신 때 인증을 재검증하고, 인증이 해제된 프로바이더와 오래된 Codex snapshot을 제거합니다.
+- **엄격한 사용량 파싱** — 잘못된 Claude OAuth payload를 정상적인 0% 사용량으로 표시하지 않고 실패로 처리합니다.
+- **Codex 지원 집중** — 지원되지 않는 API-key billing 경로를 제거하고 Codex CLI의 ChatGPT OAuth 세션만 사용합니다.
+- **추정값 투명성** — JSONL 폴백 데이터를 메뉴바와 오버레이에서 일관되게 표시합니다.
+- **릴리즈 품질 강화** — CI가 배포 전 테스트, Formula 문법, 앱 메타데이터, 리소스, 서명, 공증, zip artifact를 검증합니다.
+
+### 배포
+
+- 릴리즈 archive는 provider icon을 포함한 완전한 `CC-Overlay.app`을 담고 Finder metadata side file을 제외합니다.
+- Homebrew는 배포 서명을 덮어쓰지 않고 서명된 앱 번들을 설치합니다.
+
+---
+
 # v0.9.1
 
 ## 실행 안정성: macOS 15 Brew 복구, 더 안전한 시작, Codex GUI 오버레이
@@ -28,7 +49,7 @@
 ### 주요 변경
 
 - **메뉴바 재설계** — 더 넓고 스크롤 가능한 패널, 정리된 프로바이더 헤더, 빠른 액션 클러스터, 개선된 빈 상태 안내 추가
-- **프로바이더 요약 카드** — Claude Code, Codex, Gemini를 빠르게 비교할 수 있는 compact/standard 요약 카드 추가
+- **프로바이더 요약 카드** — Claude Code와 Codex를 빠르게 비교할 수 있는 compact/standard 요약 카드 추가
 - **오버레이 상세 탐색** — 확장 pill에서 프로바이더 선택, pin 고정, 세션 리셋/최근 활동 정보, stale 상태 표시 개선
 - **Settings 정리** — 설정을 더 명확한 섹션으로 재구성하고, 고급 인증 정보와 fallback 튜닝은 disclosure로 분리
 - **Claude OAuth 파싱 강화** — 중첩 payload 형태 지원, 잘못된 응답의 안전한 zero-bucket 처리, 플랜 식별자 정규화, Keychain access denied 대응 추가
@@ -50,11 +71,11 @@
 
 ### 주요 변경
 
-- **프로바이더 아키텍처 안정화** — `fetchUsage()`를 프로토콜 요구사항으로 명시하고, base 구현의 `fatalError` 크래시 경로 제거
+- **프로바이더 아키텍처 안정화** — `fetchUsage()`를 프로토콜 요구사항으로 명시
 - **비용 예산 설정 노출** — Settings에 Claude 플랜 티어 선택 + custom weighted limit 입력 추가
 - **Stale 데이터 표시기** — 데이터가 `refresh interval`의 2배 이상 오래되면 메뉴바/오버레이에 경고 표시
 - **알림 임계값 커스터마이즈** — Warning/Critical 임계값을 Settings에서 조절하고 알림 로직에 반영
-- **API 키 보안 마이그레이션** — Codex/Gemini 수동 API 키를 UserDefaults에서 Keychain으로 이전(기존 값 자동 마이그레이션)
+- **API 키 보안 마이그레이션** — Codex 수동 API 키를 UserDefaults에서 Keychain으로 이전(기존 값 자동 마이그레이션)
 - **VoiceOver 접근성 개선** — 메뉴바 상태, 오버레이 상태, 새로고침 액션에 접근성 라벨/값 추가
 
 ### Brew 릴리즈 메모

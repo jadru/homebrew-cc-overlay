@@ -19,6 +19,29 @@ final class CostCalculatorTests: XCTestCase {
         XCTAssertEqual(p.outputPerMTok, 25.0)
     }
 
+    func testLatestClaudeModelPricingLookup() {
+        let fable = CostCalculator.pricing(for: "claude-fable-5-20260609")
+        XCTAssertEqual(fable.inputPerMTok, 10.0)
+        XCTAssertEqual(fable.outputPerMTok, 50.0)
+        XCTAssertEqual(fable.cacheWritePerMTok, 12.50)
+        XCTAssertEqual(fable.cacheReadPerMTok, 1.0)
+
+        let opus = CostCalculator.pricing(for: "claude-opus-4-8-20260528")
+        XCTAssertEqual(opus.inputPerMTok, 5.0)
+        XCTAssertEqual(opus.outputPerMTok, 25.0)
+
+        let sonnet = CostCalculator.pricing(for: "claude-sonnet-5-20260701")
+        XCTAssertEqual(sonnet.inputPerMTok, 3.0)
+        XCTAssertEqual(sonnet.outputPerMTok, 15.0)
+    }
+
+    func testClaudeModelAliasesUseCurrentStandardPricing() {
+        XCTAssertEqual(CostCalculator.pricing(for: "fable").outputPerMTok, 50.0)
+        XCTAssertEqual(CostCalculator.pricing(for: "opus").outputPerMTok, 25.0)
+        XCTAssertEqual(CostCalculator.pricing(for: "sonnet").outputPerMTok, 15.0)
+        XCTAssertEqual(CostCalculator.pricing(for: "haiku").outputPerMTok, 5.0)
+    }
+
     func testHaikuPricingLookup() {
         let p = CostCalculator.pricing(for: "claude-3-5-haiku-20250307")
         XCTAssertEqual(p.inputPerMTok, 0.80)

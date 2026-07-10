@@ -5,11 +5,24 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyManager: HotkeyManager?
     private let windowCoordinator = WindowCoordinator()
+    private var terminationHandler: (@MainActor () -> Void)?
 
     private(set) var overlayManager: OverlayManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        hotkeyManager?.unregister()
+        overlayManager?.closeOverlay()
+        windowCoordinator.closeSettings()
+        terminationHandler?()
+        terminationHandler = nil
+    }
+
+    func setTerminationHandler(_ handler: @escaping @MainActor () -> Void) {
+        terminationHandler = handler
     }
 
     func setupOverlay(settings: AppSettings, multiService: MultiProviderUsageService) {

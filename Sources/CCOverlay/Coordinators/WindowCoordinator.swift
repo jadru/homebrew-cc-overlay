@@ -30,7 +30,12 @@ final class WindowCoordinator {
         let hostingView = NSHostingView(rootView: settingsView)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 620),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: DesignTokens.Layout.settingsWidth,
+                height: DesignTokens.Layout.settingsHeight
+            ),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

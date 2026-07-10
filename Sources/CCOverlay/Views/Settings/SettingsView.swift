@@ -5,9 +5,11 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
     let updateService: UpdateService
-    @State private var codexKeyDisclosureExpanded = false
-    @State private var geminiKeyDisclosureExpanded = false
-    @State private var advancedDisclosureExpanded = false
+
+    @State private var fallbackExpanded = false
+    @State private var launchAtLoginStatus: SMAppService.Status = .notRegistered
+    @State private var launchAtLoginError: String?
+
     private let weightedLimitFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -17,354 +19,205 @@ struct SettingsView: View {
     }()
 
     var body: some View {
-        Form {
-            providersSection
-            overlaySection
-            displaySection
-            alertsSection
-            appSection
-            advancedSection
+        TabView {
+            generalTab
+                .tabItem { Label("General", systemImage: "gearshape") }
+
+            overlayTab
+                .tabItem { Label("Overlay", systemImage: "capsule.portrait") }
+
+            notificationsTab
+                .tabItem { Label("Notifications", systemImage: "bell.badge") }
+
+            advancedTab
+                .tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }
         }
-        .formStyle(.grouped)
         .frame(width: DesignTokens.Layout.settingsWidth, height: DesignTokens.Layout.settingsHeight)
     }
 
-    // MARK: - Providers Section
+    private var generalTab: some View {
+        Form {
+            Section("Providers") {
+                ForEach(CLIProvider.allCases) { provider in
+                    providerStatusRow(for: provider)
 
-    @ViewBuilder
-    private var providersSection: some View {
-        Section {
-            ForEach(CLIProvider.allCases) { provider in
-                let isActive = multiService.activeProviders.contains(provider)
+                    if provider == .claudeCode {
+                        Toggle("Read Claude OAuth rate limits", isOn: $settings.claudeOAuthEnabled)
+                            .onChange(of: settings.claudeOAuthEnabled) { _, _ in
+                                multiService.refresh()
+                            }
 
-                LabeledContent {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(isActive ? .green : .red)
-                            .frame(width: 6, height: 6)
-                        Text(isActive ? "Active" : "Not detected")
+                        Text("Requests Keychain access only when enabled.")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: provider.iconName)
-                            .font(.system(size: 12))
-                        Text(provider.rawValue)
                     }
                 }
             }
 
-            Toggle("Enable Claude Code", isOn: $settings.claudeCodeEnabled)
-            Toggle("Enable Codex", isOn: $settings.codexEnabled)
-            Toggle("Enable Gemini", isOn: $settings.geminiEnabled)
+            Section("App") {
+                Toggle("Launch at login", isOn: launchAtLoginBinding)
 
-            // Codex auth status indicator
-            providerAuthStatusRow(
-                for: .codex,
-                data: multiService.usageData(for: .codex),
-                connectedMessage: { plan in
-                    if let plan {
-                        return "ChatGPT OAuth connected (plan: \(plan))"
-                    }
-                    return "ChatGPT OAuth connected"
-                },
-                notFoundText: "~/.codex/auth.json not found — install Codex CLI first"
-            )
-
-            // Gemini auth status indicator
-            providerAuthStatusRow(
-                for: .gemini,
-                data: multiService.usageData(for: .gemini),
-                connectedMessage: { plan in
-                    if let plan {
-                        return "Google OAuth connected (\(plan))"
-                    }
-                    return "Google OAuth connected"
-                },
-                notFoundText: "~/.gemini not found — install Gemini CLI first"
-            )
-
-            DisclosureGroup(
-                isExpanded: Binding(
-                    get: { codexKeyDisclosureExpanded || geminiKeyDisclosureExpanded },
-                    set: { newValue in
-                        codexKeyDisclosureExpanded = newValue
-                        geminiKeyDisclosureExpanded = newValue
-                    }
-                ),
-                content: {
-                    VStack(alignment: .leading, spacing: 10) {
-                        LabeledContent("Codex manual key") {
-                            SecureField("sk-...", text: Binding(
-                                get: { settings.codexAPIKey ?? "" },
-                                set: { settings.codexAPIKey = $0.isEmpty ? nil : $0 }
-                            ))
-                            .frame(width: 200)
-                            .textFieldStyle(.roundedBorder)
-                        }
-
-                        LabeledContent("Gemini manual key") {
-                            SecureField("AIza...", text: Binding(
-                                get: { settings.geminiAPIKey ?? "" },
-                                set: { settings.geminiAPIKey = $0.isEmpty ? nil : $0 }
-                            ))
-                            .frame(width: 200)
-                            .textFieldStyle(.roundedBorder)
-                        }
-
-                        Text("OAuth is the default. Manual API keys are only needed for fallback or non-OAuth setups.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.top, 4)
-                },
-                label: {
-                    Label("Advanced credentials", systemImage: "key.horizontal")
+                if launchAtLoginStatus == .requiresApproval {
+                    Text("Approve CC-Overlay in Login Items to finish enabling it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            )
-        } header: {
-            sectionHeader("Providers", systemImage: "square.grid.2x2")
+
+                if let launchAtLoginError {
+                    Text(launchAtLoginError)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear(perform: refreshLaunchAtLoginStatus)
+    }
+
+    private var overlayTab: some View {
+        Form {
+            Section("Floating overlay") {
+                Toggle("Show overlay", isOn: $settings.showOverlay)
+                Toggle("Start expanded", isOn: $settings.pillAlwaysExpanded)
+                    .disabled(!settings.showOverlay)
+                Toggle("Click through", isOn: $settings.pillClickThrough)
+                    .disabled(!settings.showOverlay)
+            }
+
+            Section("Shortcut") {
+                Toggle("Command-Shift-A", isOn: $settings.globalHotkeyEnabled)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var notificationsTab: some View {
+        Form {
+            Section("Usage alerts") {
+                Toggle("Usage threshold alerts", isOn: $settings.costAlertEnabled)
+
+                if settings.costAlertEnabled {
+                    thresholdControl(
+                        title: "Warning",
+                        value: $settings.alertWarningThreshold,
+                        range: 10...95
+                    )
+                    thresholdControl(
+                        title: "Critical",
+                        value: $settings.alertCriticalThreshold,
+                        range: 20...100
+                    )
+                }
+            }
+
+            Section("Updates") {
+                Toggle("Check automatically", isOn: $settings.autoUpdateEnabled)
+
+                LabeledContent("Version") {
+                    Text(AppConstants.version)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Button("Check for updates") {
+                        Task { await updateService.checkForUpdates() }
+                    }
+                    .disabled(updateService.updateState == .checking)
+
+                    Spacer()
+
+                    updateStatusIndicator
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var advancedTab: some View {
+        Form {
+            Section("Usage data") {
+                DisclosureGroup("Fallback and refresh", isExpanded: $fallbackExpanded) {
+                    Picker("Refresh", selection: $settings.refreshInterval) {
+                        Text("15 seconds").tag(15.0 as TimeInterval)
+                        Text("30 seconds").tag(30.0 as TimeInterval)
+                        Text("1 minute").tag(60.0 as TimeInterval)
+                        Text("5 minutes").tag(300.0 as TimeInterval)
+                    }
+                    .onChange(of: settings.refreshInterval) { _, interval in
+                        multiService.updateRefreshInterval(interval)
+                    }
+
+                    Picker("Claude fallback", selection: $settings.planTier) {
+                        ForEach(PlanTier.allCases) { tier in
+                            Text(tier.rawValue).tag(tier)
+                        }
+                    }
+
+                    if settings.planTier == .custom {
+                        LabeledContent("Weighted limit") {
+                            TextField(
+                                "5,000,000",
+                                value: $settings.customWeightedLimit,
+                                formatter: weightedLimitFormatter
+                            )
+                            .frame(width: 140)
+                            .textFieldStyle(.roundedBorder)
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Toggle("Diagnostic logging", isOn: $settings.debugFlowLogging)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func providerStatusRow(for provider: CLIProvider) -> some View {
+        let data = multiService.usageData(for: provider)
+
+        return LabeledContent {
+            providerConnectionStatus(data)
+        } label: {
+            HStack(spacing: 6) {
+                ProviderIconView(provider: provider, size: 13)
+                Text(provider.rawValue)
+            }
         }
     }
 
     @ViewBuilder
-    private func providerAuthStatusRow(
-        for provider: CLIProvider,
-        data: ProviderUsageData,
-        connectedMessage: (String?) -> String,
-        notFoundText: String
+    private func providerConnectionStatus(_ data: ProviderUsageData) -> some View {
+        if let error = data.error {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.orange)
+        } else if data.isAvailable {
+            let detail = data.planName.map { "Connected - \($0)" } ?? "Connected"
+            Label(detail, systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.secondary)
+        } else {
+            Label("Not detected", systemImage: "minus.circle")
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func thresholdControl(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>
     ) -> some View {
-        if (provider == .codex ? settings.codexEnabled : settings.geminiEnabled) {
-            if let errorMsg = data.error {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.system(size: 10))
-                    Text(errorMsg)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.orange)
-                }
-            } else if data.isAvailable {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.system(size: 10))
-                    Text(connectedMessage(data.planName))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-            } else if !multiService.activeProviders.contains(provider) {
-                HStack(spacing: 4) {
-                    Image(systemName: "minus.circle")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 10))
-                    Text(notFoundText)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-    }
-
-    // MARK: - Overlay Section
-
-    @ViewBuilder
-    private var overlaySection: some View {
-        Section {
-            Toggle("Show floating overlay", isOn: $settings.showOverlay)
-
-            Toggle("Always expanded", isOn: $settings.pillAlwaysExpanded)
-                .disabled(!settings.showOverlay)
-
-            Toggle("Show daily cost", isOn: $settings.pillShowDailyCost)
-                .disabled(!settings.showOverlay)
-
-            LabeledContent("Opacity") {
-                HStack(spacing: 8) {
-                    Slider(value: $settings.pillOpacity, in: 0.5...1.0, step: 0.1)
-                        .frame(width: 120)
-                    Text("\(Int(settings.pillOpacity * 100))%")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 36, alignment: .trailing)
-                }
-            }
-            .disabled(!settings.showOverlay)
-
-            Toggle("Click-through mode", isOn: $settings.pillClickThrough)
-                .disabled(!settings.showOverlay)
-        } header: {
-            sectionHeader("Overlay", systemImage: "capsule.portrait")
-        }
-    }
-
-    // MARK: - Display Section
-
-    @ViewBuilder
-    private var displaySection: some View {
-        Section {
-            Picker("Menu bar indicator", selection: $settings.menuBarIndicatorStyle) {
-                ForEach(MenuBarIndicatorStyle.allCases) { style in
-                    Text(style.rawValue).tag(style)
-                }
-            }
-
-            ForEach(CLIProvider.allCases) { provider in
-                if multiService.activeProviders.contains(provider) {
-                    Toggle("Show \(provider.shortLabel) in menu bar", isOn: menuBarVisibilityBinding(for: provider))
-                }
-            }
-
-            Toggle("Global hotkey (\u{2318}\u{21E7}A)", isOn: $settings.globalHotkeyEnabled)
-        } header: {
-            sectionHeader("Display", systemImage: "menubar.rectangle")
-        }
-    }
-
-    // MARK: - Alerts Section
-
-    @ViewBuilder
-    private var alertsSection: some View {
-        Section {
-            Toggle("Cost threshold alerts", isOn: $settings.costAlertEnabled)
-
-            if settings.costAlertEnabled {
-                LabeledContent("Warning threshold") {
-                    HStack(spacing: 8) {
-                        Slider(value: $settings.alertWarningThreshold, in: 10...95, step: 1)
-                            .frame(width: 140)
-                            .onChange(of: settings.alertWarningThreshold) { _, newValue in
-                                if newValue >= settings.alertCriticalThreshold {
-                                    settings.alertCriticalThreshold = min(newValue + 1, 100)
-                                }
-                            }
-                        Text("\(Int(settings.alertWarningThreshold))%")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 40, alignment: .trailing)
-                    }
-                }
-
-                LabeledContent("Critical threshold") {
-                    HStack(spacing: 8) {
-                        Slider(value: $settings.alertCriticalThreshold, in: 20...100, step: 1)
-                            .frame(width: 140)
-                            .onChange(of: settings.alertCriticalThreshold) { _, newValue in
-                                if newValue <= settings.alertWarningThreshold {
-                                    settings.alertWarningThreshold = max(newValue - 1, 1)
-                                }
-                            }
-                        Text("\(Int(settings.alertCriticalThreshold))%")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 40, alignment: .trailing)
-                    }
-                }
-            }
-        } header: {
-            sectionHeader("Alerts", systemImage: "bell.badge")
-        }
-    }
-
-    // MARK: - App Section
-
-    @ViewBuilder
-    private var appSection: some View {
-        Section {
-            Toggle("Launch at login", isOn: $settings.launchAtLogin)
-                .onChange(of: settings.launchAtLogin) { _, enabled in
-                    let service = SMAppService.mainApp
-                    do {
-                        if enabled {
-                            try service.register()
-                        } else {
-                            try service.unregister()
-                        }
-                    } catch {
-                        settings.launchAtLogin = !enabled
-                    }
-                }
-
-            Toggle("Automatic updates", isOn: $settings.autoUpdateEnabled)
-
-            LabeledContent("Current version") {
-                Text(AppConstants.version)
+        LabeledContent(title) {
+            HStack(spacing: 8) {
+                Slider(value: value, in: range, step: 1)
+                    .frame(width: 140)
+                Text("\(Int(value.wrappedValue))%")
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
+                    .frame(width: 36, alignment: .trailing)
             }
-
-            if let lastCheck = settings.lastUpdateCheck {
-                LabeledContent("Last checked") {
-                    Text(lastCheck, style: .relative)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            HStack {
-                Button("Check for Updates") {
-                    Task { await updateService.checkForUpdates() }
-                }
-                .disabled(updateService.updateState == .checking)
-
-                Spacer()
-
-                updateStatusIndicator
-            }
-        } header: {
-            sectionHeader("App", systemImage: "switch.2")
-        }
-    }
-
-    // MARK: - Advanced Section
-
-    @ViewBuilder
-    private var advancedSection: some View {
-        Section {
-            DisclosureGroup(
-                isExpanded: $advancedDisclosureExpanded,
-                content: {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Picker("Refresh interval", selection: $settings.refreshInterval) {
-                            Text("15 seconds").tag(15.0 as TimeInterval)
-                            Text("30 seconds").tag(30.0 as TimeInterval)
-                            Text("1 minute").tag(60.0 as TimeInterval)
-                            Text("5 minutes").tag(300.0 as TimeInterval)
-                        }
-                        .onChange(of: settings.refreshInterval) { _, newValue in
-                            multiService.updateRefreshInterval(newValue)
-                        }
-
-                        Picker("Claude fallback plan", selection: $settings.planTier) {
-                            ForEach(PlanTier.allCases) { tier in
-                                Text(tier.rawValue).tag(tier)
-                            }
-                        }
-
-                        if settings.planTier == .custom {
-                            LabeledContent("Custom weighted limit") {
-                                TextField(
-                                    "5,000,000",
-                                    value: $settings.customWeightedLimit,
-                                    formatter: weightedLimitFormatter
-                                )
-                                .frame(width: 140)
-                                .textFieldStyle(.roundedBorder)
-                            }
-                        }
-
-                        Toggle("UI flow logging", isOn: $settings.debugFlowLogging)
-
-                        Text("Only change these if OAuth detection or Claude fallback estimation needs tuning.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.top, 4)
-                },
-                label: {
-                    Label("Advanced", systemImage: "slider.horizontal.3")
-                }
-            )
-        } header: {
-            sectionHeader("Advanced", systemImage: "slider.horizontal.3")
         }
     }
 
@@ -372,132 +225,59 @@ struct SettingsView: View {
     private var updateStatusIndicator: some View {
         switch updateService.updateState {
         case .checking:
-            HStack(spacing: 4) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Checking...")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
+            ProgressView()
+                .controlSize(.small)
         case .upToDate:
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.system(size: 10))
-                Text("Up to date")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
+            Label("Up to date", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.secondary)
         case .updateAvailable(let version):
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .foregroundStyle(.blue)
-                    .font(.system(size: 10))
-                Text("v\(version) available")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.blue)
-            }
+            Label("v\(version) available", systemImage: "arrow.down.circle.fill")
+                .foregroundStyle(.blue)
         case .error(let message):
-            HStack(spacing: 4) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .font(.system(size: 10))
-                Text(message)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-                    .lineLimit(1)
-            }
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .lineLimit(1)
+                .foregroundStyle(.orange)
         default:
             EmptyView()
         }
     }
 
-    // MARK: - Helpers
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { isLaunchAtLoginRegistered },
+            set: { setLaunchAtLogin($0) }
+        )
+    }
 
-    @ViewBuilder
-    private func providerSetupHint(for provider: CLIProvider) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "info.circle")
-                .foregroundStyle(.tertiary)
-                .font(.system(size: 10))
-            Text(provider.setupHint)
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+    private var isLaunchAtLoginRegistered: Bool {
+        switch launchAtLoginStatus {
+        case .enabled, .requiresApproval:
+            true
+        case .notRegistered, .notFound:
+            false
+        @unknown default:
+            false
         }
     }
 
-    @ViewBuilder
-    private func rateBucketRow(_ bucket: RateBucket) -> some View {
-        LabeledContent(bucket.label) {
-            HStack(spacing: 6) {
-                Text("\(Int(min(bucket.utilization, 100)))% used")
-                    .foregroundStyle(
-                        bucket.utilization >= settings.alertCriticalThreshold ? .red :
-                        bucket.utilization >= settings.alertWarningThreshold ? .orange : .secondary
-                    )
-                if let resetsAt = bucket.resetsAt {
-                    Text("resets \(resetsAt, style: .relative)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+    private func refreshLaunchAtLoginStatus() {
+        launchAtLoginStatus = SMAppService.mainApp.status
+        settings.launchAtLogin = isLaunchAtLoginRegistered
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        let service = SMAppService.mainApp
+        launchAtLoginError = nil
+        do {
+            if enabled {
+                try service.register()
+            } else {
+                try service.unregister()
             }
+            refreshLaunchAtLoginStatus()
+        } catch {
+            refreshLaunchAtLoginStatus()
+            launchAtLoginError = "Could not update Login Items: \(error.localizedDescription)"
         }
-    }
-
-    // MARK: - Enterprise Settings
-
-    @ViewBuilder
-    private func enterpriseSettingsRows(_ quota: EnterpriseQuota) -> some View {
-        if let orgName = quota.organizationName {
-            LabeledContent("Organization") {
-                Text(orgName).foregroundStyle(.secondary)
-            }
-        }
-
-        LabeledContent("Seat Tier") {
-            Text(quota.seatTier.displayName).foregroundStyle(.secondary)
-        }
-
-        spendingLimitRow("Individual Cap", quota.individualLimit)
-
-        if quota.seatTierLimit.capDollars > 0 {
-            spendingLimitRow("Tier Cap", quota.seatTierLimit)
-        }
-
-        if quota.organizationLimit.capDollars > 0 {
-            spendingLimitRow("Org Cap", quota.organizationLimit)
-        }
-    }
-
-    @ViewBuilder
-    private func spendingLimitRow(_ label: String, _ limit: SpendingLimit) -> some View {
-        LabeledContent(label) {
-            HStack(spacing: 6) {
-                Text("\(NumberFormatting.formatDollarCost(limit.usedDollars)) / \(NumberFormatting.formatDollarCost(limit.capDollars))")
-                    .foregroundStyle(
-                        limit.utilizationPercentage >= settings.alertCriticalThreshold ? .red :
-                        limit.utilizationPercentage >= settings.alertWarningThreshold ? .orange : .secondary
-                    )
-                if let resetsAt = limit.resetsAt {
-                    Text("resets \(resetsAt, style: .relative)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-    }
-
-    private func menuBarVisibilityBinding(for provider: CLIProvider) -> Binding<Bool> {
-        switch provider {
-        case .claudeCode: return $settings.menuBarShowClaudeCode
-        case .codex: return $settings.menuBarShowCodex
-        case .gemini: return $settings.menuBarShowGemini
-        }
-    }
-
-    private func sectionHeader(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.primary)
     }
 }

@@ -19,7 +19,7 @@ struct SegmentedProgressBar: View {
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(tint)
                     .frame(width: geo.size.width * clampedProgress / 100)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: clampedProgress)
+                    .animation(DesignTokens.Animation.reveal, value: clampedProgress)
             }
         }
         .frame(height: height)

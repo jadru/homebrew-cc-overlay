@@ -108,7 +108,6 @@ struct ProviderSummaryCardView: View {
                 content
             }
         }
-        .animation(DesignTokens.Animation.reveal, value: selectedProvider)
     }
 
     private var content: some View {
@@ -133,7 +132,8 @@ struct ProviderSummaryCardView: View {
     private func providerColumn(provider: CLIProvider, data: ProviderUsageData) -> some View {
         let isSelected = selectedProvider == provider
         let isActive = activeProviders.contains(provider)
-        let tint = Color.usageTint(for: data.remainingPercentage)
+        let isAvailable = isActive && data.isAvailable
+        let tint = isAvailable ? Color.usageTint(for: data.remainingPercentage) : .secondary
 
         Button {
             withAnimation(DesignTokens.Animation.selection) {
@@ -146,7 +146,7 @@ struct ProviderSummaryCardView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                if isActive {
+                if isAvailable {
                     Text(NumberFormatting.formatPercentage(data.remainingPercentage))
                         .font(size.percentageFont)
                         .monospacedDigit()
@@ -160,7 +160,7 @@ struct ProviderSummaryCardView: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                resetText(for: data, isActive: isActive)
+                resetText(for: data, isActive: isAvailable)
             }
             .frame(minWidth: size.columnMinWidth, maxWidth: .infinity, minHeight: size.columnMinHeight)
             .padding(.horizontal, size.columnHorizontalPadding)
@@ -170,10 +170,10 @@ struct ProviderSummaryCardView: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: size.selectionCornerRadius, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .opacity(isActive ? 1.0 : 0.35)
+        .buttonStyle(PressableButtonStyle())
+        .opacity(isAvailable ? 1.0 : 0.45)
         .accessibilityLabel(provider.rawValue)
-        .accessibilityValue(isActive ? NumberFormatting.formatPercentage(data.remainingPercentage) : "Unavailable")
+        .accessibilityValue(isAvailable ? NumberFormatting.formatPercentage(data.remainingPercentage) : "Setup required")
         .accessibilityHint("Select provider")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -241,20 +241,10 @@ struct ProviderSummaryCardView: View {
                     primaryWindowLabel: "Daily",
                     resetsAt: .now.addingTimeInterval(12 * 3600 + 30 * 60)
                 )
-            ),
-            (
-                .gemini,
-                ProviderUsageData(
-                    provider: .gemini,
-                    isAvailable: true,
-                    usedPercentage: 9,
-                    remainingPercentage: 91,
-                    primaryWindowLabel: "Daily"
-                )
             )
         ],
         selectedProvider: $selectedProvider,
-        activeProviders: [.claudeCode, .codex, .gemini]
+        activeProviders: [.claudeCode, .codex]
     )
     .frame(width: 320)
     .padding()

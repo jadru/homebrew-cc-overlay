@@ -3,22 +3,22 @@ import Observation
 @preconcurrency import UserNotifications
 
 protocol CostNotificationCenter {
-    func getAuthorizationStatus(completion: @escaping (UNAuthorizationStatus) -> Void)
-    func requestAuthorization(completion: @escaping (Bool) -> Void)
+    func getAuthorizationStatus(completion: @escaping @Sendable (UNAuthorizationStatus) -> Void)
+    func requestAuthorization(completion: @escaping @Sendable (Bool) -> Void)
     func addNotificationRequest(
         _ request: UNNotificationRequest,
-        completion: @escaping (Error?) -> Void
+        completion: @escaping @Sendable (Error?) -> Void
     )
 }
 
 extension UNUserNotificationCenter: CostNotificationCenter {
-    func getAuthorizationStatus(completion: @escaping (UNAuthorizationStatus) -> Void) {
+    func getAuthorizationStatus(completion: @escaping @Sendable (UNAuthorizationStatus) -> Void) {
         getNotificationSettings { settings in
             completion(settings.authorizationStatus)
         }
     }
 
-    func requestAuthorization(completion: @escaping (Bool) -> Void) {
+    func requestAuthorization(completion: @escaping @Sendable (Bool) -> Void) {
         requestAuthorization(options: [.alert, .sound]) { granted, _ in
             completion(granted)
         }
@@ -26,13 +26,14 @@ extension UNUserNotificationCenter: CostNotificationCenter {
 
     func addNotificationRequest(
         _ request: UNNotificationRequest,
-        completion: @escaping (Error?) -> Void
+        completion: @escaping @Sendable (Error?) -> Void
     ) {
         add(request, withCompletionHandler: completion)
     }
 }
 
 @Observable
+@MainActor
 final class CostAlertManager {
     private var lastAlertedThreshold: Double = 0
     private var lastWeeklyAlertedThreshold: Double = 0
@@ -115,16 +116,21 @@ final class CostAlertManager {
     private func sendNotification(title: String, body: String) {
         let center = notificationCenter()
         center.getAuthorizationStatus { status in
-            guard status == .authorized || status == .provisional else {
-                if status == .notDetermined {
-                    center.requestAuthorization { granted in
-                        guard granted else { return }
-                        self.deliverNotification(title: title, body: body)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard status == .authorized || status == .provisional else {
+                    if status == .notDetermined {
+                        self.notificationCenter().requestAuthorization { granted in
+                            guard granted else { return }
+                            Task { @MainActor [weak self] in
+                                self?.deliverNotification(title: title, body: body)
+                            }
+                        }
                     }
+                    return
                 }
-                return
+                self.deliverNotification(title: title, body: body)
             }
-            self.deliverNotification(title: title, body: body)
         }
     }
 
@@ -141,18 +147,20 @@ final class CostAlertManager {
         )
 
         notificationCenter().addNotificationRequest(request) { error in
-            if let error {
-                AppLogger.data.error("Failed to deliver notification: \(error.localizedDescription)")
-                DebugFlowLogger.shared.log(
-                    stage: .alert,
-                    message: "notification.failed",
-                    details: ["error": error.localizedDescription]
-                )
-            } else {
-                DebugFlowLogger.shared.log(
-                    stage: .alert,
-                    message: "notification.sent"
-                )
+            Task { @MainActor in
+                if let error {
+                    AppLogger.data.error("Failed to deliver notification: \(error.localizedDescription)")
+                    DebugFlowLogger.shared.log(
+                        stage: .alert,
+                        message: "notification.failed",
+                        details: ["error": error.localizedDescription]
+                    )
+                } else {
+                    DebugFlowLogger.shared.log(
+                        stage: .alert,
+                        message: "notification.sent"
+                    )
+                }
             }
         }
     }

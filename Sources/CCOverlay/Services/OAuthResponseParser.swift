@@ -12,12 +12,15 @@ struct OAuthResponseParser {
         AppLogger.network.debug("OAuth usage keys: \(topLevelKeys)")
 
         let effectiveJSON = effectivePayload(from: json)
-        let fiveHour = parseBucket(effectiveJSON["five_hour"], label: "five_hour")
-        let sevenDay = parseBucket(effectiveJSON["seven_day"], label: "seven_day")
+        guard let fiveHour = parsePrimaryBucket(effectiveJSON["five_hour"], label: "five_hour"),
+              let sevenDay = parsePrimaryBucket(effectiveJSON["seven_day"], label: "seven_day")
+        else {
+            throw AnthropicAPIService.APIError.invalidResponse
+        }
 
         let sevenDaySonnet: UsageBucket?
         if let sonnetValue = effectiveJSON["seven_day_sonnet"] {
-            sevenDaySonnet = parseBucket(sonnetValue, label: "seven_day_sonnet")
+            sevenDaySonnet = parseOptionalBucket(sonnetValue, label: "seven_day_sonnet")
         } else {
             sevenDaySonnet = nil
         }
@@ -55,13 +58,30 @@ struct OAuthResponseParser {
         return json
     }
 
-    private func parseBucket(_ value: Any?, label: String) -> UsageBucket {
-        guard let dict = value as? [String: Any] else {
-            AppLogger.network.debug("parseBucket(\(label)): nil or wrong type")
-            return .zero
+    private func parsePrimaryBucket(_ value: Any?, label: String) -> UsageBucket? {
+        guard let bucket = parseBucket(value, label: label) else {
+            AppLogger.network.warning("OAuth usage response has invalid \(label) bucket")
+            return nil
         }
+        return bucket
+    }
 
-        let utilization = parseDouble(dict["utilization"]) ?? 0
+    private func parseOptionalBucket(_ value: Any?, label: String) -> UsageBucket? {
+        guard let bucket = parseBucket(value, label: label) else {
+            AppLogger.network.debug("OAuth usage response ignored invalid optional \(label) bucket")
+            return nil
+        }
+        return bucket
+    }
+
+    private func parseBucket(_ value: Any?, label: String) -> UsageBucket? {
+        guard let dict = value as? [String: Any],
+              let utilization = parseDouble(dict["utilization"]),
+              utilization.isFinite,
+              (0...100).contains(utilization)
+        else {
+            return nil
+        }
         let resetsAt = dict["resets_at"].flatMap { DateParsing.parseISO8601(($0 as? String) ?? "") }
         return UsageBucket(utilization: utilization, resetsAt: resetsAt)
     }

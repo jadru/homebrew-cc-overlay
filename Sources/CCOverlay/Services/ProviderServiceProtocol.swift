@@ -13,6 +13,7 @@ protocol ProviderServiceProtocol: AnyObject {
     var usageData: ProviderUsageData { get }
 
     func fetchUsage() async
+    func revalidate(settings: AppSettings?) async -> Bool
     func startMonitoring(interval: TimeInterval)
     func stopMonitoring()
     func refresh()

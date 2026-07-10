@@ -7,67 +7,76 @@ final class ClaudeCodeProviderService: BaseProviderService {
     private let apiService = AnthropicAPIService()
     private let claudeProjectsPath: String
     private let weightedCostLimitProvider: () -> Double
+    private let oauthAccessEnabled: () -> Bool
     private(set) var aggregatedUsage: AggregatedUsage = .empty
     private(set) var oauthUsage: OAuthUsageStatus = .empty
     private(set) var detectedPlanIdentifier: String?
     private var fileWatcher: FileWatcher?
+    private var sessionFileStates: [String: ClaudeSessionScanner.FileState] = [:]
 
     init(
         claudeProjectsPath: String = AppConstants.claudeProjectsPath,
-        weightedCostLimitProvider: @escaping () -> Double = { PlanTier.pro.weightedCostLimit }
+        weightedCostLimitProvider: @escaping () -> Double = { PlanTier.pro.weightedCostLimit },
+        oauthAccessEnabled: @escaping () -> Bool = { false }
     ) {
         self.claudeProjectsPath = claudeProjectsPath
         self.weightedCostLimitProvider = weightedCostLimitProvider
+        self.oauthAccessEnabled = oauthAccessEnabled
         super.init(provider: .claudeCode)
     }
 
     /// Check if Claude Code CLI is installed and has valid credentials.
     func detect() -> Bool {
-        let fm = FileManager.default
-        let detected = fm.fileExists(atPath: claudeProjectsPath)
-        setDetected(detected)
+        let hasRecentSession = ClaudeSessionScanner.hasRecentSession(projectsPath: claudeProjectsPath)
 
-        // Check Keychain for OAuth credentials
+        // OAuth access is explicit because the Keychain item can require user authorization.
         var hasToken = false
-        var keychainNote: String?
-        do {
-            _ = try KeychainHelper.readClaudeOAuthToken()
-            hasToken = true
-        } catch let error as KeychainHelper.KeychainError where error.isAccessDenied {
-            keychainNote = "access-denied"
-            AppLogger.auth.error("Keychain access denied during detection — user must allow in Keychain Access")
-        } catch {
-            keychainNote = "not-found"
+        let shouldReadOAuth = oauthAccessEnabled()
+        var keychainNote = shouldReadOAuth ? "not-found" : "not-requested"
+        if shouldReadOAuth {
+            do {
+                _ = try KeychainHelper.readClaudeOAuthToken()
+                hasToken = true
+                keychainNote = "ok"
+            } catch let error as KeychainHelper.KeychainError where error.isAccessDenied {
+                keychainNote = "access-denied"
+                AppLogger.auth.error("Keychain access denied during Claude OAuth detection")
+            } catch {
+                keychainNote = "not-found"
+            }
         }
         setAuthenticated(hasToken)
+        let detected = hasToken || hasRecentSession
+        setDetected(detected)
 
         DebugFlowLogger.shared.log(
             stage: .detection,
             provider: .claudeCode,
-            message: detected && hasToken ? "detected" : "not-detected",
+            message: detected ? "detected" : "not-detected",
             details: [
                 "projectsPath": claudeProjectsPath,
-                "projectsPathExists": "\(detected)",
+                "hasRecentSession": "\(hasRecentSession)",
+                "oauthRequested": "\(shouldReadOAuth)",
                 "authenticated": "\(hasToken)",
-                "keychainNote": keychainNote ?? "ok",
+                "keychainNote": keychainNote,
             ]
         )
 
         return detected
     }
 
+    override func revalidate(settings: AppSettings?) async -> Bool {
+        detect()
+    }
+
     override func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
         super.startMonitoring(interval: interval)
-
-        fileWatcher?.stop()
-        fileWatcher = FileWatcher(directory: claudeProjectsPath) { [weak self] in
-            Task { @MainActor in
-                self?.refresh()
-            }
-        }
+        installFileWatcher()
 
         Task {
-            detectedPlanIdentifier = await apiService.detectedPlanIdentifier()
+            if self.isAuthenticated {
+                self.detectedPlanIdentifier = await self.apiService.detectedPlanIdentifier()
+            }
         }
     }
 
@@ -77,15 +86,44 @@ final class ClaudeCodeProviderService: BaseProviderService {
         super.stopMonitoring()
     }
 
+    private func installFileWatcher() {
+        fileWatcher?.stop()
+        fileWatcher = FileWatcher(directory: claudeProjectsPath) { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.installFileWatcher()
+                self.refresh()
+            }
+        }
+    }
+
     override func fetchUsage() async {
+        var localDataWasRead = false
         do {
-            let allEntries = try discoverAndParseAllSessions()
-            aggregatedUsage = UsageCalculator.aggregate(entries: allEntries)
-            setError(nil)
+            let projectsPath = claudeProjectsPath
+            let previousStates = sessionFileStates
+            let scan = try await Task.detached(priority: .utility) {
+                try ClaudeSessionScanner.scan(
+                    projectsPath: projectsPath,
+                    previousStates: previousStates
+                )
+            }.value
+            sessionFileStates = scan.fileStates
+            aggregatedUsage = UsageCalculator.aggregate(entries: scan.entries)
+            localDataWasRead = true
         } catch {
             AppLogger.data.error("JSONL refresh failed: \(error.localizedDescription)")
             setError(error.localizedDescription)
         }
+
+        guard isAuthenticated else {
+            if localDataWasRead {
+                markLocalRefreshed(clearingError: true)
+            }
+            return
+        }
+
+        guard canAttemptNetworkRefresh() else { return }
 
         do {
             let usage = try await apiService.fetchUsage()
@@ -96,22 +134,25 @@ final class ClaudeCodeProviderService: BaseProviderService {
                 "OAuth OK: 5h=\(usage.fiveHour.utilization)% 7d=\(usage.sevenDay.utilization)% sonnet=\(usage.sevenDaySonnet?.utilization ?? -1)"
             )
             trackActivity(newUsedPct: usage.usedPercentage)
+            markRefreshed()
         } catch let keychainError as KeychainHelper.KeychainError {
             oauthUsage = .empty
             if keychainError.isAccessDenied {
                 AppLogger.auth.error("Keychain access denied for Claude OAuth token")
                 setError(keychainError.localizedDescription)
+                recordNetworkFailure()
             } else {
                 AppLogger.auth.debug("No OAuth credentials - JSONL-only fallback")
+                setAuthenticated(false)
+                if localDataWasRead {
+                    markLocalRefreshed(clearingError: true)
+                }
             }
         } catch {
             AppLogger.network.error("Rate limit fetch failed: \(error.localizedDescription)")
-            if !oauthUsage.isAvailable {
-                setError(error.localizedDescription)
-            }
+            recordNetworkFailure()
+            setError(error.localizedDescription)
         }
-
-        markRefreshed()
     }
 
     override var usageData: ProviderUsageData {
@@ -188,6 +229,7 @@ final class ClaudeCodeProviderService: BaseProviderService {
         return ProviderUsageData(
             provider: .claudeCode,
             isAvailable: hasAPIData || agg.fiveHourWindow.totalTokens > 0,
+            isEstimated: !hasAPIData,
             usedPercentage: effectiveUsedPct,
             remainingPercentage: effectiveRemainingPct,
             primaryWindowLabel: "5h",
@@ -272,53 +314,4 @@ final class ClaudeCodeProviderService: BaseProviderService {
         aggregatedUsage.currentSession?.lastTimestamp
     }
 
-    /// Parse all sessions from Claude JSONL logs modified in the last 24h.
-    private func discoverAndParseAllSessions() throws -> [ParsedUsageEntry] {
-        let fm = FileManager.default
-        let projectsURL = URL(fileURLWithPath: claudeProjectsPath)
-
-        guard fm.fileExists(atPath: projectsURL.path) else { return [] }
-
-        var allEntries: [ParsedUsageEntry] = []
-
-        let projectDirs = try fm.contentsOfDirectory(
-            at: projectsURL,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        )
-
-        for projectDir in projectDirs {
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: projectDir.path, isDirectory: &isDir),
-                  isDir.boolValue
-            else { continue }
-
-            let projectName = projectDir.lastPathComponent
-
-            let files: [URL]
-            do {
-                files = try fm.contentsOfDirectory(
-                    at: projectDir,
-                    includingPropertiesForKeys: [.contentModificationDateKey]
-                ).filter { $0.pathExtension == "jsonl" }
-            } catch {
-                continue
-            }
-
-            let oneDayAgo = Date().addingTimeInterval(-24 * 60 * 60)
-            for file in files {
-                if let attrs = try? fm.attributesOfItem(atPath: file.path),
-                   let modDate = attrs[.modificationDate] as? Date,
-                   modDate < oneDayAgo
-                {
-                    continue
-                }
-
-                if let entries = try? JSONLParser.parseSessionFile(at: file, projectName: projectName) {
-                    allEntries.append(contentsOf: entries)
-                }
-            }
-        }
-
-        return allEntries
-    }
 }
