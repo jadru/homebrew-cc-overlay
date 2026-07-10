@@ -145,6 +145,7 @@ struct AppErrorTests {
         let error = AppError.networkUnavailable
 
         #expect(error.title == "Network Unavailable")
+        #expect(error.message == "Unable to reach the usage service. Check your internet connection.")
         #expect(error.icon == "wifi.slash")
         #expect(error.isRetryable == true)
     }
@@ -163,6 +164,7 @@ struct AppErrorTests {
         let error = AppError.apiUnauthorized
 
         #expect(error.title == "Unauthorized")
+        #expect(error.message == "Your session has expired. Sign in again with the provider CLI.")
         #expect(error.isRetryable == false)
     }
 
