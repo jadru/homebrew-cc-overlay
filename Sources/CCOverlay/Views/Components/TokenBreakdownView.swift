@@ -70,7 +70,7 @@ struct TokenBreakdownView: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: count)
+                .animation(DesignTokens.Animation.reveal, value: count)
         }
     }
 }

@@ -82,12 +82,12 @@ struct RatePillView: View {
                 .foregroundStyle(tintColor)
                 .layoutPriority(1)
                 .contentTransition(.numericText())
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: percentage)
+                .animation(DesignTokens.Animation.reveal, value: percentage)
         }
         .padding(.horizontal, size.horizontalPadding)
         .padding(.vertical, size.verticalPadding)
         .compatGlassCapsule()
-        .animation(.easeInOut(duration: 0.3), value: tintColor)
+        .animation(DesignTokens.Animation.press, value: tintColor)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label) window \(percentage) percent remaining")
     }

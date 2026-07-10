@@ -2,24 +2,41 @@
 
 **Claude Code**와 **Codex CLI** 사용량을 실시간으로 모니터링하는 macOS 메뉴바 앱.
 
-> [English](README.md)
+CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈소스 유틸리티입니다. Anthropic이나 OpenAI와 제휴, 보증 또는 지원 관계가 아닙니다.
 
-<!-- TODO: 스크린샷 -->
+> [English](README.md) | [릴리스 노트](RELEASE_NOTES_KO.md) | [기여](CONTRIBUTING.md) | [보안](SECURITY.md)
 
 ## 주요 기능
 
 - **멀티 프로바이더 모니터링** — Claude Code와 OpenAI Codex CLI 사용량 동시 추적
-- **자동 CLI 감지** — 설치된 CLI 및 인증 정보 자동 감지; 사용 가능한 것만 표시
-- **실시간 사용량 추적** — Anthropic/OpenAI API 또는 로컬 JSONL 로그 기반 5시간/주간 rate limit 사용률
-- **플로팅 오버레이 필** — 항상 최상단에 표시되는 glassmorphism 위젯; 호버 시 상세 정보 확장
-- **프로바이더 탭 사이드바** — 메뉴바 드롭다운에서 프로바이더 간 전환
-- **Enterprise 할당량 지원** — 3단계 지출 한도 표시 (개인 시트 / 시트 티어 / 조직)
-- **Codex 크레딧 표시** — 플랜 유형, 크레딧 잔액, rate window 상세 분석
-- **메뉴바 인디케이터** — 파이 차트, 바 차트, 퍼센트 표시 중 선택 가능
-- **토큰 비용 분석** — 모델별 input, output, cache-write, cache-read 비용 계산
-- **활성 세션 모니터링** — 실행 중인 Claude Code 세션 및 부모 앱 감지 (VS Code, Cursor, Terminal 등)
+- **인증된 프로바이더만 표시** — 설정되지 않은 프로바이더를 setup/사용량 지표로 잘못 노출하지 않음
+- **실시간 rate-limit 윈도우** — Claude Code와 Codex OAuth의 5시간·7일 한도 표시
+- **명확한 로컬 폴백** — Claude JSONL 추정값에는 `~`와 "local estimate"를 표시
+- **플로팅 Liquid Glass 오버레이** — 화면 경계를 넘지 않고 호버 시 확장되는 상태 surface
+- **페이스 신호** — 5H·7D 타임라인에서 빠른 소진, 정상 페이스, 여유 상태를 구분
+- **조건부 프로바이더 전환** — 두 프로바이더 모두 사용량이 있을 때만 compact selector 표시
 - **비용 임계값 알림** — 70%, 90% 사용 시 macOS 알림
 - **글로벌 단축키** — `Cmd+Shift+A`로 오버레이 토글
+
+## 배포 및 신뢰
+
+태그 릴리스는 Apple Silicon과 Intel을 모두 지원하는 universal app bundle로 빌드됩니다. Developer ID Application 인증서와 hardened runtime으로 서명하고, Apple notarization 및 stapling을 거쳐 공개합니다. 릴리스 workflow는 앱 서명, 번들 구성, 깨끗한 archive, SHA-256 checksum도 검증합니다.
+
+Homebrew는 서명된 `CC-Overlay.app` bundle을 다시 서명하지 않고 설치합니다. 설치된 릴리스는 아래처럼 검증할 수 있습니다.
+
+```bash
+APP="$(brew --prefix cc-overlay)/CC-Overlay.app"
+codesign --verify --deep --strict --verbose=2 "$APP"
+spctl --assess --type execute --verbose=4 "$APP"
+```
+
+GitHub Release archive를 직접 받았다면, 열기 전에 공개된 checksum을 확인합니다.
+
+```bash
+shasum -a 256 -c CC-Overlay-vX.Y.Z-macos.zip.sha256
+```
+
+`script/build_and_run.sh`로 만든 로컬 빌드는 개발용 ad-hoc 서명입니다. 배포용 릴리스 artifact가 아닙니다.
 
 ## 설치
 
@@ -28,25 +45,25 @@
 ```bash
 brew tap jadru/cc-overlay
 brew install cc-overlay
-brew services start cc-overlay
+cc-overlay
 ```
 
-`0.8.x`에서 업그레이드한 뒤 macOS 15에서 서비스가 계속 뜨지 않으면, 기존 LaunchAgent가 예전 `opt_bin` 경로를 가리키는 상태일 수 있습니다. 아래 순서로 LaunchAgent를 새로 만드세요.
+macOS 시작 시 자동 실행하려면 앱 설정에서 **Launch at login**을 켭니다. CC-Overlay는 Homebrew 백그라운드 서비스를 설치하지 않으므로 앱 프로세스와 로그인 시작 경로가 각각 하나만 유지됩니다.
+
+`0.8.x`에서 업그레이드했다면 기존 Homebrew 서비스를 한 번 정리하세요.
 
 ```bash
 brew services stop cc-overlay
 rm -f ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist
-brew uninstall cc-overlay
-brew untap jadru/cc-overlay
-brew tap jadru/cc-overlay
-brew install cc-overlay
-brew services start cc-overlay
+brew upgrade cc-overlay
 ```
 
-재설치 후 `~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist`의 실행 경로는 아래와 같아야 합니다.
+### 제거
 
-```text
-/opt/homebrew/opt/cc-overlay/CC-Overlay.app/Contents/MacOS/cc-overlay
+먼저 설정에서 **Launch at login**을 끈 뒤 앱을 제거합니다.
+
+```bash
+brew uninstall cc-overlay
 ```
 
 ### 소스에서 빌드
@@ -54,10 +71,15 @@ brew services start cc-overlay
 **Swift 6.0+** 및 **macOS 15+** (Sequoia) SDK 필요.
 
 ```bash
-git clone https://github.com/jadru/cc-overlay.git
-cd cc-overlay
-swift build -c release
-cp .build/release/cc-overlay /usr/local/bin/
+git clone https://github.com/jadru/homebrew-cc-overlay.git
+cd homebrew-cc-overlay
+./script/build_and_run.sh
+```
+
+notarization 없이 CI와 같은 universal packaging 검사를 실행하려면 다음을 사용합니다.
+
+```bash
+VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./script/package_release.sh
 ```
 
 ## 사용법
@@ -68,29 +90,30 @@ cp .build/release/cc-overlay /usr/local/bin/
 
 | 소스 | 프로바이더 | 동작 방식 |
 |------|-----------|----------|
-| **Anthropic API** | Claude Code | `~/.claude/credentials.json`의 OAuth 토큰 — 실시간 5시간/주간 버킷, Enterprise 할당량 |
-| **OpenAI API** | Codex CLI | OAuth 또는 API 키 — 일별/주별 rate limit, 크레딧 잔액 |
-| **로컬 JSONL** | Claude Code | `~/.claude/projects/**/usage.jsonl` 폴백 — 로그 기반 토큰 수 추정 |
+| **Anthropic OAuth** | Claude Code | Claude Code Keychain 인증 정보 — 실시간 5시간·7일 버킷 |
+| **Codex OAuth** | Codex CLI | Codex가 `~/.codex/auth.json`에 저장한 ChatGPT 로그인 |
+| **로컬 JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` 폴백 — 로그 기반 추정값임을 명시 |
+
+## 개인정보 및 프로바이더 접근
+
+CC-Overlay는 개발자가 운영하는 backend를 두지 않으며, 사용량 기록이나 OAuth credential을 프로젝트 유지보수자에게 업로드하지 않습니다. 선택한 provider의 usage endpoint와, 업데이트 확인을 켠 경우 GitHub Releases에만 outbound request를 보냅니다.
+
+- Codex 사용량은 로컬 Codex CLI 인증 파일을 읽고 provider usage endpoint에 직접 요청합니다.
+- Claude transcript 추정은 최근 로컬 JSONL 파일을 읽습니다. Claude OAuth rate limit 접근은 기본적으로 꺼져 있으며 Settings에서 명시적으로 켤 때만 시도합니다.
+- 사용량 기록, 설정, diagnostic log는 로컬 Mac에 저장됩니다.
+
+provider token은 민감한 정보입니다. provider를 활성화하기 전에 소스를 검토하고 신뢰할 수 있는 릴리스만 사용하세요. 이 프로젝트는 비공식 integration이며 provider API, 한도, 인증 형식은 예고 없이 변경될 수 있습니다.
 
 ### 메뉴바 드롭다운
 
-드롭다운 패널은 **프로바이더 탭 사이드바** (복수 프로바이더 감지 시)와 프로바이더별 뷰를 표시합니다:
-
-- **게이지 카드** — 잔여 퍼센트를 보여주는 원형 프로그레스
-- **Enterprise 할당량 카드** — 개인/티어/조직 지출 한도 (Claude Code Enterprise 전용)
-- **크레딧 카드** — 플랜 유형 및 크레딧 잔액 (Codex 전용)
-- **비용 카드** — 5시간 및 일일 비용 추정
-- **토큰 분석** — 타입별 가중치 적용 토큰 사용량
-- **Rate limit 필** — 5h / 7d / Sonnet 버킷 사용률 (Claude Code) 또는 일별/주별 윈도우 (Codex)
+드롭다운은 선택한 프로바이더의 사용량 타임라인을 보여줍니다. 두 프로바이더
+모두 사용량이 있을 때만 상단에 compact selector가 표시됩니다. 각 윈도우에는
+사용량·잔여량·리셋 시각·현재 페이스가 함께 표시됩니다.
 
 ### 플로팅 필
 
-오버레이 필은 **가장 긴급한 프로바이더** (한도에 가장 근접)의 잔여 퍼센트를 간결하게 표시하며, 호버 시 다음 정보로 확장됩니다:
-
-- 5시간 비용이 표시된 원형 게이지
-- Rate limit 사용률 필
-- Enterprise 시트 잔여 금액 (해당 시)
-- 일일 비용 (선택적)
+오버레이는 가장 제한적인 프로바이더를 표시합니다. 확장해도 현재 화면 경계를
+넘지 않으며, 5H/7D 페이스 미터를 보여줍니다. 로컬 추정값은 `~`로 구분됩니다.
 
 ## 설정
 
@@ -100,18 +123,13 @@ cp .build/release/cc-overlay /usr/local/bin/
 |------|--------|------|
 | Show overlay | On | 플로팅 필 표시/숨기기 |
 | Always expanded | Off | 호버 없이 항상 확장 상태 유지 |
-| Show daily cost | Off | 확장 필에 일일 비용 표시 |
-| Opacity | 100% | 오버레이 불투명도 (50-100%) |
 | Click-through | Off | 오버레이를 투과하여 뒤 콘텐츠 클릭 |
-| Menu bar indicator | Pie Chart | 파이 차트, 바 차트, 퍼센트 중 선택 |
 | Global hotkey | On | `Cmd+Shift+A`로 오버레이 토글 |
 | Cost alerts | On | 70%/90% 사용 시 알림 |
 | Plan tier | Pro | 로컬 JSONL 모드용 (Pro/Max/Enterprise/Custom) |
+| Claude OAuth rate limits | Off | 명시적으로 켠 경우에만 Claude Keychain credential 읽기 |
 | Refresh interval | 1분 | 사용량 데이터 갱신 주기 |
 | Launch at login | Off | macOS 시작 시 자동 실행 |
-| Claude Code enabled | On | Claude Code 사용량 모니터링 |
-| Codex enabled | On | Codex CLI 사용량 모니터링 |
-| Codex API key | — | Codex용 수동 API 키 (OAuth 미사용 시) |
 
 ### 모델별 가격
 
@@ -119,12 +137,15 @@ cp .build/release/cc-overlay /usr/local/bin/
 
 | 모델 | Input | Output | Cache Write | Cache Read |
 |------|------:|-------:|------------:|-----------:|
-| Opus 4.5/4.6 | $5 | $25 | $6.25 | $0.50 |
+| Fable 5 | $10 | $50 | $12.50 | $1.00 |
+| Opus 4.5-4.8 | $5 | $25 | $6.25 | $0.50 |
 | Opus 4.0/4.1 | $15 | $75 | $18.75 | $1.50 |
-| Sonnet 4.x | $3 | $15 | $3.75 | $0.30 |
+| Sonnet 5 / 4.x | $3 | $15 | $3.75 | $0.30 |
 | Haiku 4.5 | $1 | $5 | $1.25 | $0.10 |
 | Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
 
 ## 라이선스
 
 [MIT](LICENSE)
+
+provider 이름과 mark는 각 권리자의 자산입니다. 여기서는 호환 도구를 식별하는 용도로만 사용합니다.

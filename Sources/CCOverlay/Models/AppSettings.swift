@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SwiftUI
 
 @Observable
 final class AppSettings {
@@ -13,26 +12,16 @@ final class AppSettings {
         static let refreshInterval = "refreshInterval"
         static let planTier = "planTier"
         static let customWeightedLimit = "customWeightedLimit"
+        static let claudeOAuthEnabled = "claudeOAuthEnabled"
         static let alertWarningThreshold = "alertWarningThreshold"
         static let alertCriticalThreshold = "alertCriticalThreshold"
         static let launchAtLogin = "launchAtLogin"
-        static let menuBarIndicatorStyle = "menuBarIndicatorStyle"
         static let costAlertEnabled = "costAlertEnabled"
         static let globalHotkeyEnabled = "globalHotkeyEnabled"
         static let pillAlwaysExpanded = "pillAlwaysExpanded"
-        static let pillShowDailyCost = "pillShowDailyCost"
-        static let pillOpacity = "pillOpacity"
         static let pillClickThrough = "pillClickThrough"
         static let autoUpdateEnabled = "autoUpdateEnabled"
         static let lastUpdateCheck = "lastUpdateCheck"
-        static let claudeCodeEnabled = "claudeCodeEnabled"
-        static let codexEnabled = "codexEnabled"
-        static let codexAPIKey = "codexAPIKey"
-        static let geminiEnabled = "geminiEnabled"
-        static let geminiAPIKey = "geminiAPIKey"
-        static let menuBarShowClaudeCode = "menuBarShowClaudeCode"
-        static let menuBarShowCodex = "menuBarShowCodex"
-        static let menuBarShowGemini = "menuBarShowGemini"
     }
 
     // MARK: - General
@@ -81,24 +70,15 @@ final class AppSettings {
         set { withMutation(keyPath: \.customWeightedLimit) { UserDefaults.standard.set(newValue, forKey: Key.customWeightedLimit) } }
     }
 
+    /// Claude OAuth access is opt-in because its Keychain item may require user authorization.
+    var claudeOAuthEnabled: Bool {
+        get { access(keyPath: \.claudeOAuthEnabled); return UserDefaults.standard.bool(forKey: Key.claudeOAuthEnabled) }
+        set { withMutation(keyPath: \.claudeOAuthEnabled) { UserDefaults.standard.set(newValue, forKey: Key.claudeOAuthEnabled) } }
+    }
+
     var launchAtLogin: Bool {
         get { access(keyPath: \.launchAtLogin); return UserDefaults.standard.bool(forKey: Key.launchAtLogin) }
         set { withMutation(keyPath: \.launchAtLogin) { UserDefaults.standard.set(newValue, forKey: Key.launchAtLogin) } }
-    }
-
-    // MARK: - Menu Bar Indicator
-
-    var menuBarIndicatorStyle: MenuBarIndicatorStyle {
-        get {
-            access(keyPath: \.menuBarIndicatorStyle)
-            let raw = UserDefaults.standard.string(forKey: Key.menuBarIndicatorStyle) ?? MenuBarIndicatorStyle.percentage.rawValue
-            return MenuBarIndicatorStyle(rawValue: raw) ?? .percentage
-        }
-        set {
-            withMutation(keyPath: \.menuBarIndicatorStyle) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: Key.menuBarIndicatorStyle)
-            }
-        }
     }
 
     // MARK: - Alert Settings
@@ -156,23 +136,6 @@ final class AppSettings {
         set { withMutation(keyPath: \.pillAlwaysExpanded) { UserDefaults.standard.set(newValue, forKey: Key.pillAlwaysExpanded) } }
     }
 
-    var pillShowDailyCost: Bool {
-        get {
-            access(keyPath: \.pillShowDailyCost)
-            return UserDefaults.standard.object(forKey: Key.pillShowDailyCost) as? Bool ?? true
-        }
-        set { withMutation(keyPath: \.pillShowDailyCost) { UserDefaults.standard.set(newValue, forKey: Key.pillShowDailyCost) } }
-    }
-
-    var pillOpacity: Double {
-        get {
-            access(keyPath: \.pillOpacity)
-            let val = UserDefaults.standard.double(forKey: Key.pillOpacity)
-            return val == 0 ? 1.0 : val
-        }
-        set { withMutation(keyPath: \.pillOpacity) { UserDefaults.standard.set(newValue, forKey: Key.pillOpacity) } }
-    }
-
     var pillClickThrough: Bool {
         get { access(keyPath: \.pillClickThrough); return UserDefaults.standard.bool(forKey: Key.pillClickThrough) }
         set { withMutation(keyPath: \.pillClickThrough) { UserDefaults.standard.set(newValue, forKey: Key.pillClickThrough) } }
@@ -201,185 +164,19 @@ final class AppSettings {
         set { withMutation(keyPath: \.lastUpdateCheck) { UserDefaults.standard.set(newValue, forKey: Key.lastUpdateCheck) } }
     }
 
-    // MARK: - Provider Settings
-
-    var claudeCodeEnabled: Bool {
-        get {
-            access(keyPath: \.claudeCodeEnabled)
-            return UserDefaults.standard.object(forKey: Key.claudeCodeEnabled) as? Bool ?? true
-        }
-        set { withMutation(keyPath: \.claudeCodeEnabled) { UserDefaults.standard.set(newValue, forKey: Key.claudeCodeEnabled) } }
-    }
-
-    var codexEnabled: Bool {
-        get {
-            access(keyPath: \.codexEnabled)
-            return UserDefaults.standard.object(forKey: Key.codexEnabled) as? Bool ?? true
-        }
-        set { withMutation(keyPath: \.codexEnabled) { UserDefaults.standard.set(newValue, forKey: Key.codexEnabled) } }
-    }
-
-    var codexAPIKey: String? {
-        get {
-            access(keyPath: \.codexAPIKey)
-            return KeychainHelper.readCodexAPIKey()
-        }
-        set {
-            withMutation(keyPath: \.codexAPIKey) {
-                guard let newValue, !newValue.isEmpty else {
-                    do {
-                        try KeychainHelper.deleteCodexAPIKey()
-                    } catch {
-                        AppLogger.data.error("Failed to delete Codex API key: \(error.localizedDescription)")
-                    }
-                    return
-                }
-                do {
-                    try KeychainHelper.saveCodexAPIKey(newValue)
-                } catch {
-                    AppLogger.data.error("Failed to save Codex API key: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
-
-    // MARK: - Gemini Settings
-
-    var geminiEnabled: Bool {
-        get {
-            access(keyPath: \.geminiEnabled)
-            return UserDefaults.standard.object(forKey: Key.geminiEnabled) as? Bool ?? true
-        }
-        set { withMutation(keyPath: \.geminiEnabled) { UserDefaults.standard.set(newValue, forKey: Key.geminiEnabled) } }
-    }
-
-    var geminiAPIKey: String? {
-        get {
-            access(keyPath: \.geminiAPIKey)
-            return KeychainHelper.readGeminiAPIKey()
-        }
-        set {
-            withMutation(keyPath: \.geminiAPIKey) {
-                guard let newValue, !newValue.isEmpty else {
-                    do {
-                        try KeychainHelper.deleteGeminiAPIKey()
-                    } catch {
-                        AppLogger.data.error("Failed to delete Gemini API key: \(error.localizedDescription)")
-                    }
-                    return
-                }
-                do {
-                    try KeychainHelper.saveGeminiAPIKey(newValue)
-                } catch {
-                    AppLogger.data.error("Failed to save Gemini API key: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
-
-    // MARK: - Menu Bar Visibility
-
-    var menuBarShowClaudeCode: Bool {
-        get {
-            access(keyPath: \.menuBarShowClaudeCode)
-            return UserDefaults.standard.object(forKey: Key.menuBarShowClaudeCode) as? Bool ?? true
-        }
-        set { withMutation(keyPath: \.menuBarShowClaudeCode) { UserDefaults.standard.set(newValue, forKey: Key.menuBarShowClaudeCode) } }
-    }
-
-    var menuBarShowCodex: Bool {
-        get {
-            access(keyPath: \.menuBarShowCodex)
-            return UserDefaults.standard.object(forKey: Key.menuBarShowCodex) as? Bool ?? true
-        }
-        set { withMutation(keyPath: \.menuBarShowCodex) { UserDefaults.standard.set(newValue, forKey: Key.menuBarShowCodex) } }
-    }
-
-    var menuBarShowGemini: Bool {
-        get {
-            access(keyPath: \.menuBarShowGemini)
-            return UserDefaults.standard.object(forKey: Key.menuBarShowGemini) as? Bool ?? true
-        }
-        set { withMutation(keyPath: \.menuBarShowGemini) { UserDefaults.standard.set(newValue, forKey: Key.menuBarShowGemini) } }
-    }
-
-    func isMenuBarVisible(_ provider: CLIProvider) -> Bool {
-        switch provider {
-        case .claudeCode: return menuBarShowClaudeCode
-        case .codex: return menuBarShowCodex
-        case .gemini: return menuBarShowGemini
-        }
-    }
-
-    func isEnabled(_ provider: CLIProvider) -> Bool {
-        switch provider {
-        case .claudeCode: return claudeCodeEnabled
-        case .codex: return codexEnabled
-        case .gemini: return geminiEnabled
-        }
-    }
-
     init() {
         UserDefaults.standard.register(defaults: [
             Key.showOverlay: true,
-        Key.refreshInterval: 60.0,
+            Key.refreshInterval: 60.0,
             Key.debugFlowLogging: false,
+            Key.claudeOAuthEnabled: false,
             Key.costAlertEnabled: true,
             Key.alertWarningThreshold: AppConstants.defaultWarningThresholdPct,
             Key.alertCriticalThreshold: AppConstants.defaultCriticalThresholdPct,
             Key.globalHotkeyEnabled: true,
-            Key.menuBarIndicatorStyle: MenuBarIndicatorStyle.percentage.rawValue,
             Key.pillAlwaysExpanded: false,
-            Key.pillShowDailyCost: true,
-            Key.pillOpacity: 1.0,
             Key.pillClickThrough: false,
             Key.autoUpdateEnabled: true,
-            Key.claudeCodeEnabled: true,
-            Key.codexEnabled: true,
-            Key.geminiEnabled: true,
-            Key.menuBarShowClaudeCode: true,
-            Key.menuBarShowCodex: true,
-            Key.menuBarShowGemini: true,
         ])
-
-        migrateLegacyAPIKeysToKeychainIfNeeded()
-    }
-
-    private func migrateLegacyAPIKeysToKeychainIfNeeded() {
-        migrateLegacyAPIKeyIfNeeded(
-            userDefaultsKey: Key.codexAPIKey,
-            existingKeyInKeychain: KeychainHelper.readCodexAPIKey(),
-            saveToKeychain: { try KeychainHelper.saveCodexAPIKey($0) }
-        )
-
-        migrateLegacyAPIKeyIfNeeded(
-            userDefaultsKey: Key.geminiAPIKey,
-            existingKeyInKeychain: KeychainHelper.readGeminiAPIKey(),
-            saveToKeychain: { try KeychainHelper.saveGeminiAPIKey($0) }
-        )
-    }
-
-    private func migrateLegacyAPIKeyIfNeeded(
-        userDefaultsKey: String,
-        existingKeyInKeychain: String?,
-        saveToKeychain: (String) throws -> Void
-    ) {
-        let defaults = UserDefaults.standard
-        guard let legacyValue = defaults.string(forKey: userDefaultsKey), !legacyValue.isEmpty else {
-            return
-        }
-
-        if existingKeyInKeychain != nil {
-            defaults.removeObject(forKey: userDefaultsKey)
-            return
-        }
-
-        do {
-            try saveToKeychain(legacyValue)
-            defaults.removeObject(forKey: userDefaultsKey)
-        } catch {
-            AppLogger.data.error("Failed to migrate legacy key for \(userDefaultsKey): \(error.localizedDescription)")
-            // Keep legacy value in UserDefaults as fallback when migration fails.
-        }
     }
 }

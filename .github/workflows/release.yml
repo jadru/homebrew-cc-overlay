@@ -1,103 +1,113 @@
 name: Release
+
 on:
+  pull_request:
   push:
-    tags: ['v*']
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic version without the v prefix"
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run test suite
+        run: swift test --disable-sandbox
+      - name: Validate Formula syntax
+        run: ruby -c Formula/cc-overlay.rb
+      - name: Build and validate a release artifact
+        run: VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS=arm64 ./script/package_release.sh
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Inject version
+      - name: Resolve release version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          sed -i '' "s/static let version = \".*\"/static let version = \"${VERSION}\"/" \
-            Sources/CCOverlay/Models/Constants.swift
-          sed -i '' "s/<string>[0-9]*\.[0-9]*\.[0-9]*<\/string>/<string>${VERSION}<\/string>/" \
-            Sources/CCOverlay/Info.plist
+          VERSION="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid version: $VERSION" >&2; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build universal binary
+      - name: Inject version metadata
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          swift build -c release --arch arm64
-          swift build -c release --arch x86_64
-          lipo -create \
-            .build/arm64-apple-macosx/release/cc-overlay \
-            .build/x86_64-apple-macosx/release/cc-overlay \
-            -output cc-overlay
+          sed -i '' "s/static let version = \".*\"/static let version = \"${VERSION}\"/" Sources/CCOverlay/Models/Constants.swift
+          plutil -replace CFBundleShortVersionString -string "$VERSION" Sources/CCOverlay/Info.plist
+          plutil -replace CFBundleVersion -string "$GITHUB_RUN_NUMBER" Sources/CCOverlay/Info.plist
 
-      - name: Package
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          cp Sources/CCOverlay/Info.plist .
-          tar -czf cc-overlay-${{ github.ref_name }}-macos.tar.gz cc-overlay Info.plist
-          shasum -a 256 cc-overlay-${{ github.ref_name }}-macos.tar.gz | tee sha256.txt
+          [[ -n "$APPLE_CERTIFICATE" && -n "$APPLE_CERTIFICATE_PASSWORD" && -n "$KEYCHAIN_PASSWORD" ]] || { echo "Developer ID signing secrets are required" >&2; exit 1; }
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          echo "$APPLE_CERTIFICATE" | base64 -D > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-      - name: Create Release
+      - name: Configure notarization profile
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          [[ -n "$APPLE_ID" && -n "$APPLE_APP_PASSWORD" && -n "$APPLE_TEAM_ID" ]] || { echo "Notarization secrets are required" >&2; exit 1; }
+          xcrun notarytool store-credentials "cc-overlay-notary" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+
+      - name: Package, sign, notarize, and validate
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION_IDENTITY }}
+          NOTARY_PROFILE: cc-overlay-notary
+        run: ./script/package_release.sh
+
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           files: |
-            cc-overlay-${{ github.ref_name }}-macos.tar.gz
-            sha256.txt
+            dist/release/CC-Overlay-v${{ steps.version.outputs.version }}-macos.zip
+            dist/release/CC-Overlay-v${{ steps.version.outputs.version }}-macos.zip.sha256
 
-      - name: Compute SHA-256 from GitHub Release
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          RELEASE_URL="https://github.com/jadru/cc-overlay/releases/download/v${VERSION}/cc-overlay-v${VERSION}-macos.tar.gz"
-          echo "Downloading release asset from: ${RELEASE_URL}"
-
-          for i in 1 2 3 4 5; do
-            HTTP_CODE=$(curl -sL -o /tmp/downloaded.tar.gz -w "%{http_code}" "${RELEASE_URL}")
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "Download succeeded (attempt ${i})"
-              break
-            fi
-            echo "Attempt ${i} failed with HTTP ${HTTP_CODE}, retrying in 10s..."
-            sleep 10
-          done
-
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Failed to download release asset after 5 attempts"
-            exit 1
-          fi
-
-          DOWNLOAD_SHA256=$(shasum -a 256 /tmp/downloaded.tar.gz | awk '{print $1}')
-          LOCAL_SHA256=$(awk '{print $1}' sha256.txt)
-
-          echo "Local SHA-256:      ${LOCAL_SHA256}"
-          echo "Downloaded SHA-256:  ${DOWNLOAD_SHA256}"
-
-          if [ "$LOCAL_SHA256" != "$DOWNLOAD_SHA256" ]; then
-            echo "::warning::Local and downloaded SHA-256 differ! Using downloaded (authoritative) hash."
-          fi
-
-          echo "RELEASE_SHA256=${DOWNLOAD_SHA256}" >> "$GITHUB_ENV"
-          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-
-      - name: Update Homebrew formula
-        run: |
-          sed -i '' "s|url \".*\"|url \"https://github.com/jadru/cc-overlay/releases/download/v${VERSION}/cc-overlay-v${VERSION}-macos.tar.gz\"|" Formula/cc-overlay.rb
-          sed -i '' "s/sha256 \".*\"/sha256 \"${RELEASE_SHA256}\"/" Formula/cc-overlay.rb
-          echo "Updated formula: version=${VERSION} sha256=${RELEASE_SHA256}"
-          grep -E 'url|sha256' Formula/cc-overlay.rb
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/cc-overlay.rb
-          git commit -m "formula: cc-overlay ${VERSION}"
-          git push origin HEAD:main
-
-      - name: Sync formula to Homebrew tap
+      - name: Update Homebrew formula on main
         env:
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN || secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git clone https://x-access-token:${TAP_TOKEN}@github.com/jadru/homebrew-cc-overlay.git /tmp/tap
-          cp Formula/cc-overlay.rb /tmp/tap/Formula/cc-overlay.rb
-          cd /tmp/tap
+          ARCHIVE="CC-Overlay-v${VERSION}-macos.zip"
+          SHA256="$(awk '{print $1}' "dist/release/${ARCHIVE}.sha256")"
+          git fetch origin main
+          git checkout -B release-formula origin/main
+          sed -i '' "s|url \".*\"|url \"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${ARCHIVE}\"|" Formula/cc-overlay.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/cc-overlay.rb
+          ruby -c Formula/cc-overlay.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/cc-overlay.rb
           git diff --cached --quiet || git commit -m "formula: cc-overlay ${VERSION}"
-          git push origin main
+          git push origin HEAD:main

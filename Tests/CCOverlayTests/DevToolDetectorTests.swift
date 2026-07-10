@@ -10,6 +10,10 @@ final class DevToolDetectorTests: XCTestCase {
         XCTAssertTrue(DevToolDetector.isWhitelisted("com.openai.codex.helper"))
     }
 
+    func testCmuxBundleIdIsWhitelisted() {
+        XCTAssertTrue(DevToolDetector.isWhitelisted("com.cmuxterm.app"))
+    }
+
     func testNonWhitelistedBundleIdReturnsFalse() {
         XCTAssertFalse(DevToolDetector.isWhitelisted("com.example.random-app"))
     }

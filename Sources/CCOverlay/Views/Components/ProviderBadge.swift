@@ -5,8 +5,7 @@ struct ProviderBadge: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: provider.iconName)
-                .font(.system(size: 10))
+            ProviderIconView(provider: provider, size: 10)
             Text(provider.rawValue)
                 .font(.system(size: 10, weight: .medium))
         }

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 // MARK: - Update Status
@@ -26,25 +27,35 @@ final class UpdateService {
 
     private var settings: AppSettings?
     private var timer: Timer?
+    private var initialCheckTask: Task<Void, Never>?
 
     func configure(settings: AppSettings) {
         self.settings = settings
     }
 
     func startMonitoring() {
+        stopMonitoring()
+
         // Initial check after 3-second delay
-        Task { @MainActor in
+        initialCheckTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
             await scheduledCheck()
         }
 
         // Periodic check every 24h
-        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: AppConstants.updateCheckInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.scheduledCheck()
             }
         }
+    }
+
+    func stopMonitoring() {
+        initialCheckTask?.cancel()
+        initialCheckTask = nil
+        timer?.invalidate()
+        timer = nil
     }
 
     /// Manual check triggered from Settings — skips schedule/enabled guards.
@@ -60,7 +71,11 @@ final class UpdateService {
         Task.detached { [weak self] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = ["-l", "-c", "brew update && brew upgrade cc-overlay"]
+            process.arguments = [
+                "-l",
+                "-c",
+                "brew tap \(AppConstants.homebrewTap) && brew update && brew upgrade \(AppConstants.homebrewFormula)"
+            ]
 
             let pipe = Pipe()
             process.standardOutput = pipe
@@ -93,17 +108,17 @@ final class UpdateService {
         updateState = .idle
     }
 
-    /// Restart the app via brew services.
+    /// Restart the freshly upgraded app bundle without creating a Homebrew service.
     func restartApp() {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = ["-l", "-c", "brew services restart cc-overlay"]
-
-        do {
-            try process.run()
-            // Don't waitUntilExit — brew will SIGTERM us
-        } catch {
-            updateState = .error(message: "Restart failed: \(error.localizedDescription)")
+        Task.detached { [weak self] in
+            let failure = Self.launchInstalledApp()
+            await MainActor.run { [weak self] in
+                if let failure {
+                    self?.updateState = .error(message: "Restart failed: \(failure)")
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
         }
     }
 
@@ -155,6 +170,44 @@ final class UpdateService {
             }
         } catch {
             updateState = .error(message: error.localizedDescription)
+        }
+    }
+
+    /// Resolves Homebrew's stable opt prefix after an upgrade, then opens that bundle.
+    nonisolated private static func launchInstalledApp() -> String? {
+        let prefixProcess = Process()
+        prefixProcess.executableURL = URL(fileURLWithPath: "/bin/bash")
+        prefixProcess.arguments = ["-l", "-c", "brew --prefix \(AppConstants.homebrewFormula)"]
+
+        let prefixPipe = Pipe()
+        prefixProcess.standardOutput = prefixPipe
+        prefixProcess.standardError = Pipe()
+
+        do {
+            try prefixProcess.run()
+            let data = prefixPipe.fileHandleForReading.readDataToEndOfFile()
+            prefixProcess.waitUntilExit()
+
+            guard prefixProcess.terminationStatus == 0 else {
+                return "Could not resolve the installed Homebrew app."
+            }
+
+            let prefix = String(decoding: data, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let appURL = URL(fileURLWithPath: prefix, isDirectory: true)
+                .appendingPathComponent("CC-Overlay.app", isDirectory: true)
+            guard FileManager.default.fileExists(atPath: appURL.path) else {
+                return "Updated app bundle was not found."
+            }
+
+            let openProcess = Process()
+            openProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            openProcess.arguments = ["-n", appURL.path]
+            try openProcess.run()
+            openProcess.waitUntilExit()
+            return openProcess.terminationStatus == 0 ? nil : "Could not launch the updated app."
+        } catch {
+            return error.localizedDescription
         }
     }
 

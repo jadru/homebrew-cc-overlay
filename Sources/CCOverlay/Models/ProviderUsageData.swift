@@ -4,6 +4,7 @@ import Foundation
 struct ProviderUsageData: Sendable {
     let provider: CLIProvider
     let isAvailable: Bool
+    let isEstimated: Bool
 
     // Primary gauge
     let usedPercentage: Double            // 0-100
@@ -42,6 +43,7 @@ struct ProviderUsageData: Sendable {
     init(
         provider: CLIProvider,
         isAvailable: Bool,
+        isEstimated: Bool = false,
         usedPercentage: Double,
         remainingPercentage: Double,
         primaryWindowLabel: String,
@@ -61,6 +63,7 @@ struct ProviderUsageData: Sendable {
     ) {
         self.provider = provider
         self.isAvailable = isAvailable
+        self.isEstimated = isEstimated
         self.usedPercentage = usedPercentage
         self.remainingPercentage = remainingPercentage
         self.primaryWindowLabel = primaryWindowLabel
@@ -88,6 +91,7 @@ struct ProviderUsageData: Sendable {
         ProviderUsageData(
             provider: provider,
             isAvailable: false,
+            isEstimated: false,
             usedPercentage: 0,
             remainingPercentage: 100,
             primaryWindowLabel: provider == .claudeCode ? "5h" : "Daily",

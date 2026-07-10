@@ -1,7 +1,19 @@
+import AppKit
 import SwiftUI
 
 extension View {
     private var glassFallbackBorderOpacity: Double { 0.18 }
+
+    private var glassFallbackFill: AnyShapeStyle {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
+            return AnyShapeStyle(Color(nsColor: .windowBackgroundColor).opacity(0.98))
+        }
+        return AnyShapeStyle(.ultraThinMaterial)
+    }
+
+    private func glassFallbackBorder(interactive: Bool) -> Color {
+        Color.primary.opacity(interactive ? 0.22 : glassFallbackBorderOpacity)
+    }
 
     @ViewBuilder
     func compatGlassCircle(interactive: Bool = false, tint: Color? = nil) -> some View {
@@ -20,22 +32,22 @@ extension View {
             }
         } else {
             self
-                .background(.ultraThinMaterial, in: Circle())
+                .background(glassFallbackFill, in: Circle())
                 .background((tint ?? .clear), in: Circle())
                 .overlay(
                     Circle().strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
+                        glassFallbackBorder(interactive: interactive),
                         lineWidth: 0.8
                     )
                 )
         }
         #else
         self
-            .background(.ultraThinMaterial, in: Circle())
+            .background(glassFallbackFill, in: Circle())
             .background((tint ?? .clear), in: Circle())
             .overlay(
                 Circle().strokeBorder(
-                    Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
+                    glassFallbackBorder(interactive: interactive),
                     lineWidth: 0.8
                 )
             )
@@ -59,22 +71,22 @@ extension View {
             }
         } else {
             self
-                .background(.ultraThinMaterial, in: Capsule())
+                .background(glassFallbackFill, in: Capsule())
                 .background((tint ?? .clear), in: Capsule())
                 .overlay(
                     Capsule().strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
+                        glassFallbackBorder(interactive: interactive),
                         lineWidth: 0.8
                     )
                 )
         }
         #else
         self
-            .background(.ultraThinMaterial, in: Capsule())
+            .background(glassFallbackFill, in: Capsule())
             .background((tint ?? .clear), in: Capsule())
             .overlay(
                 Capsule().strokeBorder(
-                    Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
+                    glassFallbackBorder(interactive: interactive),
                     lineWidth: 0.8
                 )
             )
@@ -109,11 +121,11 @@ extension View {
         } else {
             let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             self
-                .background(.ultraThinMaterial, in: shape)
+                .background(glassFallbackFill, in: shape)
                 .background((tint ?? .clear), in: shape)
                 .overlay(
                     shape.strokeBorder(
-                        Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
+                        glassFallbackBorder(interactive: interactive),
                         lineWidth: 0.8
                     )
                 )
@@ -121,14 +133,27 @@ extension View {
         #else
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         self
-            .background(.ultraThinMaterial, in: shape)
+            .background(glassFallbackFill, in: shape)
             .background((tint ?? .clear), in: shape)
             .overlay(
                 shape.strokeBorder(
-                    Color.white.opacity(interactive ? 0.22 : glassFallbackBorderOpacity),
+                    glassFallbackBorder(interactive: interactive),
                     lineWidth: 0.8
                 )
             )
+        #endif
+    }
+
+    @ViewBuilder
+    func compatGlassEffectID(_ id: String, in namespace: Namespace.ID) -> some View {
+        #if compiler(>=6.2)
+        if #available(macOS 26, *) {
+            self.glassEffectID(id, in: namespace)
+        } else {
+            self
+        }
+        #else
+        self
         #endif
     }
 }
