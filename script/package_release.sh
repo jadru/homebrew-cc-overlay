@@ -81,6 +81,9 @@ if [[ "$NOTARIZE" == "1" ]]; then
   "$ROOT_DIR/script/validate_release_archive.sh" "$ARCHIVE"
 fi
 
-shasum -a 256 "$ARCHIVE" > "$CHECKSUM"
+(
+  cd "$DIST_DIR"
+  shasum -a 256 "$(basename "$ARCHIVE")" > "$(basename "$CHECKSUM")"
+)
 echo "Release archive: $ARCHIVE"
 echo "Checksum: $CHECKSUM"
