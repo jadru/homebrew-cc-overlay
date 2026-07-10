@@ -10,7 +10,6 @@ struct ProviderTabSidebar: View {
     var onSettingsTapped: () -> Void
 
     @Namespace private var selectionNamespace
-    @State private var bouncingProvider: CLIProvider?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,15 +48,6 @@ struct ProviderTabSidebar: View {
             withAnimation(DesignTokens.Animation.selection) {
                 selectedProvider = provider
             }
-            withAnimation(DesignTokens.Animation.bounce) {
-                bouncingProvider = provider
-            }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(240))
-                if bouncingProvider == provider {
-                    bouncingProvider = nil
-                }
-            }
         } label: {
             ZStack {
                 if isSelected {
@@ -71,10 +61,12 @@ struct ProviderTabSidebar: View {
                 }
 
                 VStack(spacing: 4) {
-                    Image(systemName: provider.iconName)
-                        .font(.system(size: 17, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
-                        .scaleEffect(bouncingProvider == provider ? 1.15 : 1.0)
+                    ProviderIconView(
+                        provider: provider,
+                        size: 17,
+                        fallbackColor: isSelected ? .primary : .secondary,
+                        fallbackWeight: isSelected ? .semibold : .regular
+                    )
 
                     Circle()
                         .fill(Color.usageTint(for: providerData[provider] ?? 100))
@@ -86,10 +78,9 @@ struct ProviderTabSidebar: View {
             .frame(width: DesignTokens.Layout.sidebarButton, height: DesignTokens.Layout.sidebarButton)
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
         .opacity(isActive ? 1.0 : 0.35)
         .animation(DesignTokens.Animation.selection, value: isSelected)
-        .animation(DesignTokens.Animation.bounce, value: bouncingProvider == provider)
         .help(provider.rawValue)
         .accessibilityLabel(provider.rawValue)
         .accessibilityAddTraits(isSelected ? .isSelected : [])

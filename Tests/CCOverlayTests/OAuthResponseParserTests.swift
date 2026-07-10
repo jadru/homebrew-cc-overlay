@@ -102,7 +102,7 @@ final class OAuthResponseParserTests: XCTestCase {
         XCTAssertNotNil(usage.fiveHour.resetsAt)
     }
 
-    func testMalformedPayloadFallsBackToZeroBuckets() throws {
+    func testMalformedPrimaryBucketsAreRejected() throws {
         let payload: [String: Any] = [
             "five_hour": "wrong",
             "seven_day": [
@@ -121,16 +121,9 @@ final class OAuthResponseParserTests: XCTestCase {
             ],
         ]
 
-        let usage = try parser.parseUsageResponse(makeData(payload), fetchedAt: Date())
-
-        XCTAssertEqual(usage.fiveHour.utilization, 0)
-        XCTAssertNil(usage.fiveHour.resetsAt)
-        XCTAssertEqual(usage.sevenDay.utilization, 0)
-        XCTAssertNil(usage.sevenDay.resetsAt)
-        XCTAssertEqual(usage.sevenDaySonnet?.utilization, 0)
-        XCTAssertEqual(usage.enterpriseQuota?.organizationLimit.capDollars, 0)
-        XCTAssertEqual(usage.enterpriseQuota?.individualLimit.capDollars, 19.5)
-        XCTAssertEqual(usage.enterpriseQuota?.individualLimit.usedDollars, 4)
+        XCTAssertThrowsError(try parser.parseUsageResponse(makeData(payload), fetchedAt: Date())) { error in
+            XCTAssertEqual(error as? AnthropicAPIService.APIError, .invalidResponse)
+        }
     }
 
     func testNonDictionaryPayloadThrowsInvalidResponse() throws {

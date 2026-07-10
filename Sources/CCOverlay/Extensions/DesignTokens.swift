@@ -19,19 +19,17 @@ enum DesignTokens {
     enum Layout {
         static let sidebarWidth: CGFloat = 52
         static let sidebarButton: CGFloat = 40
-        static let menuBarPanelWidth: CGFloat = 392
-        static let menuBarPanelMinHeight: CGFloat = 460
-        static let menuBarPanelMaxHeight: CGFloat = 620
+        static let menuBarPanelWidth: CGFloat = 420
+        static let menuBarPanelMinHeight: CGFloat = 420
+        static let menuBarPanelMaxHeight: CGFloat = 560
         static let expandedPillWidth: CGFloat = 300
         static let settingsWidth: CGFloat = 460
-        static let settingsHeight: CGFloat = 620
+        static let settingsHeight: CGFloat = 460
     }
 
     enum Animation {
-        static let quick = SwiftUI.Animation.snappy(duration: 0.2)
-        static let selection = SwiftUI.Animation.spring(response: 0.34, dampingFraction: 0.84)
-        static let bounce = SwiftUI.Animation.spring(response: 0.28, dampingFraction: 0.58)
-        static let reveal = SwiftUI.Animation.spring(response: 0.45, dampingFraction: 0.86)
-        static let pulse = SwiftUI.Animation.easeInOut(duration: 1.15).repeatForever(autoreverses: true)
+        static let press = SwiftUI.Animation.easeOut(duration: 0.12)
+        static let selection = SwiftUI.Animation.spring(response: 0.22, dampingFraction: 1)
+        static let reveal = SwiftUI.Animation.spring(response: 0.28, dampingFraction: 1)
     }
 }

@@ -1,3 +1,24 @@
+# v0.10.0
+
+## Reliable Usage, Native Overlay, Signed Distribution
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Trustworthy provider lifecycle** — Provider detection now revalidates credentials, removes revoked providers, and clears stale Codex snapshots.
+- **Strict usage parsing** — Malformed Claude OAuth payloads fail visibly instead of appearing as a valid zero-usage state.
+- **Focused Codex support** — Removed the unsupported API-key billing path; Codex usage now relies on the CLI's ChatGPT OAuth session.
+- **Transparent estimates** — JSONL fallback data is labeled consistently across the menu bar and overlay.
+- **Release-grade artifacts** — CI validates tests, Formula syntax, app metadata, resources, signing, notarization, and the packaged zip before publishing.
+
+### Distribution
+
+- The release archive now contains a complete `CC-Overlay.app` with provider icons and no Finder metadata side files.
+- Homebrew installs the signed app bundle without replacing its distribution signature.
+
+---
+
 # v0.9.1
 
 ## Launch Reliability: macOS 15 Brew Recovery, Safer Startup, Codex GUI Overlay
@@ -28,7 +49,7 @@
 ### Highlights
 
 - **Menubar redesign** — Wider scrollable panel, clearer provider header, quick action cluster, and richer empty-state guidance
-- **Cross-provider summary cards** — New compact/standard provider summary cards for fast comparison across Claude Code, Codex, and Gemini
+- **Cross-provider summary cards** — New compact/standard provider summary cards for fast comparison across Claude Code and Codex
 - **Overlay drill-down** — Expanded pill now supports provider selection, pinned expansion, session reset/last-active details, and better stale-state cues
 - **Settings cleanup** — App settings are regrouped into clearer sections, with advanced credentials and fallback tuning hidden behind disclosure controls
 - **Claude OAuth parsing hardening** — OAuth usage parsing now handles nested payload shapes, safer malformed responses, normalized plan identifiers, and Keychain access-denied handling
@@ -50,11 +71,11 @@
 
 ### Highlights
 
-- **Provider architecture hardening** — `fetchUsage()` is now explicitly part of provider protocol contracts; base implementation no longer crashes with `fatalError`
+- **Provider architecture hardening** — `fetchUsage()` became an explicit provider protocol contract.
 - **Cost budget controls in Settings** — Added Claude plan tier picker and custom weighted limit input
 - **Stale data indicator** — Menu bar and floating pill now show stale-state warning when data is older than `2x refresh interval`
 - **Custom alert thresholds** — Warning/Critical thresholds are now user-configurable in Settings and used by alert notifications
-- **API key security migration** — Codex/Gemini manual API keys moved from plain UserDefaults into Keychain with automatic legacy migration
+- **API key security migration** — Codex manual API keys moved from plain UserDefaults into Keychain with automatic legacy migration
 - **VoiceOver improvements** — Accessibility labels/values added for menu bar status, overlay status, and refresh action
 
 ### Brew Release Notes

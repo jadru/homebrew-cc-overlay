@@ -9,6 +9,7 @@ enum DevToolDetector {
         "net.kovidgoyal.kitty",
         "com.mitchellh.ghostty",
         "io.alacritty",
+        "com.cmuxterm.app",
         // IDEs & Editors
         "com.microsoft.VSCode",
         "com.microsoft.VSCodeInsiders",

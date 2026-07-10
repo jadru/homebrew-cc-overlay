@@ -24,7 +24,12 @@ final class OverlayManager {
             message: "overlay.show",
             details: ["alreadyVisible": "\(window != nil)"]
         )
+        guard !multiService.availableProviders.isEmpty else {
+            hideOverlay()
+            return
+        }
         if window != nil {
+            startFocusMonitoring()
             window?.orderFront(nil)
             return
         }
@@ -35,6 +40,7 @@ final class OverlayManager {
 
     func hideOverlay() {
         DebugFlowLogger.shared.log(stage: .display, message: "overlay.hide")
+        stopFocusMonitoring()
         window?.orderOut(nil)
     }
 
@@ -67,13 +73,21 @@ final class OverlayManager {
         }
     }
 
+    func updateUsageVisibility() {
+        guard settings.showOverlay, !multiService.availableProviders.isEmpty else {
+            hideOverlay()
+            return
+        }
+        showOverlay()
+    }
+
     // MARK: - Window Creation
 
     private func createWindow() {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let initialSize = CGSize(width: 120, height: 30)
-        let originX = screen.maxX - initialSize.width - 16
-        let originY = screen.maxY - initialSize.height - 16
+        let originX = screen.maxX - initialSize.width
+        let originY = screen.maxY - initialSize.height
 
         let panel = NSPanel(
             contentRect: NSRect(x: originX, y: originY, width: initialSize.width, height: initialSize.height),
@@ -101,10 +115,25 @@ final class OverlayManager {
                 Task { @MainActor in
                     guard let panel, size.width > 0, size.height > 0 else { return }
                     var frame = panel.frame
-                    let oldTop = frame.maxY
+                    let visibleFrame = panel.screen?.visibleFrame
+                        ?? NSScreen.main?.visibleFrame
+                        ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+                    let margin: CGFloat = 0
+                    let oldRight = min(frame.maxX, visibleFrame.maxX - margin)
+                    let oldTop = min(frame.maxY, visibleFrame.maxY - margin)
                     frame.size = size
+                    let minX = visibleFrame.minX + margin
+                    let maxX = visibleFrame.maxX - size.width - margin
+                    let minY = visibleFrame.minY + margin
+                    let maxY = visibleFrame.maxY - size.height - margin
+                    frame.origin.x = minX <= maxX ? min(max(oldRight - size.width, minX), maxX) : visibleFrame.minX
                     frame.origin.y = oldTop - size.height
-                    panel.setFrame(frame, display: true)
+                    frame.origin.y = minY <= maxY ? min(max(frame.origin.y, minY), maxY) : visibleFrame.minY
+                    panel.setFrame(
+                        frame,
+                        display: true,
+                        animate: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+                    )
                 }
             }
         )
@@ -113,7 +142,7 @@ final class OverlayManager {
         hosting.sizingOptions = []
         panel.contentView = hosting
 
-        panel.alphaValue = settings.pillOpacity
+        panel.alphaValue = 1
         panel.ignoresMouseEvents = settings.pillClickThrough
 
         panel.orderFront(nil)
@@ -129,7 +158,6 @@ final class OverlayManager {
     // MARK: - Settings Observation
 
     func updateFromSettings() {
-        window?.alphaValue = settings.pillOpacity
         window?.ignoresMouseEvents = settings.pillClickThrough
     }
 
@@ -159,6 +187,11 @@ final class OverlayManager {
     }
 
     private func handleAppActivation(bundleId: String?, pid: pid_t) {
+        guard settings.showOverlay else {
+            window?.orderOut(nil)
+            return
+        }
+
         // Self activation - always show
         if pid == ProcessInfo.processInfo.processIdentifier {
             window?.orderFront(nil)

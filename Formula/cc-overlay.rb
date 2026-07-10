@@ -1,48 +1,28 @@
 class CcOverlay < Formula
   desc "Claude Code & Codex CLI usage overlay for macOS menu bar"
   homepage "https://github.com/jadru/homebrew-cc-overlay"
-  url "https://github.com/jadru/cc-overlay/releases/download/v0.9.1/cc-overlay-v0.9.1-macos.tar.gz"
+  url "https://github.com/jadru/homebrew-cc-overlay/releases/download/v0.9.1/cc-overlay-v0.9.1-macos.tar.gz"
   sha256 "e86ea3e96d426576b022cbfcd12a0c26de9ae73196408957ba0a1df807317e40"
   license "MIT"
 
   depends_on :macos => :sequoia
 
   def install
-    # .app bundle structure required by macOS GUI frameworks
-    # (UNUserNotificationCenter, SwiftData, etc.)
-    app_dir = prefix/"CC-Overlay.app/Contents"
-    (app_dir/"MacOS").mkpath
+    if (buildpath/"CC-Overlay.app").directory?
+      prefix.install "CC-Overlay.app"
+    else
+      app_dir = prefix/"CC-Overlay.app/Contents"
+      (app_dir/"MacOS").mkpath
+      (app_dir/"MacOS").install "cc-overlay"
+      app_dir.install "Info.plist"
+      system "codesign", "--force", "--sign", "-", "--timestamp=none", app_dir/"MacOS/cc-overlay"
+    end
 
-    (app_dir/"MacOS").install "cc-overlay"
-    app_dir.install "Info.plist"
-
-    entitlements = buildpath/"cc-overlay.entitlements"
-    entitlements.write <<~XML
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-        "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-      <dict>
-          <key>com.apple.security.network.client</key>
-          <true/>
-      </dict>
-      </plist>
-    XML
-    system "codesign", "--force", "--sign", "-",
-           "--entitlements", entitlements,
-           "--timestamp=none", app_dir/"MacOS/cc-overlay"
-
-    bin.install_symlink app_dir/"MacOS/cc-overlay"
-  end
-
-  service do
-    run [opt_prefix/"CC-Overlay.app/Contents/MacOS/cc-overlay"]
-    keep_alive crashed: true
-    log_path var/"log/cc-overlay.log"
-    process_type :interactive
+    bin.install_symlink prefix/"CC-Overlay.app/Contents/MacOS/cc-overlay"
   end
 
   test do
     assert_predicate bin/"cc-overlay", :executable?
+    assert_predicate prefix/"CC-Overlay.app/Contents/Info.plist", :exist?
   end
 end

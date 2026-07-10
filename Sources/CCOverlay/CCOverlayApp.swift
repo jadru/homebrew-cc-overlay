@@ -12,8 +12,19 @@ struct CCOverlayApp: App {
 
     private let modelContainer: ModelContainer = {
         let schema = Schema([UsageSnapshot.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: false)
         do {
+            let appSupportURL = try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            let storeURL = appSupportURL
+                .appendingPathComponent("CC-Overlay", isDirectory: true)
+                .appendingPathComponent("UsageHistory.store")
+            let storeDirectory = storeURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
+            let config = ModelConfiguration(url: storeURL)
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
             AppLogger.data.error("Failed to initialize persistent ModelContainer, falling back to in-memory: \(error)")
@@ -39,30 +50,33 @@ struct CCOverlayApp: App {
             .onAppear {
                 initializeApp()
             }
-            .onChange(of: multiService.usedPercentage) { _, newValue in
-                costAlertManager.check(usedPercentage: newValue, settings: settings)
-            }
-            .onChange(of: multiService.claudeOAuthUsage.rateLimitBuckets.first(where: { $0.label == "7d" || $0.label == "1w" })?.utilization ?? 0) { _, weeklyPct in
-                costAlertManager.checkWeekly(utilization: weeklyPct, settings: settings)
-            }
-            .onChange(of: settings.globalHotkeyEnabled) { _, _ in
-                appDelegate.updateHotkey(settings: settings) {
-                    toggleOverlay()
-                }
-            }
-            .onChange(of: settings.pillOpacity) { _, _ in
-                appDelegate.overlayManager?.updateFromSettings()
-            }
-            .onChange(of: settings.pillClickThrough) { _, _ in
-                appDelegate.overlayManager?.updateFromSettings()
-            }
-            .onChange(of: settings.debugFlowLogging) { _, enabled in
-                DebugFlowLogger.shared.configure(enabled: enabled)
-            }
         } label: {
-            MenuBarLabel(multiService: multiService, settings: settings, updateService: updateService)
+            MenuBarLabel(multiService: multiService, updateService: updateService)
                 .task {
                     initializeApp()
+                }
+                .onChange(of: multiService.usedPercentage) { _, newValue in
+                    costAlertManager.check(usedPercentage: newValue, settings: settings)
+                }
+                .onChange(of: multiService.claudeOAuthUsage.rateLimitBuckets.first(where: { $0.label == "7d" || $0.label == "1w" })?.utilization ?? 0) { _, weeklyPct in
+                    costAlertManager.checkWeekly(utilization: weeklyPct, settings: settings)
+                }
+                .onChange(of: settings.globalHotkeyEnabled) { _, _ in
+                    appDelegate.updateHotkey(settings: settings) {
+                        toggleOverlay()
+                    }
+                }
+                .onChange(of: settings.showOverlay) { _, isVisible in
+                    applyOverlayVisibility(isVisible)
+                }
+                .onChange(of: multiService.availableProviders) { _, _ in
+                    appDelegate.overlayManager?.updateUsageVisibility()
+                }
+                .onChange(of: settings.pillClickThrough) { _, _ in
+                    appDelegate.overlayManager?.updateFromSettings()
+                }
+                .onChange(of: settings.debugFlowLogging) { _, enabled in
+                    DebugFlowLogger.shared.configure(enabled: enabled)
                 }
         }
         .menuBarExtraStyle(.window)
@@ -70,7 +84,11 @@ struct CCOverlayApp: App {
 
     private func toggleOverlay() {
         settings.showOverlay.toggle()
-        if settings.showOverlay {
+        applyOverlayVisibility(settings.showOverlay)
+    }
+
+    private func applyOverlayVisibility(_ isVisible: Bool) {
+        if isVisible {
             appDelegate.overlayManager?.showOverlay()
         } else {
             appDelegate.overlayManager?.hideOverlay()
@@ -83,6 +101,10 @@ struct CCOverlayApp: App {
 
         AppLogger.ui.info("Initializing app...")
         DebugFlowLogger.shared.configure(enabled: settings.debugFlowLogging)
+        appDelegate.setTerminationHandler {
+            multiService.stopMonitoring()
+            updateService.stopMonitoring()
+        }
         multiService.configure(settings: settings)
         multiService.startMonitoring(interval: settings.refreshInterval)
 

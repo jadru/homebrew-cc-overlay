@@ -17,6 +17,7 @@ final class MockNotificationCenter: CostNotificationCenter {
     private(set) var requestedAuthorizationCount = 0
     private(set) var statusQueryCount = 0
     private(set) var deliveredRequests: [UNNotificationRequest] = []
+    var onNotificationDelivered: (() -> Void)?
 
     init(
         initialStatus: UNAuthorizationStatus,
@@ -26,21 +27,22 @@ final class MockNotificationCenter: CostNotificationCenter {
         self.shouldGrantOnRequest = shouldGrantOnRequest
     }
 
-    func getAuthorizationStatus(completion: @escaping (UNAuthorizationStatus) -> Void) {
+    func getAuthorizationStatus(completion: @escaping @Sendable (UNAuthorizationStatus) -> Void) {
         statusQueryCount += 1
         completion(initialStatus)
     }
 
-    func requestAuthorization(completion: @escaping (Bool) -> Void) {
+    func requestAuthorization(completion: @escaping @Sendable (Bool) -> Void) {
         requestedAuthorizationCount += 1
         completion(shouldGrantOnRequest)
     }
 
     func addNotificationRequest(
         _ request: UNNotificationRequest,
-        completion: @escaping (Error?) -> Void
+        completion: @escaping @Sendable (Error?) -> Void
     ) {
         deliveredRequests.append(request)
+        onNotificationDelivered?()
         completion(nil)
     }
 }
@@ -49,9 +51,12 @@ final class FlowIntegrationTests: XCTestCase {
 
     // MARK: - Alert flow
 
-    func testAlertFlow_NotificationCenterResolvesLazily() {
+    @MainActor
+    func testAlertFlow_NotificationCenterResolvesLazily() async {
         var providerCallCount = 0
         let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
+        let delivered = expectation(description: "notification delivered")
+        notificationCenter.onNotificationDelivered = { delivered.fulfill() }
         let manager = CostAlertManager(notificationCenterProvider: {
             providerCallCount += 1
             return notificationCenter
@@ -67,13 +72,18 @@ final class FlowIntegrationTests: XCTestCase {
         XCTAssertEqual(providerCallCount, 0)
 
         manager.check(usedPercentage: 72, settings: settings)
+        await fulfillment(of: [delivered], timeout: 1)
         XCTAssertEqual(providerCallCount, 1)
         XCTAssertEqual(notificationCenter.deliveredRequests.count, 1)
     }
 
-    func testAlertFlow_ThresholdTransitionsTriggerNotifications() {
+    @MainActor
+    func testAlertFlow_ThresholdTransitionsTriggerNotifications() async {
         let sink = TestFlowEventSink()
         let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
+        let delivered = expectation(description: "threshold notifications delivered")
+        delivered.expectedFulfillmentCount = 2
+        notificationCenter.onNotificationDelivered = { delivered.fulfill() }
         let manager = CostAlertManager(notificationCenter: notificationCenter)
         let settings = AppSettings()
         settings.costAlertEnabled = true
@@ -87,23 +97,24 @@ final class FlowIntegrationTests: XCTestCase {
         XCTAssertEqual(notificationCenter.deliveredRequests.count, 0)
 
         manager.check(usedPercentage: 72, settings: settings)
-        XCTAssertEqual(notificationCenter.deliveredRequests.count, 1)
-
         manager.check(usedPercentage: 80, settings: settings)
-        XCTAssertEqual(notificationCenter.deliveredRequests.count, 1)
-
         manager.check(usedPercentage: 95, settings: settings)
+        await fulfillment(of: [delivered], timeout: 1)
         XCTAssertEqual(notificationCenter.deliveredRequests.count, 2)
 
         let thresholdEvents = sink.events.filter { $0.message == "threshold.crossed" }
         XCTAssertEqual(thresholdEvents.count, 2)
     }
 
-    func testAlertFlow_RequestAuthorizationWhenUnknownStatus() {
+    @MainActor
+    func testAlertFlow_RequestAuthorizationWhenUnknownStatus() async {
         let notificationCenter = MockNotificationCenter(
             initialStatus: .notDetermined,
             shouldGrantOnRequest: true
         )
+        let delivered = expectation(description: "authorized notifications delivered")
+        delivered.expectedFulfillmentCount = 2
+        notificationCenter.onNotificationDelivered = { delivered.fulfill() }
         let manager = CostAlertManager(notificationCenter: notificationCenter)
         let settings = AppSettings()
         settings.costAlertEnabled = true
@@ -113,11 +124,13 @@ final class FlowIntegrationTests: XCTestCase {
         DebugFlowLogger.shared.configure(enabled: true)
         DebugFlowLogger.shared.clear()
         manager.checkWeekly(utilization: 95, settings: settings)
+        await fulfillment(of: [delivered], timeout: 1)
 
         XCTAssertEqual(notificationCenter.requestedAuthorizationCount, 2)
         XCTAssertEqual(notificationCenter.deliveredRequests.count, 2)
     }
 
+    @MainActor
     func testAlertFlow_DoesNotWarnWhenDisabled() {
         let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
         let manager = CostAlertManager(notificationCenter: notificationCenter)
@@ -142,16 +155,12 @@ final class FlowIntegrationTests: XCTestCase {
         DebugFlowLogger.shared.clear()
 
         _ = CodexDetector.detect()
-        _ = GeminiDetector.detect()
 
         let claudeService = ClaudeCodeProviderService()
         _ = claudeService.detect()
 
         XCTAssertTrue(
             sink.events.contains(where: { $0.stage == .detection && $0.provider == .codex })
-        )
-        XCTAssertTrue(
-            sink.events.contains(where: { $0.stage == .detection && $0.provider == .gemini })
         )
         XCTAssertTrue(
             sink.events.contains(where: { $0.stage == .detection && $0.provider == .claudeCode })
@@ -201,5 +210,26 @@ final class FlowIntegrationTests: XCTestCase {
 
         let hasDualProviders = activeProviders.count > 1
         XCTAssertTrue(hasDualProviders)
+    }
+
+    @MainActor
+    func testMenuBarLabelHidesUnavailableProviders() {
+        let usageMap: [CLIProvider: ProviderUsageData] = [
+            .claudeCode: .empty(for: .claudeCode),
+            .codex: ProviderUsageData(
+                provider: .codex,
+                isAvailable: true,
+                usedPercentage: 93,
+                remainingPercentage: 7,
+                primaryWindowLabel: "Daily"
+            ),
+        ]
+
+        let visibleProviders = MenuBarLabel.visibleProviders(
+            from: [.claudeCode, .codex],
+            usageData: { usageMap[$0] ?? .empty(for: $0) }
+        )
+
+        XCTAssertEqual(visibleProviders, [.codex])
     }
 }

@@ -22,6 +22,7 @@ final class MockProviderService: ProviderServiceProtocol {
     var stopMonitoringCallCount = 0
     var refreshCallCount = 0
     var lastInterval: TimeInterval?
+    var revalidationResult = true
 
     init(
         provider: CLIProvider = .claudeCode,
@@ -55,6 +56,10 @@ final class MockProviderService: ProviderServiceProtocol {
 
     func fetchUsage() async {
         refreshCallCount += 1
+    }
+
+    func revalidate(settings: AppSettings?) async -> Bool {
+        revalidationResult
     }
 
     func startMonitoring(interval: TimeInterval) {

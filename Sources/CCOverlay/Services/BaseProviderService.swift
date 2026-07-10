@@ -18,8 +18,11 @@ class BaseProviderService: ProviderServiceProtocol {
     private var lastKnownUsedPct: Double = -1
     private var refreshTimer: Timer?
     private var refreshTask: Task<Void, Never>?
-    private var baseInterval: TimeInterval = AppConstants.defaultRefreshInterval
-    private var currentInterval: TimeInterval = AppConstants.defaultRefreshInterval
+    private var refreshInterval: TimeInterval = AppConstants.defaultRefreshInterval
+    private var consecutiveNetworkFailures = 0
+    private var nextNetworkAttemptAt: Date?
+    private var lastNetworkRequestAt: Date?
+    private var forceNextNetworkRefresh = false
 
     init(provider: CLIProvider) {
         self.provider = provider
@@ -40,8 +43,7 @@ class BaseProviderService: ProviderServiceProtocol {
     // MARK: - Monitoring
 
     func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
-        baseInterval = interval
-        currentInterval = interval
+        refreshInterval = interval
         refresh()
         rescheduleTimer()
     }
@@ -51,49 +53,41 @@ class BaseProviderService: ProviderServiceProtocol {
         refreshTimer = nil
         refreshTask?.cancel()
         refreshTask = nil
+        isLoading = false
     }
 
     func refresh() {
+        refresh(forceNetwork: false)
+    }
+
+    func refresh(forceNetwork: Bool) {
+        guard !isLoading else { return }
+
+        forceNextNetworkRefresh = forceNextNetworkRefresh || forceNetwork
         isLoading = true
-        refreshTask?.cancel()
-        refreshTask = Task {
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
             await fetchUsage()
+            guard !Task.isCancelled else { return }
             isLoading = false
-            adjustInterval()
+            refreshTask = nil
         }
     }
 
-    // MARK: - Polling Backoff
-
-    private func adjustInterval() {
-        let isActive: Bool
-        if let activity = lastActivityAt {
-            isActive = Date().timeIntervalSince(activity) < AppConstants.activityWindowSeconds
-        } else {
-            isActive = false
-        }
-
-        if isActive {
-            currentInterval = baseInterval
-        } else {
-            let maxInterval = min(
-                baseInterval * AppConstants.maxBackoffMultiplier,
-                AppConstants.maxRefreshInterval
-            )
-            currentInterval = min(currentInterval * AppConstants.backoffMultiplier, maxInterval)
-        }
-
-        rescheduleTimer()
+    func revalidate(settings: AppSettings?) async -> Bool {
+        isDetected && isAuthenticated
     }
 
     private func rescheduleTimer() {
         refreshTimer?.invalidate()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: currentInterval, repeats: true) {
+        let timer = Timer(timeInterval: refreshInterval, repeats: true) {
             [weak self] _ in
             Task { @MainActor in
                 self?.refresh()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        refreshTimer = timer
     }
 
     // MARK: - State Helpers
@@ -102,11 +96,6 @@ class BaseProviderService: ProviderServiceProtocol {
     func trackActivity(newUsedPct: Double) {
         if lastKnownUsedPct >= 0 && newUsedPct > lastKnownUsedPct {
             lastActivityAt = Date()
-            // Snap back to base interval on activity
-            if currentInterval > baseInterval {
-                currentInterval = baseInterval
-                rescheduleTimer()
-            }
         }
         lastKnownUsedPct = newUsedPct
     }
@@ -114,6 +103,60 @@ class BaseProviderService: ProviderServiceProtocol {
     func markRefreshed() {
         lastRefresh = Date()
         error = nil
+        consecutiveNetworkFailures = 0
+        nextNetworkAttemptAt = nil
+    }
+
+    /// Local-only data is still useful when the provider is intentionally unauthenticated.
+    /// It does not reset a remote backoff window.
+    func markLocalRefreshed(clearingError: Bool = false) {
+        lastRefresh = Date()
+        if clearingError {
+            error = nil
+        }
+    }
+
+    func canAttemptNetworkRefresh(at now: Date = Date()) -> Bool {
+        let isForced = forceNextNetworkRefresh
+        forceNextNetworkRefresh = false
+
+        if let nextNetworkAttemptAt, now < nextNetworkAttemptAt {
+            return false
+        }
+
+        if isForced {
+            lastNetworkRequestAt = now
+            return true
+        }
+
+        let isRecentlyActive = lastActivityAt.map {
+            now.timeIntervalSince($0) <= AppConstants.activityWindowSeconds
+        } ?? false
+        let minimumInterval = isRecentlyActive
+            ? refreshInterval
+            : max(refreshInterval, AppConstants.idleNetworkRefreshInterval)
+
+        guard let lastNetworkRequestAt,
+              now.timeIntervalSince(lastNetworkRequestAt) < minimumInterval
+        else {
+            self.lastNetworkRequestAt = now
+            return true
+        }
+
+        return false
+    }
+
+    @discardableResult
+    func recordNetworkFailure(retryAfter: TimeInterval? = nil, now: Date = Date()) -> Date {
+        consecutiveNetworkFailures += 1
+
+        let baseDelay = max(refreshInterval, AppConstants.minimumNetworkRetryInterval)
+        let multiplier = pow(2, Double(min(consecutiveNetworkFailures - 1, 4)))
+        let exponentialDelay = min(baseDelay * multiplier, AppConstants.maximumNetworkRetryInterval)
+        let delay = max(exponentialDelay, retryAfter ?? 0)
+        let nextAttempt = now.addingTimeInterval(delay)
+        nextNetworkAttemptAt = nextAttempt
+        return nextAttempt
     }
 
     func setError(_ message: String?) {

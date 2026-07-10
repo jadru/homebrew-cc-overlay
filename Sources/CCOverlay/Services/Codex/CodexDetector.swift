@@ -1,70 +1,24 @@
 import Foundation
 
 enum CodexDetector {
-    /// Auth mode for Codex
-    enum AuthMode: Sendable {
-        case apiKey(String)
-        case chatgpt(ChatGPTAuth)
-    }
-
-    /// OAuth tokens from ~/.codex/auth.json
+    /// OAuth tokens from ~/.codex/auth.json. Codex CLI owns refresh and persistence.
     struct ChatGPTAuth: Sendable {
         let accessToken: String
-        let refreshToken: String
         let accountId: String?
         let planType: String?
-        let lastRefresh: Date?
     }
 
     struct Detection: Sendable {
         let binaryPath: String?
-        let configPath: String?
-        let authMode: AuthMode?
-        let configuredModel: String?
+        let chatgptAuth: ChatGPTAuth?
 
-        var isAvailable: Bool { binaryPath != nil && authMode != nil }
-
-        var apiKey: String? {
-            if case .apiKey(let key) = authMode { return key }
-            return nil
-        }
-
-        var chatgptAuth: ChatGPTAuth? {
-            if case .chatgpt(let auth) = authMode { return auth }
-            return nil
-        }
+        var isAvailable: Bool { binaryPath != nil && chatgptAuth != nil }
     }
 
-    static func detect(manualAPIKey: String? = nil) -> Detection {
+    static func detect() -> Detection {
         let binaryPath = findBinary()
-        let configPath = findConfigPath()
-        let model = configPath.flatMap { parseModel(from: $0) }
-
-        // Try OAuth first (from ~/.codex/auth.json), then fall back to API key
-        let authMode: AuthMode?
-        if let chatgptAuth = readChatGPTAuth() {
-            authMode = .chatgpt(chatgptAuth)
-        } else if let key = findAPIKey(configPath: configPath, manualKey: manualAPIKey) {
-            authMode = .apiKey(key)
-        } else {
-            authMode = nil
-        }
-
-        let detection = Detection(
-            binaryPath: binaryPath,
-            configPath: configPath,
-            authMode: authMode,
-            configuredModel: model
-        )
-
-        let authModeLabel = switch authMode {
-        case .apiKey:
-            "api-key"
-        case .chatgpt:
-            "chatgpt-oauth"
-        case nil:
-            "none"
-        }
+        let chatgptAuth = readChatGPTAuth()
+        let detection = Detection(binaryPath: binaryPath, chatgptAuth: chatgptAuth)
 
         DebugFlowLogger.shared.log(
             stage: .detection,
@@ -72,16 +26,12 @@ enum CodexDetector {
             message: detection.isAvailable ? "detected" : "not-detected",
             details: [
                 "binary": binaryPath ?? "<none>",
-                "configPath": configPath ?? "<none>",
-                "model": model ?? "<none>",
-                "authMode": authModeLabel
+                "authMode": chatgptAuth == nil ? "none" : "chatgpt-oauth",
             ]
         )
 
         return detection
     }
-
-    // MARK: - Binary Detection
 
     private static func findBinary() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -92,13 +42,10 @@ enum CodexDetector {
             "\(home)/.local/bin/codex",
             "\(home)/.npm/bin/codex",
         ]
-        for path in candidates {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
-            }
+        for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
+            return path
         }
 
-        // Scan nvm-installed node versions (GUI apps don't inherit shell PATH)
         if let nvmBinary = CLIBinaryFinder.findInNvmVersions("codex", home: home) {
             return nvmBinary
         }
@@ -106,143 +53,49 @@ enum CodexDetector {
         return CLIBinaryFinder.resolveFromPATH("codex")
     }
 
-    // MARK: - Config Path
-
-    private static func findConfigPath() -> String? {
-        let configDir = AppConstants.codexConfigPath
-        let configFile = "\(configDir)/config.toml"
-        if FileManager.default.fileExists(atPath: configFile) {
-            return configFile
-        }
-        return nil
-    }
-
-    // MARK: - ChatGPT OAuth Auth (from ~/.codex/auth.json)
-
     private static func readChatGPTAuth() -> ChatGPTAuth? {
         let authPath = "\(AppConstants.codexConfigPath)/auth.json"
-        guard let data = FileManager.default.contents(atPath: authPath) else { return nil }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-
-        // Accept "chatgpt", "oauth", or any auth.json with valid tokens
-        let authModeStr = json["auth_mode"] as? String
-        guard authModeStr == "chatgpt" || authModeStr == "oauth" || json["tokens"] is [String: Any] else {
-            return nil
-        }
-
-        guard let tokens = json["tokens"] as? [String: Any],
+        guard let data = FileManager.default.contents(atPath: authPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tokens = json["tokens"] as? [String: Any],
               let accessToken = tokens["access_token"] as? String,
-              !accessToken.isEmpty,
-              let refreshToken = tokens["refresh_token"] as? String,
-              !refreshToken.isEmpty
-        else { return nil }
+              !accessToken.isEmpty
+        else {
+            return nil
+        }
+
+        let authMode = json["auth_mode"] as? String
+        guard authMode == nil || authMode == "chatgpt" || authMode == "oauth" else {
+            return nil
+        }
 
         let accountId = tokens["account_id"] as? String
-
-        // Parse plan type from id_token JWT, fallback to access_token JWT
-        let planType = parsePlanFromIdToken(tokens["id_token"] as? String)
-            ?? parsePlanFromIdToken(accessToken)
-
-        // Parse last_refresh date
-        var lastRefresh: Date?
-        if let refreshStr = json["last_refresh"] as? String {
-            lastRefresh = DateParsing.parseISO8601(refreshStr)
-        }
+        let planType = parsePlan(from: tokens["id_token"] as? String)
+            ?? parsePlan(from: accessToken)
 
         return ChatGPTAuth(
             accessToken: accessToken,
-            refreshToken: refreshToken,
             accountId: accountId,
-            planType: planType,
-            lastRefresh: lastRefresh
+            planType: planType
         )
     }
 
-    /// Decode the JWT id_token payload to extract chatgpt_plan_type
-    private static func parsePlanFromIdToken(_ idToken: String?) -> String? {
-        guard let idToken else { return nil }
-
-        let parts = idToken.split(separator: ".")
+    private static func parsePlan(from token: String?) -> String? {
+        guard let token else { return nil }
+        let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
 
-        var base64 = String(parts[1])
-        // Pad base64 to 4-char boundary
-        while base64.count % 4 != 0 { base64.append("=") }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 { payload.append("=") }
 
-        guard let payloadData = Data(base64Encoded: base64),
-              let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any]
-        else { return nil }
-
-        // Look in the nested auth claim
-        if let authClaim = payload["https://api.openai.com/auth"] as? [String: Any],
-           let planType = authClaim["chatgpt_plan_type"] as? String
-        {
-            return planType
-        }
-        return nil
-    }
-
-    // MARK: - API Key Detection (priority: env > config.toml > manual)
-
-    private static func findAPIKey(configPath: String?, manualKey: String?) -> String? {
-        // 1. Environment variable
-        if let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"],
-           !key.isEmpty, key.hasPrefix("sk-")
-        {
-            return key
-        }
-
-        // 2. Parse from config.toml
-        if let path = configPath, let key = parseAPIKey(from: path) {
-            return key
-        }
-
-        // 3. Manual key from settings
-        if let key = manualKey, !key.isEmpty, key.hasPrefix("sk-") {
-            return key
-        }
-
-        return nil
-    }
-
-    // MARK: - TOML Parsing (lightweight, line-based)
-
-    private static func parseModel(from configPath: String) -> String? {
-        return parseTOMLValue(key: "model", from: configPath)
-    }
-
-    private static func parseAPIKey(from configPath: String) -> String? {
-        guard let key = parseTOMLValue(key: "api_key", from: configPath),
-              key.hasPrefix("sk-")
-        else { return nil }
-        return key
-    }
-
-    private static func parseTOMLValue(key: String, from path: String) -> String? {
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+        guard let payloadData = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
+              let authClaim = json["https://api.openai.com/auth"] as? [String: Any]
+        else {
             return nil
         }
-        // Simple line-by-line parser for `key = "value"` or `key = 'value'`
-        for line in contents.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.hasPrefix("#"), !trimmed.hasPrefix("[") else { continue }
-
-            let parts = trimmed.split(separator: "=", maxSplits: 1)
-            guard parts.count == 2 else { continue }
-
-            let k = parts[0].trimmingCharacters(in: .whitespaces)
-            guard k == key else { continue }
-
-            var v = parts[1].trimmingCharacters(in: .whitespaces)
-            // Remove surrounding quotes
-            if (v.hasPrefix("\"") && v.hasSuffix("\"")) || (v.hasPrefix("'") && v.hasSuffix("'")) {
-                v = String(v.dropFirst().dropLast())
-            }
-            return v.isEmpty ? nil : v
-        }
-        return nil
+        return authClaim["chatgpt_plan_type"] as? String
     }
 }

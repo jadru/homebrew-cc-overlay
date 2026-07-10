@@ -31,15 +31,30 @@ struct CostBreakdown: Sendable, Equatable {
 
 enum CostCalculator {
     private static let pricingTable: [(prefix: String, pricing: ModelPricing)] = [
-        // Opus 4.5/4.6 — $5/$25 per MTok
+        // Fable 5 / restricted Mythos 5 — $10/$50 per MTok.
+        // Prompt caching uses Anthropic's standard 1.25x write and 0.1x read multipliers.
+        ("claude-fable-5", ModelPricing(inputPerMTok: 10, outputPerMTok: 50, cacheWritePerMTok: 12.50, cacheReadPerMTok: 1.00)),
+        ("claude-mythos-5", ModelPricing(inputPerMTok: 10, outputPerMTok: 50, cacheWritePerMTok: 12.50, cacheReadPerMTok: 1.00)),
+        ("fable", ModelPricing(inputPerMTok: 10, outputPerMTok: 50, cacheWritePerMTok: 12.50, cacheReadPerMTok: 1.00)),
+
+        // Opus 4.5 through 4.8 — $5/$25 per MTok.
+        ("claude-opus-4-8", ModelPricing(inputPerMTok: 5, outputPerMTok: 25, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.50)),
+        ("claude-opus-4-7", ModelPricing(inputPerMTok: 5, outputPerMTok: 25, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.50)),
         ("claude-opus-4-6", ModelPricing(inputPerMTok: 5, outputPerMTok: 25, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.50)),
         ("claude-opus-4-5", ModelPricing(inputPerMTok: 5, outputPerMTok: 25, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.50)),
+        ("opus", ModelPricing(inputPerMTok: 5, outputPerMTok: 25, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.50)),
+
         // Opus 4.0/4.1 — $15/$75 per MTok (legacy)
         ("claude-opus-4", ModelPricing(inputPerMTok: 15, outputPerMTok: 75, cacheWritePerMTok: 18.75, cacheReadPerMTok: 1.50)),
-        // Sonnet 4.x — $3/$15 per MTok
+
+        // Sonnet 5 and 4.x — $3/$15 per MTok at standard API pricing.
+        ("claude-sonnet-5", ModelPricing(inputPerMTok: 3, outputPerMTok: 15, cacheWritePerMTok: 3.75, cacheReadPerMTok: 0.30)),
         ("claude-sonnet-4", ModelPricing(inputPerMTok: 3, outputPerMTok: 15, cacheWritePerMTok: 3.75, cacheReadPerMTok: 0.30)),
-        // Haiku 4.5 — $1/$5 per MTok
+        ("sonnet", ModelPricing(inputPerMTok: 3, outputPerMTok: 15, cacheWritePerMTok: 3.75, cacheReadPerMTok: 0.30)),
+
+        // Haiku 4.5 — $1/$5 per MTok.
         ("claude-haiku-4", ModelPricing(inputPerMTok: 1, outputPerMTok: 5, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.10)),
+        ("haiku", ModelPricing(inputPerMTok: 1, outputPerMTok: 5, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.10)),
         // Haiku 3.5 — $0.80/$4 per MTok
         ("claude-3-5-haiku", ModelPricing(inputPerMTok: 0.80, outputPerMTok: 4, cacheWritePerMTok: 1.0, cacheReadPerMTok: 0.08)),
     ]

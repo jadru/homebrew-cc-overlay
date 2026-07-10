@@ -1,15 +1,10 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 enum KeychainHelper {
     private enum Service {
         static let claudeOAuth = "Claude Code-credentials"
-        static let codexAPIKey = "cc-overlay.codex.api-key"
-        static let geminiAPIKey = "cc-overlay.gemini.api-key"
-    }
-
-    private enum Account {
-        static let apiKey = "api-key"
     }
 
     struct OAuthCredential: Sendable {
@@ -21,11 +16,17 @@ enum KeychainHelper {
     }
 
     static func readClaudeOAuthToken() throws -> OAuthCredential {
+        let authenticationContext = LAContext()
+        // Monitoring must never surface a login-password prompt. The user can
+        // grant persistent access in Keychain Access when Claude data is needed.
+        authenticationContext.interactionNotAllowed = true
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Service.claudeOAuth,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: authenticationContext,
         ]
 
         var result: AnyObject?
@@ -68,96 +69,6 @@ enum KeychainHelper {
             subscriptionType: subscriptionType,
             rateLimitTier: rateLimitTier
         )
-    }
-
-    static func readCodexAPIKey() -> String? {
-        try? readSecret(service: Service.codexAPIKey, account: Account.apiKey)
-    }
-
-    static func saveCodexAPIKey(_ apiKey: String) throws {
-        try saveSecret(apiKey, service: Service.codexAPIKey, account: Account.apiKey)
-    }
-
-    static func deleteCodexAPIKey() throws {
-        try deleteSecret(service: Service.codexAPIKey, account: Account.apiKey)
-    }
-
-    static func readGeminiAPIKey() -> String? {
-        try? readSecret(service: Service.geminiAPIKey, account: Account.apiKey)
-    }
-
-    static func saveGeminiAPIKey(_ apiKey: String) throws {
-        try saveSecret(apiKey, service: Service.geminiAPIKey, account: Account.apiKey)
-    }
-
-    static func deleteGeminiAPIKey() throws {
-        try deleteSecret(service: Service.geminiAPIKey, account: Account.apiKey)
-    }
-
-    private static func readSecret(service: String, account: String) throws -> String {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status != errSecItemNotFound else {
-            throw KeychainError.notFound
-        }
-        guard status == errSecSuccess, let data = result as? Data else {
-            throw KeychainError.operationFailed(status)
-        }
-        guard let value = String(data: data, encoding: .utf8), !value.isEmpty else {
-            throw KeychainError.invalidFormat
-        }
-        return value
-    }
-
-    private static func saveSecret(_ value: String, service: String, account: String) throws {
-        let data = Data(value.utf8)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-
-        let attributes: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
-        ]
-
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if updateStatus == errSecItemNotFound {
-            var addQuery = query
-            addQuery.merge(attributes) { _, new in new }
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            guard addStatus == errSecSuccess else {
-                throw KeychainError.operationFailed(addStatus)
-            }
-            return
-        }
-
-        guard updateStatus == errSecSuccess else {
-            throw KeychainError.operationFailed(updateStatus)
-        }
-    }
-
-    private static func deleteSecret(service: String, account: String) throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainError.operationFailed(status)
-        }
     }
 
     enum KeychainError: LocalizedError {

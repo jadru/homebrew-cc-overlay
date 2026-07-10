@@ -4,14 +4,12 @@ import Foundation
 ///
 /// Endpoint: `GET https://chatgpt.com/backend-api/wham/usage`
 /// Auth: `Authorization: Bearer <access_token>`, `chatgpt-account-id: <account_id>`
-/// Token refresh: `POST https://auth.openai.com/oauth/token`
+/// The Codex CLI owns token refresh and writes its own auth file. This service only
+/// reads the current credentials and queries the usage endpoint.
 actor CodexOAuthService {
     private static let chatgptBaseURL = "https://chatgpt.com/backend-api"
-    private static let refreshTokenURL = "https://auth.openai.com/oauth/token"
-    private static let clientId = "app_EMoamEEZ73f0CkXaXp7hrann"
 
     private var accessToken: String
-    private var refreshToken: String
     private var accountId: String?
 
     // MARK: - Response Types
@@ -49,54 +47,18 @@ actor CodexOAuthService {
 
     init(auth: CodexDetector.ChatGPTAuth) {
         self.accessToken = auth.accessToken
-        self.refreshToken = auth.refreshToken
         self.accountId = auth.accountId
     }
 
     func updateAuth(_ auth: CodexDetector.ChatGPTAuth) {
         self.accessToken = auth.accessToken
-        self.refreshToken = auth.refreshToken
         self.accountId = auth.accountId
-    }
-
-    // MARK: - JWT Expiry Check
-
-    /// Check if the current access token is likely expired by parsing its JWT `exp` claim.
-    /// Returns true if expired, within 60s of expiry, or if the token can't be parsed.
-    private func isTokenLikelyExpired() -> Bool {
-        let parts = accessToken.split(separator: ".")
-        guard parts.count >= 2 else { return true }
-
-        var base64 = String(parts[1])
-        while base64.count % 4 != 0 { base64.append("=") }
-
-        guard let data = Data(base64Encoded: base64),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let exp = payload["exp"] as? TimeInterval
-        else { return true }
-
-        return Date().timeIntervalSince1970 >= (exp - 60)
     }
 
     // MARK: - Fetch Usage
 
     func fetchUsage() async throws -> UsageSnapshot {
-        // Proactively refresh if token is stale
-        if isTokenLikelyExpired() {
-            try await refreshAccessToken()
-        }
-
-        do {
-            return try await callUsageAPI(token: accessToken)
-        } catch OAuthError.unauthorized {
-            // Token rejected — try one more refresh + retry
-            try await refreshAccessToken()
-            return try await callUsageAPI(token: accessToken)
-        } catch OAuthError.httpError(let code) where [429, 500, 502, 503].contains(code) {
-            // Transient error — retry once after delay
-            try await Task.sleep(for: .seconds(2))
-            return try await callUsageAPI(token: accessToken)
-        }
+        try await callUsageAPI(token: accessToken)
     }
 
     private func callUsageAPI(token: String) async throws -> UsageSnapshot {
@@ -120,30 +82,34 @@ actor CodexOAuthService {
             throw OAuthError.unauthorized
         }
 
+        if httpResponse.statusCode == 429 {
+            throw OAuthError.rateLimited(retryAfter: Self.retryAfter(from: httpResponse))
+        }
+
         guard httpResponse.statusCode == 200 else {
             throw OAuthError.httpError(httpResponse.statusCode)
         }
 
-        return try parseUsageResponse(data)
+        return try Self.parseUsageResponse(data)
     }
 
     // MARK: - Parse Response
 
-    private func parseUsageResponse(_ data: Data) throws -> UsageSnapshot {
+    nonisolated static func parseUsageResponse(_ data: Data, fetchedAt: Date = Date()) throws -> UsageSnapshot {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw OAuthError.invalidResponse
         }
 
         let planType = json["plan_type"] as? String ?? "unknown"
 
-        // Parse rate_limit
-        var primaryWindow: RateLimitWindow?
-        var secondaryWindow: RateLimitWindow?
-
-        if let rateLimit = json["rate_limit"] as? [String: Any] {
-            primaryWindow = parseWindow(rateLimit["primary_window"])
-            secondaryWindow = parseWindow(rateLimit["secondary_window"])
+        guard let rateLimit = json["rate_limit"] as? [String: Any],
+              let primaryWindow = parseWindow(rateLimit["primary_window"])
+        else {
+            throw OAuthError.missingPrimaryRateLimit
         }
+
+        var secondaryWindow: RateLimitWindow?
+        secondaryWindow = parseWindow(rateLimit["secondary_window"])
 
         // Parse credits
         var credits: CreditInfo?
@@ -180,88 +146,48 @@ actor CodexOAuthService {
             secondaryWindow: secondaryWindow,
             credits: credits,
             additionalLimits: additionalLimits,
-            fetchedAt: Date(),
+            fetchedAt: fetchedAt,
             extraUsageEnabled: extraUsageEnabled
         )
     }
 
-    private func parseWindow(_ windowObj: Any?) -> RateLimitWindow? {
+    nonisolated private static func parseWindow(_ windowObj: Any?) -> RateLimitWindow? {
         guard let window = windowObj as? [String: Any] else { return nil }
-        guard let usedPercent = window["used_percent"] as? Int else { return nil }
+        guard let usedPercent = percentageValue(window["used_percent"]),
+              let limitWindowSeconds = integerValue(window["limit_window_seconds"]),
+              limitWindowSeconds > 0
+        else { return nil }
         return RateLimitWindow(
             usedPercent: usedPercent,
-            limitWindowSeconds: window["limit_window_seconds"] as? Int ?? 0,
-            resetAfterSeconds: window["reset_after_seconds"] as? Int ?? 0,
-            resetAt: window["reset_at"] as? Int ?? 0
+            limitWindowSeconds: limitWindowSeconds,
+            resetAfterSeconds: integerValue(window["reset_after_seconds"]) ?? 0,
+            resetAt: integerValue(window["reset_at"]) ?? 0
         )
     }
 
-    // MARK: - Token Refresh
-
-    private func refreshAccessToken() async throws {
-        let url = URL(string: Self.refreshTokenURL)!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = AppConstants.apiTimeoutInterval
-
-        let body: [String: String] = [
-            "client_id": Self.clientId,
-            "grant_type": "refresh_token",
-            "refresh_token": refreshToken,
-            "scope": "openid profile email offline_access",
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OAuthError.refreshFailed("Invalid response")
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
-                throw OAuthError.tokenRevoked
-            }
-            throw OAuthError.refreshFailed("HTTP \(httpResponse.statusCode)")
-        }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let newAccessToken = json["access_token"] as? String
-        else {
-            throw OAuthError.refreshFailed("Missing access_token")
-        }
-
-        self.accessToken = newAccessToken
-        if let newRefreshToken = json["refresh_token"] as? String {
-            self.refreshToken = newRefreshToken
-        }
-
-        // Persist refreshed tokens back to auth.json
-        persistRefreshedTokens(accessToken: newAccessToken, refreshToken: json["refresh_token"] as? String)
+    nonisolated private static func percentageValue(_ value: Any?) -> Int? {
+        guard let value = integerValue(value), (0...100).contains(value) else { return nil }
+        return value
     }
 
-    private func persistRefreshedTokens(accessToken: String, refreshToken: String?) {
-        let authPath = "\(AppConstants.codexConfigPath)/auth.json"
-        guard let data = FileManager.default.contents(atPath: authPath),
-              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              var tokens = json["tokens"] as? [String: Any]
-        else { return }
-
-        tokens["access_token"] = accessToken
-        if let refreshToken {
-            tokens["refresh_token"] = refreshToken
+    nonisolated private static func integerValue(_ value: Any?) -> Int? {
+        switch value {
+        case let number as NSNumber:
+            return number.intValue
+        case let text as String:
+            return Int(text)
+        default:
+            return nil
         }
-        json["tokens"] = tokens
+    }
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        json["last_refresh"] = formatter.string(from: Date())
-
-        guard let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) else {
-            return
+    nonisolated private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let value = response.value(forHTTPHeaderField: "Retry-After"),
+              let seconds = TimeInterval(value), seconds >= 0
+        else {
+            return nil
         }
-        try? updatedData.write(to: URL(fileURLWithPath: authPath), options: .atomic)
+        return seconds
     }
 
     // MARK: - Errors
@@ -269,17 +195,19 @@ actor CodexOAuthService {
     enum OAuthError: LocalizedError {
         case unauthorized
         case invalidResponse
+        case missingPrimaryRateLimit
         case httpError(Int)
-        case refreshFailed(String)
+        case rateLimited(retryAfter: TimeInterval?)
         case tokenRevoked
 
         var errorDescription: String? {
             switch self {
             case .unauthorized: return "Codex OAuth token expired"
             case .invalidResponse: return "Invalid Codex API response"
+            case .missingPrimaryRateLimit: return "Codex usage response did not include a primary rate limit"
             case .httpError(let code): return "Codex API error (HTTP \(code))"
-            case .refreshFailed(let reason): return "Token refresh failed: \(reason)"
-            case .tokenRevoked: return "Codex auth revoked. Run 'codex --login' to re-authenticate."
+            case .rateLimited: return "Codex usage refresh is rate limited"
+            case .tokenRevoked: return "Codex auth expired. Run 'codex --login' to refresh it."
             }
         }
     }
