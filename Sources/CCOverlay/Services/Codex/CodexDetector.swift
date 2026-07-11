@@ -33,10 +33,10 @@ enum CodexDetector {
         return detection
     }
 
-    private static func findBinary() -> String? {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
+    static func findBinary(home: String = FileManager.default.homeDirectoryForCurrentUser.path) -> String? {
         let candidates = [
             "\(home)/Library/Application Support/com.conductor.app/bin/codex",
+            "\(home)/.asdf/shims/codex",
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex",
             "\(home)/.local/bin/codex",
