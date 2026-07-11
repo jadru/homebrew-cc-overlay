@@ -49,6 +49,21 @@ final class MockNotificationCenter: CostNotificationCenter {
 
 final class FlowIntegrationTests: XCTestCase {
 
+    func testCodexDetectionFindsAsdfShim() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let shim = home.appendingPathComponent(".asdf/shims/codex")
+        try FileManager.default.createDirectory(
+            at: shim.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: shim.path, contents: Data("#!/bin/sh\n".utf8))
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shim.path)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        XCTAssertEqual(CodexDetector.findBinary(home: home.path), shim.path)
+    }
+
     // MARK: - Alert flow
 
     @MainActor
