@@ -9,6 +9,7 @@ struct CCOverlayApp: App {
     @State private var costAlertManager = CostAlertManager()
     @State private var updateService = UpdateService()
     @State private var hasInitialized = false
+    private let launchAtLoginService = LaunchAtLoginService()
 
     private let modelContainer: ModelContainer = {
         let schema = Schema([UsageSnapshot.self])
@@ -100,6 +101,7 @@ struct CCOverlayApp: App {
         hasInitialized = true
 
         AppLogger.ui.info("Initializing app...")
+        repairLaunchAtLoginRegistrationIfNeeded()
         DebugFlowLogger.shared.configure(enabled: settings.debugFlowLogging)
         appDelegate.setTerminationHandler {
             multiService.stopMonitoring()
@@ -115,6 +117,22 @@ struct CCOverlayApp: App {
 
         appDelegate.setupHotkey(settings: settings) {
             toggleOverlay()
+        }
+    }
+
+    private func repairLaunchAtLoginRegistrationIfNeeded() {
+        do {
+            let repaired = try launchAtLoginService.repairIfNeeded(
+                isEnabled: settings.launchAtLogin,
+                registeredVersion: settings.launchAtLoginRegistrationVersion,
+                currentVersion: UpdateService.currentAppVersion
+            )
+            if repaired {
+                settings.launchAtLoginRegistrationVersion = UpdateService.currentAppVersion
+                AppLogger.ui.info("Refreshed Launch at login registration for the current app version")
+            }
+        } catch {
+            AppLogger.ui.error("Failed to refresh Launch at login registration: \(error.localizedDescription)")
         }
     }
 }
