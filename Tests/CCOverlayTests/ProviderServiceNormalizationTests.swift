@@ -89,6 +89,16 @@ final class ProviderServiceNormalizationTests: XCTestCase {
         XCTAssertEqual(labels, ["5h", "7d"])
     }
 
+    func testUsageTimelineHidesSparkFromAdditionalLimits() {
+        let buckets = UsageTimelineView.visibleAdditionalBuckets(from: [
+            RateBucket(label: "1w", utilization: 8),
+            RateBucket(label: "Spark", utilization: 0),
+            RateBucket(label: "Sonnet", utilization: 12),
+        ])
+
+        XCTAssertEqual(buckets.map(\.label), ["Sonnet"])
+    }
+
     func testCodexSparkLimitUsesFriendlyLabel() {
         let label = CodexProviderService.normalizedAdditionalLimitLabel(
             limitName: "spark_session",
