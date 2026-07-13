@@ -1,3 +1,17 @@
+# v0.10.4
+
+## Compact Codex Weekly Layout
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Content-aware panel height** — Uses a compact menu panel when Codex exposes only the weekly window.
+- **Focused limits** — Hides the unused Spark limit from the menu timeline while preserving other additional limits.
+- **Responsive density** — Keeps the standard panel height when both 5H and 7D windows are available.
+
+---
+
 # v0.10.3
 
 ## Reliable In-App Updates

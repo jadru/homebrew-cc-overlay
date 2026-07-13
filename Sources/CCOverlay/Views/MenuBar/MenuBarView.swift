@@ -46,9 +46,7 @@ struct MenuBarView: View {
         contentArea
         .frame(width: DesignTokens.Layout.menuBarPanelWidth)
         .frame(
-            minHeight: panelState == .ready
-                ? DesignTokens.Layout.menuBarPanelMinHeight
-                : DesignTokens.Layout.menuBarPanelEmptyMinHeight,
+            minHeight: panelMinHeight,
             maxHeight: DesignTokens.Layout.menuBarPanelMaxHeight,
             alignment: .topLeading
         )
@@ -84,6 +82,13 @@ struct MenuBarView: View {
                 details: ["provider": newProvider?.rawValue ?? "none"]
             )
         }
+    }
+
+    private var panelMinHeight: CGFloat {
+        guard panelState == .ready, let provider = displayedProvider else {
+            return DesignTokens.Layout.menuBarPanelEmptyMinHeight
+        }
+        return Self.readyPanelMinHeight(for: multiService.usageData(for: provider))
     }
 
     // MARK: - Content Area
@@ -412,6 +417,18 @@ struct MenuBarView: View {
             return .noProviders
         }
         return .noUsage
+    }
+
+    nonisolated static func readyPanelMinHeight(for data: ProviderUsageData) -> CGFloat {
+        let primaryWindowCount = UsageTimelineView.primaryWindowLabels(from: data.rateLimitBuckets).count
+        let hasVisibleAdditionalLimits = !UsageTimelineView.visibleAdditionalBuckets(
+            from: data.rateLimitBuckets
+        ).isEmpty
+
+        if primaryWindowCount <= 1 && !hasVisibleAdditionalLimits {
+            return DesignTokens.Layout.menuBarPanelCompactMinHeight
+        }
+        return DesignTokens.Layout.menuBarPanelMinHeight
     }
 
     private func installKeyMonitorIfNeeded() {
