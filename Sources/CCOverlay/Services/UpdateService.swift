@@ -29,6 +29,31 @@ final class UpdateService {
     private var timer: Timer?
     private var initialCheckTask: Task<Void, Never>?
 
+    nonisolated static func resolvedCurrentVersion(bundleVersion: String?, fallbackVersion: String) -> String {
+        guard let bundleVersion = bundleVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !bundleVersion.isEmpty
+        else {
+            return fallbackVersion
+        }
+        return bundleVersion
+    }
+
+    nonisolated static func installedVersionSatisfiesTarget(
+        processSucceeded: Bool,
+        installedVersion: String?,
+        targetVersion: String
+    ) -> Bool {
+        guard processSucceeded, let installedVersion else { return false }
+        return compareVersions(installedVersion, targetVersion) != .orderedAscending
+    }
+
+    static var currentAppVersion: String {
+        resolvedCurrentVersion(
+            bundleVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            fallbackVersion: AppConstants.version
+        )
+    }
+
     func configure(settings: AppSettings) {
         self.settings = settings
     }
@@ -87,12 +112,20 @@ final class UpdateService {
                 process.waitUntilExit()
 
                 let status = process.terminationStatus
+                let installedVersion = status == 0 ? Self.installedAppMetadata().version : nil
                 await MainActor.run { [weak self] in
-                    if status == 0 {
+                    if Self.installedVersionSatisfiesTarget(
+                        processSucceeded: status == 0,
+                        installedVersion: installedVersion,
+                        targetVersion: version
+                    ) {
                         self?.updateState = .readyToRestart(version: version)
                     } else {
                         let output = String(data: data, encoding: .utf8) ?? "Unknown error"
-                        self?.updateState = .error(message: "brew upgrade failed: \(output)")
+                        let installed = installedVersion.map { " Installed version: \($0)." } ?? ""
+                        self?.updateState = .error(
+                            message: "Update did not install v\(version).\(installed) \(output)"
+                        )
                     }
                 }
             } catch {
@@ -110,8 +143,10 @@ final class UpdateService {
 
     /// Restart the freshly upgraded app bundle without creating a Homebrew service.
     func restartApp() {
+        guard case .readyToRestart(let version) = updateState else { return }
+
         Task.detached { [weak self] in
-            let failure = Self.launchInstalledApp()
+            let failure = Self.launchInstalledApp(expectedVersion: version)
             await MainActor.run { [weak self] in
                 if let failure {
                     self?.updateState = .error(message: "Restart failed: \(failure)")
@@ -163,7 +198,7 @@ final class UpdateService {
 
             settings?.lastUpdateCheck = Date()
 
-            if isNewerVersion(remoteVersion, than: AppConstants.version) {
+            if Self.isNewerVersion(remoteVersion, than: Self.currentAppVersion) {
                 updateState = .updateAvailable(version: remoteVersion)
             } else {
                 updateState = .upToDate
@@ -174,7 +209,7 @@ final class UpdateService {
     }
 
     /// Resolves Homebrew's stable opt prefix after an upgrade, then opens that bundle.
-    nonisolated private static func launchInstalledApp() -> String? {
+    nonisolated private static func installedAppMetadata() -> (url: URL?, version: String?) {
         let prefixProcess = Process()
         prefixProcess.executableURL = URL(fileURLWithPath: "/bin/bash")
         prefixProcess.arguments = ["-l", "-c", "brew --prefix \(AppConstants.homebrewFormula)"]
@@ -189,7 +224,7 @@ final class UpdateService {
             prefixProcess.waitUntilExit()
 
             guard prefixProcess.terminationStatus == 0 else {
-                return "Could not resolve the installed Homebrew app."
+                return (nil, nil)
             }
 
             let prefix = String(decoding: data, as: UTF8.self)
@@ -197,9 +232,38 @@ final class UpdateService {
             let appURL = URL(fileURLWithPath: prefix, isDirectory: true)
                 .appendingPathComponent("CC-Overlay.app", isDirectory: true)
             guard FileManager.default.fileExists(atPath: appURL.path) else {
-                return "Updated app bundle was not found."
+                return (nil, nil)
             }
 
+            let plistURL = appURL.appendingPathComponent("Contents/Info.plist")
+            guard let data = try? Data(contentsOf: plistURL),
+                  let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+                  let dictionary = plist as? [String: Any],
+                  let version = dictionary["CFBundleShortVersionString"] as? String
+            else {
+                return (appURL, nil)
+            }
+
+            return (appURL, version)
+        } catch {
+            return (nil, nil)
+        }
+    }
+
+    nonisolated private static func launchInstalledApp(expectedVersion: String) -> String? {
+        let metadata = installedAppMetadata()
+        guard let appURL = metadata.url else {
+            return "Updated app bundle was not found."
+        }
+        guard installedVersionSatisfiesTarget(
+            processSucceeded: true,
+            installedVersion: metadata.version,
+            targetVersion: expectedVersion
+        ) else {
+            return "Installed app version does not match v\(expectedVersion)."
+        }
+
+        do {
             let openProcess = Process()
             openProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             openProcess.arguments = ["-n", appURL.path]
@@ -212,16 +276,20 @@ final class UpdateService {
     }
 
     /// Semantic version comparison: returns true if `remote` > `current`.
-    private func isNewerVersion(_ remote: String, than current: String) -> Bool {
-        let remoteParts = remote.split(separator: ".").compactMap { Int($0) }
-        let currentParts = current.split(separator: ".").compactMap { Int($0) }
+    nonisolated private static func isNewerVersion(_ remote: String, than current: String) -> Bool {
+        compareVersions(remote, current) == .orderedDescending
+    }
 
-        for i in 0..<max(remoteParts.count, currentParts.count) {
-            let r = i < remoteParts.count ? remoteParts[i] : 0
-            let c = i < currentParts.count ? currentParts[i] : 0
-            if r > c { return true }
-            if r < c { return false }
+    nonisolated private static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let lhsParts = lhs.split(separator: ".").compactMap { Int($0) }
+        let rhsParts = rhs.split(separator: ".").compactMap { Int($0) }
+
+        for i in 0..<max(lhsParts.count, rhsParts.count) {
+            let lhsValue = i < lhsParts.count ? lhsParts[i] : 0
+            let rhsValue = i < rhsParts.count ? rhsParts[i] : 0
+            if lhsValue > rhsValue { return .orderedDescending }
+            if lhsValue < rhsValue { return .orderedAscending }
         }
-        return false
+        return .orderedSame
     }
 }

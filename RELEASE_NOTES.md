@@ -1,3 +1,18 @@
+# v0.10.3
+
+## Reliable In-App Updates
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Accurate version checks** — Uses the installed app bundle version instead of stale source metadata.
+- **Verified upgrades** — Confirms Homebrew installed the requested version before offering a restart.
+- **Safe restarts** — Revalidates the installed bundle and displays update failures in the menu bar.
+- **asdf Codex detection** — Detects Codex CLI installations managed through asdf.
+
+---
+
 # v0.10.0
 
 ## Reliable Usage, Native Overlay, Signed Distribution

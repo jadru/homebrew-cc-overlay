@@ -114,7 +114,7 @@ struct SettingsView: View {
                 Toggle("Check automatically", isOn: $settings.autoUpdateEnabled)
 
                 LabeledContent("Version") {
-                    Text(AppConstants.version)
+                    Text(UpdateService.currentAppVersion)
                         .foregroundStyle(.secondary)
                 }
 
