@@ -1,3 +1,18 @@
+# v0.10.6
+
+## 안정적인 Homebrew 리소스와 주간 미터 전체 너비 표시
+
+> [English](RELEASE_NOTES.md)
+
+### 주요 변경
+
+- **안정적인 패키지 리소스** — SwiftPM 빌드 디렉터리 폴백 대신 설치된 앱 번들에서 provider icon을 불러옵니다.
+- **주간 미터 전체 너비 표시** — 7D가 유일한 rate-limit window일 때 접힌 overlay graph를 가용 너비만큼 확장합니다.
+- **안전한 레거시 정리** — 지원되지 않는 Homebrew service 명령 없이 이전 LaunchAgent를 제거합니다.
+- **Formula 검증 강화** — 설치 후 두 provider icon이 모두 존재하는지 검사합니다.
+
+---
+
 # v0.10.5
 
 ## 안정적인 릴리스 확인과 오버레이 이동

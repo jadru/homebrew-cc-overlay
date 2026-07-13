@@ -1,3 +1,18 @@
+# v0.10.6
+
+## Reliable Homebrew Resources and Full-Width Weekly Meter
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Reliable packaged resources** — Loads provider icons from the installed app bundle instead of SwiftPM's build-directory fallback.
+- **Full-width weekly meter** — Expands the collapsed overlay graph when 7D is the only visible rate-limit window.
+- **Safer legacy cleanup** — Removes the obsolete LaunchAgent without invoking an unsupported Homebrew service.
+- **Stronger Formula checks** — Verifies both provider icons are present after installation.
+
+---
+
 # v0.10.5
 
 ## Reliable Release Checks and Overlay Movement

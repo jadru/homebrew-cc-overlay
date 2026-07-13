@@ -388,8 +388,11 @@ struct PillView: View {
         HStack(spacing: 4) {
             ForEach(buckets) { bucket in
                 compactRateWindowMeter(bucket)
+                    .frame(width: buckets.count > 1 ? 75 : nil)
+                    .frame(maxWidth: buckets.count == 1 ? .infinity : nil)
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func compactRateWindowMeter(_ bucket: OverlayWindowBucket) -> some View {
@@ -434,7 +437,6 @@ struct PillView: View {
                 .frame(width: 20, alignment: .trailing)
                 .contentTransition(.numericText())
         }
-        .frame(width: 75)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(bucket.label) window")
         .accessibilityValue("\(bucket.percentage) percent remaining")

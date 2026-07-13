@@ -53,7 +53,7 @@ Enable **Launch at login** from the app's Settings when you want it to start wit
 If you upgraded from `0.8.x`, remove its legacy Homebrew service once:
 
 ```bash
-brew services stop cc-overlay
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist 2>/dev/null || true
 rm -f ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist
 brew upgrade cc-overlay
 ```
