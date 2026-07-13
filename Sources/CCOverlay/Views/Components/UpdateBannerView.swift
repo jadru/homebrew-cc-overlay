@@ -14,10 +14,40 @@ struct UpdateBannerView: View {
                 installingBanner
             case .readyToRestart(let version):
                 restartBanner(version: version)
+            case .error(let message):
+                updateErrorBanner(message: message)
             default:
                 EmptyView()
             }
         }
+    }
+
+    private func updateErrorBanner(message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+
+            Text(message)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+
+            Spacer()
+
+            Button(action: { updateService.dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .compatGlassRoundedRect(cornerRadius: 12, tint: .orange.opacity(0.06))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Update error: \(message)")
     }
 
     // MARK: - Update Available
