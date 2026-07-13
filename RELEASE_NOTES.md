@@ -1,3 +1,18 @@
+# v0.10.5
+
+## Reliable Release Checks and Overlay Movement
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Rate-limit-free update checks** — Resolves the latest release through GitHub's redirect endpoint instead of the unauthenticated API quota.
+- **Readable long countdowns** — Displays reset times as days and hours above 24 hours, otherwise hours and minutes.
+- **Conflict-free overlay movement** — Delays hover expansion so immediate press-drag moves the collapsed pill without changing its frame.
+- **Safe interaction priority** — Preserves expanded controls and the Start expanded preference while suppressing expansion during movement.
+
+---
+
 # v0.10.4
 
 ## Compact Codex Weekly Layout

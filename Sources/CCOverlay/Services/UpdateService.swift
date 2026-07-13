@@ -11,13 +11,6 @@ enum UpdateStatus: Equatable {
     case error(message: String)
 }
 
-// MARK: - GitHub Release Model
-
-private struct GitHubRelease: Codable {
-    let tag_name: String
-    let body: String?
-}
-
 // MARK: - UpdateService
 
 @Observable
@@ -54,6 +47,24 @@ final class UpdateService {
         )
     }
 
+    nonisolated static func versionFromReleaseURL(_ url: URL?) -> String? {
+        guard let components = url?.pathComponents,
+              let tagIndex = components.firstIndex(of: "tag"),
+              components.indices.contains(tagIndex + 1)
+        else {
+            return nil
+        }
+
+        let tag = components[tagIndex + 1]
+        return tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+    }
+
+    nonisolated static func checkFailureState(presentsErrors: Bool) -> UpdateStatus {
+        presentsErrors
+            ? .error(message: "GitHub release check failed. Try again later.")
+            : .idle
+    }
+
     func configure(settings: AppSettings) {
         self.settings = settings
     }
@@ -85,7 +96,7 @@ final class UpdateService {
 
     /// Manual check triggered from Settings — skips schedule/enabled guards.
     func checkForUpdates() async {
-        await performCheck()
+        await performCheck(presentsErrors: true)
     }
 
     /// Install update via brew.
@@ -168,33 +179,31 @@ final class UpdateService {
             return
         }
 
-        await performCheck()
+        await performCheck(presentsErrors: false)
     }
 
-    private func performCheck() async {
+    private func performCheck(presentsErrors: Bool) async {
         updateState = .checking
 
-        let urlString = "https://api.github.com/repos/\(AppConstants.githubRepo)/releases/latest"
+        let urlString = "https://github.com/\(AppConstants.githubRepo)/releases/latest"
         guard let url = URL(string: urlString) else {
-            updateState = .error(message: "Invalid URL")
+            updateState = Self.checkFailureState(presentsErrors: presentsErrors)
             return
         }
 
         do {
             var request = URLRequest(url: url)
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("text/html", forHTTPHeaderField: "Accept")
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await URLSession.shared.data(for: request)
 
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                updateState = .error(message: "GitHub API returned non-200")
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200,
+                  let remoteVersion = Self.versionFromReleaseURL(httpResponse.url)
+            else {
+                updateState = Self.checkFailureState(presentsErrors: presentsErrors)
                 return
             }
-
-            let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-            let remoteVersion = release.tag_name.hasPrefix("v")
-                ? String(release.tag_name.dropFirst())
-                : release.tag_name
 
             settings?.lastUpdateCheck = Date()
 
@@ -204,7 +213,7 @@ final class UpdateService {
                 updateState = .upToDate
             }
         } catch {
-            updateState = .error(message: error.localizedDescription)
+            updateState = Self.checkFailureState(presentsErrors: presentsErrors)
         }
     }
 

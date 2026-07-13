@@ -1,6 +1,34 @@
 import AppKit
 import SwiftUI
 
+@MainActor
+private final class MovableOverlayPanel: NSPanel {
+    private let interactionState: OverlayInteractionState
+
+    init(
+        contentRect: NSRect,
+        styleMask: NSWindow.StyleMask,
+        backing: NSWindow.BackingStoreType,
+        defer flag: Bool,
+        interactionState: OverlayInteractionState
+    ) {
+        self.interactionState = interactionState
+        super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown, !interactionState.isExpanded {
+            interactionState.isPointerDown = true
+        }
+
+        super.sendEvent(event)
+
+        if event.type == .leftMouseUp {
+            interactionState.isPointerDown = false
+        }
+    }
+}
+
 /// Manages the floating pill overlay window.
 @MainActor
 final class OverlayManager {
@@ -89,11 +117,13 @@ final class OverlayManager {
         let originX = screen.maxX - initialSize.width
         let originY = screen.maxY - initialSize.height
 
-        let panel = NSPanel(
+        let interactionState = OverlayInteractionState()
+        let panel = MovableOverlayPanel(
             contentRect: NSRect(x: originX, y: originY, width: initialSize.width, height: initialSize.height),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
-            defer: false
+            defer: false,
+            interactionState: interactionState
         )
 
         panel.isFloatingPanel = true
@@ -111,6 +141,7 @@ final class OverlayManager {
         let pillView = PillView(
             multiService: multiService,
             settings: settings,
+            interactionState: interactionState,
             onSizeChange: { [weak panel] size in
                 Task { @MainActor in
                     guard let panel, size.width > 0, size.height > 0 else { return }
