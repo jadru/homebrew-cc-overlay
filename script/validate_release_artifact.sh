@@ -14,8 +14,9 @@ EXECUTABLE="$CONTENTS/MacOS/cc-overlay"
 
 [[ "$(plutil -extract CFBundleExecutable raw "$INFO_PLIST")" == "cc-overlay" ]]
 [[ "$(plutil -extract CFBundlePackageType raw "$INFO_PLIST")" == "APPL" ]]
-[[ -f "$CONTENTS/Resources/CC-Overlay_CCOverlay.bundle/ProviderIcons/claude-code.svg" ]]
-[[ -f "$CONTENTS/Resources/CC-Overlay_CCOverlay.bundle/ProviderIcons/codex.svg" ]]
+RESOURCE_BUNDLE="$CONTENTS/Resources/CC-Overlay_CCOverlay.bundle"
+[[ -f "$RESOURCE_BUNDLE/ProviderIcons/claude-code.svg" ]]
+[[ -f "$RESOURCE_BUNDLE/ProviderIcons/codex.svg" ]]
 
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 

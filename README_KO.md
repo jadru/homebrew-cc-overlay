@@ -53,7 +53,7 @@ macOS 시작 시 자동 실행하려면 앱 설정에서 **Launch at login**을 
 `0.8.x`에서 업그레이드했다면 기존 Homebrew 서비스를 한 번 정리하세요.
 
 ```bash
-brew services stop cc-overlay
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist 2>/dev/null || true
 rm -f ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist
 brew upgrade cc-overlay
 ```

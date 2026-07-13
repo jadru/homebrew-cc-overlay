@@ -29,5 +29,7 @@ class CcOverlay < Formula
   test do
     assert_predicate bin/"cc-overlay", :executable?
     assert_predicate prefix/"CC-Overlay.app/Contents/Info.plist", :exist?
+    assert_predicate prefix/"CC-Overlay.app/Contents/Resources/CC-Overlay_CCOverlay.bundle/ProviderIcons/claude-code.svg", :exist?
+    assert_predicate prefix/"CC-Overlay.app/Contents/Resources/CC-Overlay_CCOverlay.bundle/ProviderIcons/codex.svg", :exist?
   end
 end
