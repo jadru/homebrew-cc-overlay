@@ -16,6 +16,7 @@ final class AppSettings {
         static let alertWarningThreshold = "alertWarningThreshold"
         static let alertCriticalThreshold = "alertCriticalThreshold"
         static let launchAtLogin = "launchAtLogin"
+        static let launchAtLoginRegistrationVersion = "launchAtLoginRegistrationVersion"
         static let costAlertEnabled = "costAlertEnabled"
         static let globalHotkeyEnabled = "globalHotkeyEnabled"
         static let pillAlwaysExpanded = "pillAlwaysExpanded"
@@ -79,6 +80,18 @@ final class AppSettings {
     var launchAtLogin: Bool {
         get { access(keyPath: \.launchAtLogin); return UserDefaults.standard.bool(forKey: Key.launchAtLogin) }
         set { withMutation(keyPath: \.launchAtLogin) { UserDefaults.standard.set(newValue, forKey: Key.launchAtLogin) } }
+    }
+
+    var launchAtLoginRegistrationVersion: String? {
+        get {
+            access(keyPath: \AppSettings.launchAtLoginRegistrationVersion)
+            return UserDefaults.standard.string(forKey: Key.launchAtLoginRegistrationVersion)
+        }
+        set {
+            withMutation(keyPath: \AppSettings.launchAtLoginRegistrationVersion) {
+                UserDefaults.standard.set(newValue, forKey: Key.launchAtLoginRegistrationVersion)
+            }
+        }
     }
 
     // MARK: - Alert Settings

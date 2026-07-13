@@ -271,8 +271,10 @@ struct SettingsView: View {
         do {
             if enabled {
                 try service.register()
+                settings.launchAtLoginRegistrationVersion = UpdateService.currentAppVersion
             } else {
                 try service.unregister()
+                settings.launchAtLoginRegistrationVersion = nil
             }
             refreshLaunchAtLoginStatus()
         } catch {

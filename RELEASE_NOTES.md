@@ -1,3 +1,18 @@
+# v0.10.7
+
+## Reliable Launch at Login After Updates
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Version-aware Login Item registration** — Records which app version registered Launch at login.
+- **Automatic path repair** — Replaces stale Homebrew Cellar Login Item paths with the currently installed app after an upgrade.
+- **Preference-safe recovery** — Repairs registration only when Launch at login is enabled and leaves disabled users untouched.
+- **Regression coverage** — Verifies disabled, current, stale, and missing Login Item states.
+
+---
+
 # v0.10.6
 
 ## Reliable Homebrew Resources and Full-Width Weekly Meter
