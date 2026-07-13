@@ -2,6 +2,22 @@ import XCTest
 @testable import CCOverlay
 
 final class UpdateServiceTests: XCTestCase {
+    func testLatestReleaseVersionParsesFromGitHubRedirectURL() {
+        let url = URL(string: "https://github.com/jadru/homebrew-cc-overlay/releases/tag/v0.10.4")
+        XCTAssertEqual(UpdateService.versionFromReleaseURL(url), "0.10.4")
+    }
+
+    func testScheduledCheckFailureRemainsSilent() {
+        XCTAssertEqual(UpdateService.checkFailureState(presentsErrors: false), .idle)
+    }
+
+    func testManualCheckFailureRemainsVisible() {
+        guard case .error(let message) = UpdateService.checkFailureState(presentsErrors: true) else {
+            return XCTFail("Manual update check should expose an error")
+        }
+        XCTAssertTrue(message.contains("GitHub"))
+    }
+
     func testCurrentVersionPrefersInstalledBundleMetadata() {
         XCTAssertEqual(
             UpdateService.resolvedCurrentVersion(

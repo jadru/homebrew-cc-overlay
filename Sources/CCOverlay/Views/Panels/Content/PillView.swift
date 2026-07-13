@@ -3,10 +3,12 @@ import SwiftUI
 struct PillView: View {
     let multiService: MultiProviderUsageService
     @Bindable var settings: AppSettings
+    let interactionState: OverlayInteractionState
     var onSizeChange: ((CGSize) -> Void)?
 
     @State private var isExpanded = false
     @State private var isHovered = false
+    @State private var expansionTask: Task<Void, Never>?
     @State private var collapseTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var glassNamespace
@@ -77,9 +79,8 @@ struct PillView: View {
             }
             .onHover(perform: handleHover)
             .onAppear {
-                if settings.pillAlwaysExpanded {
-                    isExpanded = true
-                }
+                isExpanded = settings.pillAlwaysExpanded
+                interactionState.isExpanded = isExpanded
                 DebugFlowLogger.shared.log(
                     stage: .display,
                     message: "overlay.pill.appear",
@@ -90,12 +91,28 @@ struct PillView: View {
                 )
             }
             .onDisappear {
+                expansionTask?.cancel()
                 collapseTask?.cancel()
+                interactionState.isPointerDown = false
                 DebugFlowLogger.shared.log(stage: .display, message: "overlay.pill.disappear")
             }
             .onChange(of: settings.pillAlwaysExpanded) { _, alwaysExpanded in
                 withAnimation(expansionAnimation) {
-                    isExpanded = alwaysExpanded || isHovered
+                    isExpanded = OverlayInteractionPolicy.shouldExpand(
+                        isHovered: isHovered,
+                        isPointerDown: interactionState.isPointerDown,
+                        alwaysExpanded: alwaysExpanded
+                    )
+                }
+            }
+            .onChange(of: isExpanded) { _, expanded in
+                interactionState.isExpanded = expanded
+            }
+            .onChange(of: interactionState.isPointerDown) { _, isPointerDown in
+                if isPointerDown {
+                    expansionTask?.cancel()
+                } else if isHovered {
+                    scheduleHoverExpansion()
                 }
             }
             .onChange(of: multiService.activeProviders) { _, providers in
@@ -501,12 +518,11 @@ struct PillView: View {
         guard !settings.pillAlwaysExpanded else { return }
 
         isHovered = hovering
+        expansionTask?.cancel()
         collapseTask?.cancel()
 
         if hovering {
-            withAnimation(expansionAnimation) {
-                isExpanded = true
-            }
+            scheduleHoverExpansion()
         } else {
             collapseTask = Task {
                 try? await Task.sleep(for: .milliseconds(reduceMotion ? 80 : 110))
@@ -520,24 +536,34 @@ struct PillView: View {
         }
     }
 
+    private func scheduleHoverExpansion() {
+        expansionTask?.cancel()
+        expansionTask = Task {
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 140 : 260))
+            guard !Task.isCancelled else { return }
+            guard OverlayInteractionPolicy.shouldExpand(
+                isHovered: isHovered,
+                isPointerDown: interactionState.isPointerDown,
+                alwaysExpanded: settings.pillAlwaysExpanded
+            ) else { return }
+
+            withAnimation(expansionAnimation) {
+                isExpanded = true
+            }
+        }
+    }
+
     @ViewBuilder
     private func resetCountdown(_ resetsAt: Date) -> some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let remaining = resetsAt.timeIntervalSince(context.date)
             if remaining > 0 {
-                Text(formatCompactDuration(remaining))
+                Text(DurationFormatting.compactReset(remaining))
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .contentTransition(.numericText(countsDown: true))
             }
         }
-    }
-
-    private func formatCompactDuration(_ interval: TimeInterval) -> String {
-        let totalMinutes = Int(interval) / 60
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-        return hours > 0 ? "\(hours)h\(String(format: "%02d", minutes))m" : "\(minutes)m"
     }
 
     struct OverlayWindowBucket: Identifiable {

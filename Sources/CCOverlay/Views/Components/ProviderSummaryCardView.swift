@@ -187,7 +187,7 @@ struct ProviderSummaryCardView: View {
         } else if let resetsAt = data.resetsAt, resetsAt > .now {
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 let remaining = resetsAt.timeIntervalSince(context.date)
-                Text(remaining > 0 ? formatResetCountdown(remaining) : data.primaryWindowLabel)
+                Text(remaining > 0 ? DurationFormatting.compactReset(remaining) : data.primaryWindowLabel)
                     .font(size.resetFont)
                     .foregroundStyle(.tertiary)
                     .contentTransition(.numericText(countsDown: true))
@@ -202,17 +202,6 @@ struct ProviderSummaryCardView: View {
         }
     }
 
-    private func formatResetCountdown(_ interval: TimeInterval) -> String {
-        let totalMinutes = max(0, Int(interval) / 60)
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-
-        if hours > 0 {
-            return "\(hours)h \(String(format: "%02d", minutes))m"
-        }
-
-        return "\(minutes)m"
-    }
 }
 
 #Preview {
