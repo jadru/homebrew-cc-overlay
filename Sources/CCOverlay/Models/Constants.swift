@@ -122,7 +122,7 @@ enum TokenCostWeight {
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.10.3"
+    static let version = "0.10.4"
     static let githubRepo = "jadru/homebrew-cc-overlay"
     static let homebrewTap = "jadru/cc-overlay"
     static let homebrewFormula = "\(homebrewTap)/cc-overlay"

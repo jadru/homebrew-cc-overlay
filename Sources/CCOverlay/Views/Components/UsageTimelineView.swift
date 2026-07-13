@@ -24,7 +24,7 @@ struct UsageTimelineView: View {
     }
 
     private var additionalBuckets: [RateBucket] {
-        data.rateLimitBuckets.filter { Self.canonicalWindowLabel($0.label) == nil }
+        Self.visibleAdditionalBuckets(from: data.rateLimitBuckets)
     }
 
     var body: some View {
@@ -203,6 +203,14 @@ struct UsageTimelineView: View {
     nonisolated static func primaryWindowLabels(from buckets: [RateBucket]) -> [String] {
         ["5h", "7d"].filter { expected in
             buckets.contains { canonicalWindowLabel($0.label) == expected }
+        }
+    }
+
+    nonisolated static func visibleAdditionalBuckets(from buckets: [RateBucket]) -> [RateBucket] {
+        buckets.filter { bucket in
+            canonicalWindowLabel(bucket.label) == nil
+                && bucket.label.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .localizedCaseInsensitiveCompare("Spark") != .orderedSame
         }
     }
 

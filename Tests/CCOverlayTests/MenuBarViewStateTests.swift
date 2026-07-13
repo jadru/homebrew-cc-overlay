@@ -60,6 +60,44 @@ final class MenuBarViewStateTests: XCTestCase {
         XCTAssertEqual(state, .noUsage)
     }
 
+    func testSingleWeeklyCodexWindowUsesCompactPanelHeight() {
+        let data = ProviderUsageData(
+            provider: .codex,
+            isAvailable: true,
+            usedPercentage: 1,
+            remainingPercentage: 99,
+            primaryWindowLabel: "1w",
+            rateLimitBuckets: [
+                RateBucket(label: "1w", utilization: 1),
+                RateBucket(label: "Spark", utilization: 0),
+            ]
+        )
+
+        XCTAssertEqual(
+            MenuBarView.readyPanelMinHeight(for: data),
+            DesignTokens.Layout.menuBarPanelCompactMinHeight
+        )
+    }
+
+    func testFiveHourAndWeeklyWindowsKeepStandardPanelHeight() {
+        let data = ProviderUsageData(
+            provider: .codex,
+            isAvailable: true,
+            usedPercentage: 15,
+            remainingPercentage: 85,
+            primaryWindowLabel: "5h",
+            rateLimitBuckets: [
+                RateBucket(label: "5h", utilization: 15),
+                RateBucket(label: "1w", utilization: 1),
+            ]
+        )
+
+        XCTAssertEqual(
+            MenuBarView.readyPanelMinHeight(for: data),
+            DesignTokens.Layout.menuBarPanelMinHeight
+        )
+    }
+
     func testEmptyPanelRendersMessageAndRecoveryActions() {
         let view = MenuBarView(
             multiService: MultiProviderUsageService(),
