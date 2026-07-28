@@ -1,4 +1,4 @@
-# Unreleased
+# v0.11.0
 
 ## Decide Before You Run
 
