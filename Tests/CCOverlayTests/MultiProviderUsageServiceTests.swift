@@ -60,6 +60,21 @@ final class MultiProviderUsageServiceTests: XCTestCase {
         XCTAssertFalse(service.usageData(for: .codex).isAvailable)
     }
 
+    func testFreshDetectedProviderProducesActionableDecision() async {
+        let codex = MockProviderService(provider: .codex, remainingPercentage: 80)
+        let service = MultiProviderUsageService { provider, _ in
+            provider == .codex ? codex : nil
+        }
+        defer { service.stopMonitoring() }
+
+        service.startMonitoring()
+        await wait(for: service, toContain: [.codex])
+
+        XCTAssertEqual(service.usageDecision.kind, .run)
+        XCTAssertEqual(service.usageDecision.dataQuality, .live)
+        XCTAssertEqual(service.usageDecision.taskFit?.outcome, .learning)
+    }
+
     private func wait(
         for service: MultiProviderUsageService,
         toContain expectedProviders: [CLIProvider]

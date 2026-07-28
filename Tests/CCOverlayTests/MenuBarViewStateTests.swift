@@ -133,15 +133,24 @@ final class MenuBarViewStateTests: XCTestCase {
             resetAt: nil
         )
 
-        for compact in [false, true] {
-            let hostingView = NSHostingView(
-                rootView: UsageDecisionView(decision: decision, compact: compact)
+        let compactView = NSHostingView(
+            rootView: UsageDecisionView(decision: decision, compact: true)
+        )
+        XCTAssertGreaterThan(compactView.fittingSize.width, 80)
+        XCTAssertGreaterThan(compactView.fittingSize.height, 20)
+        XCTAssertLessThan(compactView.fittingSize.height, 70)
+
+        let standardView = NSHostingView(
+            rootView: UsageDecisionView(
+                decision: decision,
+                onTaskSizeChange: { _ in },
+                onPrimaryAction: {},
+                onFeedback: { _ in }
             )
-            let size = hostingView.fittingSize
-            XCTAssertGreaterThan(size.width, 80)
-            XCTAssertGreaterThan(size.height, 20)
-            XCTAssertLessThan(size.height, compact ? 60 : 100)
-        }
+        )
+        XCTAssertGreaterThan(standardView.fittingSize.width, 180)
+        XCTAssertGreaterThan(standardView.fittingSize.height, 50)
+        XCTAssertLessThan(standardView.fittingSize.height, 130)
     }
 
     func testOnboardingFitsItsWindow() {

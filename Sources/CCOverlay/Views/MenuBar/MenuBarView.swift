@@ -13,6 +13,7 @@ struct MenuBarView: View {
     let multiService: MultiProviderUsageService
     @Bindable var settings: AppSettings
     let updateService: UpdateService
+    var costAlertManager: CostAlertManager? = nil
     var onOpenSettings: (() -> Void)?
 
     @State private var selectedProvider: CLIProvider?
@@ -119,7 +120,13 @@ struct MenuBarView: View {
                 if availableProviders.count > 1 {
                     providerRail
                 }
-                UsageDecisionView(decision: multiService.usageDecision)
+                let decision = multiService.usageDecision
+                UsageDecisionView(
+                    decision: decision,
+                    onTaskSizeChange: { multiService.updatePlannedTaskSize($0) },
+                    onPrimaryAction: { performPrimaryAction(decision) },
+                    onFeedback: { multiService.recordDecisionFeedback(helpful: $0, decision: decision) }
+                )
                 ProviderSectionView(data: multiService.usageData(for: provider))
             }
         case .loading, .failed, .noProviders, .noUsage:
@@ -149,6 +156,24 @@ struct MenuBarView: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func performPrimaryAction(_ decision: UsageDecision) {
+        switch decision.kind {
+        case .run, .switchProvider:
+            guard let provider = decision.recommendedProvider else { return }
+            UsageExportService.copyToClipboard(provider.launchCommand)
+        case .wait:
+            guard let resetAt = decision.resetAt else { return }
+            costAlertManager?.scheduleResetNotification(
+                at: resetAt,
+                provider: decision.recommendedProvider
+            )
+        case .refresh:
+            multiService.refresh()
+        case .setup:
+            onOpenSettings?()
         }
     }
 

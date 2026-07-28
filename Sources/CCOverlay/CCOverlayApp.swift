@@ -44,6 +44,7 @@ struct CCOverlayApp: App {
                 multiService: multiService,
                 settings: settings,
                 updateService: updateService,
+                costAlertManager: costAlertManager,
                 onOpenSettings: {
                     appDelegate.showSettings(settings: settings, multiService: multiService, updateService: updateService)
                 }
@@ -73,6 +74,9 @@ struct CCOverlayApp: App {
                 .onChange(of: multiService.availableProviders) { _, _ in
                     appDelegate.overlayManager?.updateUsageVisibility()
                     recordActivationIfNeeded()
+                }
+                .onChange(of: multiService.lastRefresh) { _, _ in
+                    multiService.recordCurrentSamples()
                 }
                 .onChange(of: settings.pillClickThrough) { _, _ in
                     appDelegate.overlayManager?.updateFromSettings()
