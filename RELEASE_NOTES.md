@@ -1,3 +1,19 @@
+# Unreleased
+
+## Decide Before You Run
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Run / Wait / Switch guidance** — Turns connected provider windows and pace into one actionable recommendation.
+- **First-run setup** — Explains local-only data handling, provider detection, and overlay controls before monitoring begins.
+- **Privacy-safe support** — Copies diagnostics without credentials, usage history, project names, or local paths.
+- **Product feedback loop** — Adds in-app feedback entry points and structured GitHub forms for problem, intent, and pricing research.
+- **Launch foundation** — Ships the conversion-focused website, privacy-aware analytics, 90-day scorecard, launch kit, and business-model gates.
+
+---
+
 # v0.10.7
 
 ## Reliable Launch at Login After Updates

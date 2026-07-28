@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager?.unregister()
         overlayManager?.closeOverlay()
         windowCoordinator.closeSettings()
+        windowCoordinator.closeOnboarding()
         terminationHandler?()
         terminationHandler = nil
     }
@@ -53,6 +54,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: settings,
             multiService: multiService,
             updateService: updateService
+        )
+    }
+
+    func showOnboarding(
+        settings: AppSettings,
+        multiService: MultiProviderUsageService,
+        onComplete: @escaping () -> Void
+    ) {
+        windowCoordinator.showOnboarding(
+            settings: settings,
+            multiService: multiService,
+            onComplete: onComplete
         )
     }
 
