@@ -32,6 +32,14 @@ struct UsageTimelineView: View {
             VStack(alignment: .leading, spacing: 0) {
                 summary(now: context.date)
 
+                if let credits = data.creditsInfo, credits.resetCreditsAvailable > 0 {
+                    Divider()
+                        .overlay(Color.dividerSubtle)
+                        .padding(.vertical, 10)
+
+                    resetCreditsRow(credits)
+                }
+
                 Divider()
                     .overlay(Color.dividerSubtle)
                     .padding(.vertical, 14)
@@ -109,6 +117,36 @@ struct UsageTimelineView: View {
             }
         }
         .frame(minHeight: 62)
+    }
+
+    private func resetCreditsRow(_ credits: CreditsDisplayInfo) -> some View {
+        Link(destination: AppConstants.codexUsageDashboardURL) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.counterclockwise.circle.fill")
+                    .foregroundStyle(credits.resetCreditsApplicable > 0 ? Color.green : Color.purple)
+
+                Text("\(credits.resetCreditsAvailable) Full Reset\(credits.resetCreditsAvailable == 1 ? "" : "s")")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                Text(credits.resetCreditsApplicable > 0 ? "Ready now" : "Banked")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(credits.resetCreditsApplicable > 0 ? Color.green : Color.secondary)
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            "\(credits.resetCreditsAvailable) Codex full resets, "
+                + (credits.resetCreditsApplicable > 0 ? "ready now" : "banked")
+        )
+        .help("Open Codex Usage")
     }
 
     @ViewBuilder

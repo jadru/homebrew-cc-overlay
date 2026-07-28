@@ -19,6 +19,7 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 - **실행 가능한 추천** — 연결된 프로바이더를 종합해 신뢰도가 표시된 Run, Wait, Switch, Refresh 상태를 제안
 - **작업 적합도 학습** — 로컬 사용 변화에서 Small, Medium, Large 작업이 현재 한도에 들어갈 가능성을 계산
 - **의사결정 액션** — 추천 CLI 명령 복사, 리셋 알림 예약, 추천 품질 평가를 카드에서 바로 실행
+- **Codex Full Reset** — 보유한 rate-limit reset을 표시하고 사용 가능할 때 Codex Usage로 바로 이동
 - **조건부 프로바이더 전환** — 두 프로바이더 모두 사용량이 있을 때만 compact selector 표시
 - **비용 임계값 알림** — 70%, 90% 사용 시 macOS 알림
 - **글로벌 단축키** — `Cmd+Shift+A`로 오버레이 토글

@@ -10,6 +10,7 @@
 - **Confidence and stale guard** — Labels live, estimated, mixed, and stale inputs and refuses to recommend from expired data.
 - **Task-fit learning** — Uses privacy-local consumption bursts to learn whether small, medium, or large work is likely to fit.
 - **Decision actions** — Copies the recommended CLI command, schedules reset reminders, and captures local helpful/not-helpful feedback.
+- **Codex Full Resets** — Parses banked reset credits, shows availability, and recommends opening Codex Usage when a reset is ready.
 - **First-run setup** — Explains local-only data handling, provider detection, and overlay controls before monitoring begins.
 - **Privacy-safe support** — Copies diagnostics without credentials, usage history, project names, or local paths.
 - **Product feedback loop** — Adds in-app feedback entry points and structured GitHub forms for problem, intent, and pricing research.

@@ -169,6 +169,7 @@ struct UsageDecisionView: View {
         switch decision.kind {
         case .run: return "RUN"
         case .switchProvider: return "SWITCH"
+        case .useReset: return "FULL RESET"
         case .wait: return "WAIT"
         case .refresh: return "REFRESH"
         case .setup: return "SETUP"
@@ -180,6 +181,8 @@ struct UsageDecisionView: View {
         case .run, .switchProvider:
             guard let provider = decision.recommendedProvider else { return nil }
             return "Copy \(provider.launchCommand)"
+        case .useReset:
+            return "Open Codex Usage"
         case .wait:
             return decision.resetAt == nil ? nil : "Notify at reset"
         case .refresh:
@@ -192,6 +195,7 @@ struct UsageDecisionView: View {
     private var completedActionLabel: String {
         switch decision.kind {
         case .run, .switchProvider: return "Command copied"
+        case .useReset: return "Usage opened"
         case .wait: return "Reminder set"
         case .refresh: return "Refreshing"
         case .setup: return "Opened"
@@ -201,6 +205,7 @@ struct UsageDecisionView: View {
     private var primaryActionSymbol: String {
         switch decision.kind {
         case .run, .switchProvider: return "doc.on.doc"
+        case .useReset: return "arrow.counterclockwise.circle"
         case .wait: return "bell"
         case .refresh: return "arrow.clockwise"
         case .setup: return "gearshape"
@@ -219,6 +224,7 @@ struct UsageDecisionView: View {
         switch decision.kind {
         case .run: return "play.fill"
         case .switchProvider: return "arrow.left.arrow.right"
+        case .useReset: return "arrow.counterclockwise.circle.fill"
         case .wait: return "clock.fill"
         case .refresh: return "arrow.clockwise"
         case .setup: return "terminal"
@@ -229,6 +235,7 @@ struct UsageDecisionView: View {
         switch decision.kind {
         case .run: return .mint
         case .switchProvider: return .blue
+        case .useReset: return .purple
         case .wait: return .orange
         case .refresh: return .orange
         case .setup: return .secondary

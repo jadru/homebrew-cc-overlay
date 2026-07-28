@@ -46,4 +46,27 @@ final class CodexOAuthServiceTests: XCTestCase {
 
         XCTAssertThrowsError(try CodexOAuthService.parseUsageResponse(data))
     }
+
+    func testParsesBankedRateLimitResetCredits() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "rate_limit": [
+                "primary_window": [
+                    "used_percent": 100,
+                    "limit_window_seconds": 18_000,
+                    "reset_at": 1_700_003_600,
+                ],
+            ],
+            "rate_limit_reset_credits": [
+                "available_count": "2",
+                "applicable_available_count": 1,
+            ],
+        ])
+
+        let usage = try CodexOAuthService.parseUsageResponse(data)
+
+        XCTAssertEqual(
+            usage.rateLimitResetCredits,
+            .init(availableCount: 2, applicableAvailableCount: 1)
+        )
+    }
 }
