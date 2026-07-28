@@ -124,6 +124,78 @@ final class MenuBarViewStateTests: XCTestCase {
         XCTAssertGreaterThan(actionCoverage, 0.003)
     }
 
+    func testUsageDecisionCardRendersAtCompactAndStandardSizes() {
+        let decision = UsageDecision(
+            kind: .switchProvider,
+            title: "Switch to CX",
+            detail: "82% headroom there versus 14% on CC.",
+            recommendedProvider: .codex,
+            resetAt: nil
+        )
+
+        let compactView = NSHostingView(
+            rootView: UsageDecisionView(decision: decision, compact: true)
+        )
+        XCTAssertGreaterThan(compactView.fittingSize.width, 80)
+        XCTAssertGreaterThan(compactView.fittingSize.height, 20)
+        XCTAssertLessThan(compactView.fittingSize.height, 70)
+
+        let standardView = NSHostingView(
+            rootView: UsageDecisionView(
+                decision: decision,
+                onTaskSizeChange: { _ in },
+                onPrimaryAction: {},
+                onFeedback: { _ in }
+            )
+        )
+        XCTAssertGreaterThan(standardView.fittingSize.width, 180)
+        XCTAssertGreaterThan(standardView.fittingSize.height, 50)
+        XCTAssertLessThan(standardView.fittingSize.height, 130)
+    }
+
+    func testCodexTimelineRendersBankedFullResetRow() {
+        let data = ProviderUsageData(
+            provider: .codex,
+            isAvailable: true,
+            usedPercentage: 20,
+            remainingPercentage: 80,
+            primaryWindowLabel: "5h",
+            rateLimitBuckets: [
+                RateBucket(label: "5h", utilization: 20),
+                RateBucket(label: "1w", utilization: 10),
+            ],
+            creditsInfo: CreditsDisplayInfo(
+                planType: "Pro",
+                hasCredits: false,
+                unlimited: false,
+                balance: nil,
+                extraUsageEnabled: false,
+                resetCreditsAvailable: 1,
+                resetCreditsApplicable: 0
+            )
+        )
+        let hostingView = NSHostingView(
+            rootView: UsageTimelineView(data: data).frame(width: 320)
+        )
+
+        XCTAssertEqual(hostingView.fittingSize.width, 320, accuracy: 1)
+        XCTAssertGreaterThan(hostingView.fittingSize.height, 180)
+        XCTAssertLessThan(hostingView.fittingSize.height, 420)
+    }
+
+    func testOnboardingFitsItsWindow() {
+        let view = OnboardingView(
+            settings: AppSettings(),
+            multiService: MultiProviderUsageService(),
+            onComplete: {}
+        )
+        let hostingView = NSHostingView(rootView: view)
+        let size = hostingView.fittingSize
+
+        XCTAssertEqual(size.width, 520, accuracy: 1)
+        XCTAssertEqual(size.height, 460, accuracy: 1)
+    }
+
     private func meanAlpha(
         in bitmap: NSBitmapImageRep,
         x xRange: Range<Double>,

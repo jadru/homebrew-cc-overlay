@@ -4,6 +4,8 @@
 
 macOS menu bar app that monitors your **Claude Code** and **Codex CLI** usage in real time.
 
+**Website:** [cc-overlay.jadru.com](https://cc-overlay.jadru.com)
+
 CC-Overlay is an independent, open-source utility distributed directly through GitHub Releases and Homebrew. It is not affiliated with, endorsed by, or supported by Anthropic or OpenAI.
 
 ## Features
@@ -14,6 +16,10 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 - **Local fallback, clearly labeled** — Claude JSONL estimates are marked with `~` and "local estimate"
 - **Floating Liquid Glass overlay** — A compact, screen-bounded status surface that expands on hover
 - **Pacing signals** — 5H and 7D timelines distinguish fast burn, on-pace, and plenty-left states
+- **Actionable recommendation** — Combines connected providers into a confidence-rated Run, Wait, Switch, or Refresh signal
+- **Task-fit learning** — Learns local consumption bursts and estimates whether a small, medium, or large run is likely to fit
+- **Decision actions** — Copy the recommended CLI command, schedule a reset reminder, and rate recommendation quality in place
+- **Codex Full Resets** — Shows banked rate-limit resets and opens Codex Usage when one can be applied
 - **Provider switcher** — A compact selector appears only when both providers have usable data
 - **Cost threshold alerts** — macOS notifications at 70% and 90% usage
 - **Global hotkey** — Toggle overlay with `Cmd+Shift+A`
@@ -147,5 +153,9 @@ Cost estimates use the following per-MTok rates:
 ## License
 
 [MIT](LICENSE)
+
+## Feedback
+
+Use the in-app **Settings → Advanced → Share product feedback** action or open a [product feedback issue](https://github.com/jadru/homebrew-cc-overlay/issues/new?template=user_feedback.yml). Safe diagnostics can be copied from the same Settings section without credentials, project names, usage history, or local paths.
 
 Provider names and marks are the property of their respective owners. Their use here is solely to identify compatible tools.

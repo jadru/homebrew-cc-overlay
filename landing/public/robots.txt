@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://cc-overlay.jadru.com/sitemap.xml

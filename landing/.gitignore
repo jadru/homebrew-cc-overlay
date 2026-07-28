@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.vercel
+design/implementation-*.png
+design/qa-*.png
+!design/implementation-90day-hero-final.png
+!design/implementation-90day-mobile-final.png
+!design/qa-90day-comparison.png

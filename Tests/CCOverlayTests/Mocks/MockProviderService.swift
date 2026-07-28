@@ -41,6 +41,7 @@ final class MockProviderService: ProviderServiceProtocol {
         self.lastRefresh = Date()
         self.error = error
 
+        let refreshedAt = self.lastRefresh
         self.usageData = ProviderUsageData(
             provider: provider,
             isAvailable: isDetected && isAuthenticated,
@@ -50,7 +51,8 @@ final class MockProviderService: ProviderServiceProtocol {
             resetsAt: resetsAt,
             rateLimitBuckets: [
                 RateBucket(label: "5h", utilization: self.usedPercentage, resetsAt: resetsAt)
-            ]
+            ],
+            lastRefresh: refreshedAt
         )
     }
 
@@ -97,6 +99,7 @@ final class MockProviderService: ProviderServiceProtocol {
         remainingPercentage = max(0, min(100, percentage))
         usedPercentage = 100.0 - remainingPercentage
         isAvailable = true
+        lastRefresh = Date()
         usageData = ProviderUsageData(
             provider: provider,
             isAvailable: isAvailable,
@@ -106,7 +109,8 @@ final class MockProviderService: ProviderServiceProtocol {
             resetsAt: usageData.resetsAt,
             rateLimitBuckets: [
                 RateBucket(label: "5h", utilization: usedPercentage, resetsAt: usageData.resetsAt)
-            ]
+            ],
+            lastRefresh: lastRefresh
         )
     }
 }

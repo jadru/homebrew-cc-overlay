@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a detection, usage, overlay, or update problem
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve CC-Overlay. Never paste OAuth tokens, Keychain values, or `auth.json` contents.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Provider detection
+        - Usage accuracy
+        - Run / Wait / Switch recommendation
+        - Floating overlay
+        - Menu bar panel
+        - Install or update
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Safe diagnostics
+      description: Paste Settings → Advanced → Copy safe diagnostics. Review it before submitting.
+      render: markdown
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, tokens, private project names, and personal paths.
+          required: true

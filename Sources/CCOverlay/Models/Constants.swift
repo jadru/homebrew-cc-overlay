@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - CLI Provider
 
-enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
+enum CLIProvider: String, CaseIterable, Identifiable, Hashable, Sendable {
     case claudeCode = "Claude Code"
     case codex = "Codex"
 
@@ -38,6 +38,13 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
             return "npm i -g @anthropic-ai/claude-code"
         case .codex:
             return "npm i -g @openai/codex && codex --login"
+        }
+    }
+
+    var launchCommand: String {
+        switch self {
+        case .claudeCode: return "claude"
+        case .codex: return "codex"
         }
     }
 
@@ -122,8 +129,9 @@ enum TokenCostWeight {
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.10.7"
+    static let version = "0.11.0"
     static let githubRepo = "jadru/homebrew-cc-overlay"
+    static let codexUsageDashboardURL = URL(string: "https://chatgpt.com/codex/settings/usage")!
     static let homebrewTap = "jadru/cc-overlay"
     static let homebrewFormula = "\(homebrewTap)/cc-overlay"
     static let updateCheckInterval: TimeInterval = 86400 // 24h
