@@ -164,6 +164,8 @@ struct MenuBarView: View {
         case .run, .switchProvider:
             guard let provider = decision.recommendedProvider else { return }
             UsageExportService.copyToClipboard(provider.launchCommand)
+        case .useReset:
+            NSWorkspace.shared.open(AppConstants.codexUsageDashboardURL)
         case .wait:
             guard let resetAt = decision.resetAt else { return }
             costAlertManager?.scheduleResetNotification(

@@ -50,6 +50,27 @@ final class UsageDecisionEngineTests: XCTestCase {
         XCTAssertEqual(decision.resetAt, reset)
     }
 
+    func testRecommendsBankedResetInsteadOfWaitingWhenCodexResetIsApplicable() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(.claudeCode, remaining: 7, refreshedAt: now),
+                data(
+                    .codex,
+                    remaining: 0,
+                    refreshedAt: now,
+                    resetCreditsAvailable: 2,
+                    resetCreditsApplicable: 1
+                ),
+            ],
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .useReset)
+        XCTAssertEqual(decision.recommendedProvider, .codex)
+        XCTAssertTrue(decision.detail.contains("1 banked reset"))
+    }
+
     func testRequiresRefreshWhenAllProviderDataIsStale() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let decision = UsageDecisionEngine.recommend(
@@ -129,7 +150,9 @@ final class UsageDecisionEngineTests: XCTestCase {
         _ provider: CLIProvider,
         remaining: Double,
         reset: Date? = nil,
-        refreshedAt: Date? = Date()
+        refreshedAt: Date? = Date(),
+        resetCreditsAvailable: Int = 0,
+        resetCreditsApplicable: Int = 0
     ) -> ProviderUsageData {
         ProviderUsageData(
             provider: provider,
@@ -141,6 +164,17 @@ final class UsageDecisionEngineTests: XCTestCase {
             rateLimitBuckets: [
                 RateBucket(label: "5h", utilization: 100 - remaining, resetsAt: reset)
             ],
+            creditsInfo: provider == .codex
+                ? CreditsDisplayInfo(
+                    planType: "Pro",
+                    hasCredits: false,
+                    unlimited: false,
+                    balance: nil,
+                    extraUsageEnabled: false,
+                    resetCreditsAvailable: resetCreditsAvailable,
+                    resetCreditsApplicable: resetCreditsApplicable
+                )
+                : nil,
             lastRefresh: refreshedAt
         )
     }

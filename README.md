@@ -19,6 +19,7 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 - **Actionable recommendation** — Combines connected providers into a confidence-rated Run, Wait, Switch, or Refresh signal
 - **Task-fit learning** — Learns local consumption bursts and estimates whether a small, medium, or large run is likely to fit
 - **Decision actions** — Copy the recommended CLI command, schedule a reset reminder, and rate recommendation quality in place
+- **Codex Full Resets** — Shows banked rate-limit resets and opens Codex Usage when one can be applied
 - **Provider switcher** — A compact selector appears only when both providers have usable data
 - **Cost threshold alerts** — macOS notifications at 70% and 90% usage
 - **Global hotkey** — Toggle overlay with `Cmd+Shift+A`

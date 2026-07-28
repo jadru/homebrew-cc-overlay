@@ -131,6 +131,7 @@ enum TokenCostWeight {
 enum AppConstants {
     static let version = "0.10.7"
     static let githubRepo = "jadru/homebrew-cc-overlay"
+    static let codexUsageDashboardURL = URL(string: "https://chatgpt.com/codex/settings/usage")!
     static let homebrewTap = "jadru/cc-overlay"
     static let homebrewFormula = "\(homebrewTap)/cc-overlay"
     static let updateCheckInterval: TimeInterval = 86400 // 24h

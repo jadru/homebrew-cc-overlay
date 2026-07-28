@@ -45,6 +45,7 @@ struct UsageDecision: Equatable, Sendable {
     enum Kind: String, Equatable, Hashable, Sendable {
         case run
         case switchProvider
+        case useReset
         case wait
         case refresh
         case setup
@@ -169,6 +170,27 @@ enum UsageDecisionEngine {
         }
 
         if taskFit.outcome == .unlikely || bestHeadroom <= 10 || (bestHeadroom <= 20 && bestPace == .burningFast) {
+            if let resetProvider = fresh.first(where: {
+                ($0.creditsInfo?.resetCreditsApplicable ?? 0) > 0
+            }) {
+                let count = resetProvider.creditsInfo?.resetCreditsApplicable ?? 0
+                let resetTaskFit = taskFitAssessment(
+                    evidence: fitEvidence[resetProvider.provider],
+                    taskSize: plannedTaskSize,
+                    availableHeadroom: 100
+                )
+                return UsageDecision(
+                    kind: .useReset,
+                    title: "Use a Codex full reset",
+                    detail: "\(count) banked reset\(count == 1 ? " is" : "s are") ready to restore the Codex rate limit.",
+                    recommendedProvider: resetProvider.provider,
+                    resetAt: nil,
+                    confidence: confidence(quality: quality, taskFit: resetTaskFit),
+                    dataQuality: quality,
+                    taskFit: resetTaskFit
+                )
+            }
+
             let reset = earliestFutureReset(in: fresh, now: now)
             let detail = taskFit.outcome == .unlikely
                 ? "Your recent \(plannedTaskSize.label.lowercased()) activity needs more headroom than is currently available."
@@ -356,7 +378,15 @@ final class UsageDecisionStabilizer {
             return candidate
         }
 
-        if candidate.kind == .wait || candidate.kind == .refresh || candidate.kind == .setup {
+        if candidate.kind == .useReset || candidate.kind == .wait || candidate.kind == .refresh || candidate.kind == .setup {
+            self.stableDecision = candidate
+            pendingSignature = nil
+            pendingCount = 0
+            lastSnapshotVersion = snapshotVersion
+            return candidate
+        }
+
+        if stableDecision.kind == .useReset {
             self.stableDecision = candidate
             pendingSignature = nil
             pendingCount = 0

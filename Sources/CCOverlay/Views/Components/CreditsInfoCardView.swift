@@ -58,6 +58,13 @@ struct CreditsInfoCardView: View {
                 value: creditsValue,
                 valueColor: credits.unlimited ? .green : .primary
             )
+            if credits.resetCreditsAvailable > 0 {
+                infoRow(
+                    label: "Full Resets",
+                    value: resetCreditsValue,
+                    valueColor: credits.resetCreditsApplicable > 0 ? .green : .purple
+                )
+            }
             infoRow(
                 label: "Extra Usage",
                 value: credits.extraUsageEnabled ? "Enabled" : "Disabled",
@@ -71,6 +78,13 @@ struct CreditsInfoCardView: View {
         if let balance = credits.balance, balance != "0" { return "$\(balance)" }
         if credits.hasCredits { return "Active" }
         return "—"
+    }
+
+    private var resetCreditsValue: String {
+        if credits.resetCreditsApplicable > 0 {
+            return "\(credits.resetCreditsAvailable) available · Use now"
+        }
+        return "\(credits.resetCreditsAvailable) banked"
     }
 
     @ViewBuilder

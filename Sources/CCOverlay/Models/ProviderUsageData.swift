@@ -139,6 +139,26 @@ struct CreditsDisplayInfo: Sendable {
     let unlimited: Bool
     let balance: String?
     let extraUsageEnabled: Bool
+    let resetCreditsAvailable: Int
+    let resetCreditsApplicable: Int
+
+    init(
+        planType: String,
+        hasCredits: Bool,
+        unlimited: Bool,
+        balance: String?,
+        extraUsageEnabled: Bool,
+        resetCreditsAvailable: Int = 0,
+        resetCreditsApplicable: Int = 0
+    ) {
+        self.planType = planType
+        self.hasCredits = hasCredits
+        self.unlimited = unlimited
+        self.balance = balance
+        self.extraUsageEnabled = extraUsageEnabled
+        self.resetCreditsAvailable = max(resetCreditsAvailable, 0)
+        self.resetCreditsApplicable = max(resetCreditsApplicable, 0)
+    }
 }
 
 struct DetailedRateWindow: Sendable, Identifiable {

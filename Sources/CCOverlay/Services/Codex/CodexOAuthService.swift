@@ -27,11 +27,17 @@ actor CodexOAuthService {
         let balance: String?
     }
 
+    struct RateLimitResetCredits: Equatable, Sendable {
+        let availableCount: Int
+        let applicableAvailableCount: Int
+    }
+
     struct UsageSnapshot: Sendable {
         let planType: String
         let primaryWindow: RateLimitWindow?
         let secondaryWindow: RateLimitWindow?
         let credits: CreditInfo?
+        let rateLimitResetCredits: RateLimitResetCredits?
         let additionalLimits: [AdditionalLimit]
         let fetchedAt: Date
         let extraUsageEnabled: Bool
@@ -121,6 +127,17 @@ actor CodexOAuthService {
             )
         }
 
+        var rateLimitResetCredits: RateLimitResetCredits?
+        if let resetCreditsJson = json["rate_limit_reset_credits"] as? [String: Any] {
+            rateLimitResetCredits = RateLimitResetCredits(
+                availableCount: max(integerValue(resetCreditsJson["available_count"]) ?? 0, 0),
+                applicableAvailableCount: max(
+                    integerValue(resetCreditsJson["applicable_available_count"]) ?? 0,
+                    0
+                )
+            )
+        }
+
         // Parse additional rate limits
         var additionalLimits: [AdditionalLimit] = []
         if let additional = json["additional_rate_limits"] as? [[String: Any]] {
@@ -145,6 +162,7 @@ actor CodexOAuthService {
             primaryWindow: primaryWindow,
             secondaryWindow: secondaryWindow,
             credits: credits,
+            rateLimitResetCredits: rateLimitResetCredits,
             additionalLimits: additionalLimits,
             fetchedAt: fetchedAt,
             extraUsageEnabled: extraUsageEnabled
