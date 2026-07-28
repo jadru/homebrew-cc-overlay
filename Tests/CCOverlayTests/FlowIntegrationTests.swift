@@ -161,6 +161,24 @@ final class FlowIntegrationTests: XCTestCase {
         XCTAssertEqual(notificationCenter.statusQueryCount, 0)
     }
 
+    @MainActor
+    func testAlertFlow_SchedulesProviderResetReminder() async throws {
+        let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
+        let delivered = expectation(description: "reset reminder scheduled")
+        notificationCenter.onNotificationDelivered = { delivered.fulfill() }
+        let manager = CostAlertManager(notificationCenter: notificationCenter)
+
+        manager.scheduleResetNotification(
+            at: Date().addingTimeInterval(600),
+            provider: .codex
+        )
+
+        await fulfillment(of: [delivered], timeout: 1)
+        let request = try XCTUnwrap(notificationCenter.deliveredRequests.first)
+        XCTAssertEqual(request.content.title, "Codex headroom is back")
+        XCTAssertNotNil(request.trigger as? UNTimeIntervalNotificationTrigger)
+    }
+
     // MARK: - Detection + render-condition flow
 
     @MainActor

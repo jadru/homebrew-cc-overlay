@@ -14,6 +14,7 @@ enum SupportDiagnosticsService {
         let activationText = settings.activationDuration.map {
             DurationFormatting.compactReset($0)
         } ?? "not recorded"
+        let feedback = multiService.decisionFeedbackSummary
 
         var lines = [
             "## CC-Overlay diagnostics",
@@ -24,6 +25,8 @@ enum SupportDiagnosticsService {
             "- Claude OAuth opt-in: \(settings.claudeOAuthEnabled ? "enabled" : "disabled")",
             "- Time to first usable data: \(activationText)",
             "- Recommendation: \(multiService.usageDecision.title)",
+            "- Planned task size: \(settings.plannedTaskSize.label)",
+            "- Recommendation feedback: \(feedback.helpful) helpful / \(feedback.unhelpful) not helpful",
             "",
             "### Providers",
         ]

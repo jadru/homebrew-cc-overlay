@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - CLI Provider
 
-enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
+enum CLIProvider: String, CaseIterable, Identifiable, Hashable, Sendable {
     case claudeCode = "Claude Code"
     case codex = "Codex"
 
@@ -38,6 +38,13 @@ enum CLIProvider: String, CaseIterable, Identifiable, Sendable {
             return "npm i -g @anthropic-ai/claude-code"
         case .codex:
             return "npm i -g @openai/codex && codex --login"
+        }
+    }
+
+    var launchCommand: String {
+        switch self {
+        case .claudeCode: return "claude"
+        case .codex: return "codex"
         }
     }
 

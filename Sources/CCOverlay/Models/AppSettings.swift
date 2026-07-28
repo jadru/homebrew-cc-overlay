@@ -26,6 +26,7 @@ final class AppSettings {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let firstLaunchAt = "firstLaunchAt"
         static let firstUsageAt = "firstUsageAt"
+        static let plannedTaskSize = "plannedTaskSize"
     }
 
     // MARK: - General
@@ -223,6 +224,19 @@ final class AppSettings {
         return max(firstUsageAt.timeIntervalSince(firstLaunchAt), 0)
     }
 
+    var plannedTaskSize: PlannedTaskSize {
+        get {
+            access(keyPath: \.plannedTaskSize)
+            let rawValue = UserDefaults.standard.string(forKey: Key.plannedTaskSize)
+            return PlannedTaskSize(rawValue: rawValue ?? "") ?? .medium
+        }
+        set {
+            withMutation(keyPath: \.plannedTaskSize) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.plannedTaskSize)
+            }
+        }
+    }
+
     init() {
         let defaults = UserDefaults.standard
         let isExistingInstall = defaults.object(forKey: Key.showOverlay) != nil
@@ -248,6 +262,7 @@ final class AppSettings {
             Key.pillClickThrough: false,
             Key.autoUpdateEnabled: true,
             Key.hasCompletedOnboarding: false,
+            Key.plannedTaskSize: PlannedTaskSize.medium.rawValue,
         ])
     }
 }

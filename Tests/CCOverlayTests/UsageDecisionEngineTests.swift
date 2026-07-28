@@ -3,30 +3,33 @@ import XCTest
 
 final class UsageDecisionEngineTests: XCTestCase {
     func testRecommendsBestProviderWhenHeadroomIsHealthy() {
+        let now = Date()
         let decision = UsageDecisionEngine.recommend(from: [
-            data(.claudeCode, remaining: 68),
-            data(.codex, remaining: 82),
-        ])
+            data(.claudeCode, remaining: 68, refreshedAt: now),
+            data(.codex, remaining: 82, refreshedAt: now),
+        ], now: now)
 
         XCTAssertEqual(decision.kind, .run)
         XCTAssertEqual(decision.recommendedProvider, .codex)
     }
 
     func testRecommendsSwitchWhenCurrentProviderIsConstrained() {
+        let now = Date()
         let decision = UsageDecisionEngine.recommend(from: [
-            data(.claudeCode, remaining: 14),
-            data(.codex, remaining: 71),
-        ], currentProvider: .claudeCode)
+            data(.claudeCode, remaining: 14, refreshedAt: now),
+            data(.codex, remaining: 71, refreshedAt: now),
+        ], currentProvider: .claudeCode, now: now)
 
         XCTAssertEqual(decision.kind, .switchProvider)
         XCTAssertEqual(decision.recommendedProvider, .codex)
     }
 
     func testDoesNotRecommendSwitchWhenUserAlreadyRunsBestProvider() {
+        let now = Date()
         let decision = UsageDecisionEngine.recommend(from: [
-            data(.claudeCode, remaining: 14),
-            data(.codex, remaining: 71),
-        ], currentProvider: .codex)
+            data(.claudeCode, remaining: 14, refreshedAt: now),
+            data(.codex, remaining: 71, refreshedAt: now),
+        ], currentProvider: .codex, now: now)
 
         XCTAssertEqual(decision.kind, .run)
         XCTAssertEqual(decision.recommendedProvider, .codex)
@@ -37,14 +40,76 @@ final class UsageDecisionEngineTests: XCTestCase {
         let reset = now.addingTimeInterval(900)
         let decision = UsageDecisionEngine.recommend(
             from: [
-                data(.claudeCode, remaining: 7, reset: reset),
-                data(.codex, remaining: 4, reset: now.addingTimeInterval(1_800)),
+                data(.claudeCode, remaining: 7, reset: reset, refreshedAt: now),
+                data(.codex, remaining: 4, reset: now.addingTimeInterval(1_800), refreshedAt: now),
             ],
             now: now
         )
 
         XCTAssertEqual(decision.kind, .wait)
         XCTAssertEqual(decision.resetAt, reset)
+    }
+
+    func testRequiresRefreshWhenAllProviderDataIsStale() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let decision = UsageDecisionEngine.recommend(
+            from: [data(.codex, remaining: 80, refreshedAt: now.addingTimeInterval(-600))],
+            staleAfter: 120,
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .refresh)
+        XCTAssertEqual(decision.confidence, .low)
+        XCTAssertEqual(decision.dataQuality, .stale)
+    }
+
+    func testUsesObservedTaskSizeToWaitForMoreHeadroom() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [data(.codex, remaining: 20, refreshedAt: now)],
+            plannedTaskSize: .large,
+            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 30, sampleCount: 6)],
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .wait)
+        XCTAssertEqual(decision.taskFit?.outcome, .unlikely)
+        XCTAssertEqual(decision.taskFit?.taskSize, .large)
+    }
+
+    func testReportsHighConfidenceWithLiveDataAndEnoughFitEvidence() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [data(.codex, remaining: 80, refreshedAt: now)],
+            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 20, sampleCount: 5)],
+            now: now
+        )
+
+        XCTAssertEqual(decision.confidence, .high)
+        XCTAssertEqual(decision.taskFit?.outcome, .likely)
+    }
+
+    func testStabilizerRequiresTwoFreshSnapshotsForNonUrgentChange() {
+        let stabilizer = UsageDecisionStabilizer()
+        let first = UsageDecision(
+            kind: .run,
+            title: "Run on Codex",
+            detail: "Healthy",
+            recommendedProvider: .codex,
+            resetAt: nil
+        )
+        let changed = UsageDecision(
+            kind: .switchProvider,
+            title: "Switch to Claude Code",
+            detail: "More room",
+            recommendedProvider: .claudeCode,
+            resetAt: nil
+        )
+        let start = Date()
+
+        XCTAssertEqual(stabilizer.resolve(candidate: first, snapshotVersion: start).kind, .run)
+        XCTAssertEqual(stabilizer.resolve(candidate: changed, snapshotVersion: start.addingTimeInterval(60)).kind, .run)
+        XCTAssertEqual(stabilizer.resolve(candidate: changed, snapshotVersion: start.addingTimeInterval(120)).kind, .switchProvider)
     }
 
     func testIgnoresUnsupportedBucketsWhenCalculatingHeadroom() {
@@ -63,7 +128,8 @@ final class UsageDecisionEngineTests: XCTestCase {
     private func data(
         _ provider: CLIProvider,
         remaining: Double,
-        reset: Date? = nil
+        reset: Date? = nil,
+        refreshedAt: Date? = Date()
     ) -> ProviderUsageData {
         ProviderUsageData(
             provider: provider,
@@ -74,7 +140,8 @@ final class UsageDecisionEngineTests: XCTestCase {
             resetsAt: reset,
             rateLimitBuckets: [
                 RateBucket(label: "5h", utilization: 100 - remaining, resetsAt: reset)
-            ]
+            ],
+            lastRefresh: refreshedAt
         )
     }
 }

@@ -16,7 +16,9 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 - **Local fallback, clearly labeled** — Claude JSONL estimates are marked with `~` and "local estimate"
 - **Floating Liquid Glass overlay** — A compact, screen-bounded status surface that expands on hover
 - **Pacing signals** — 5H and 7D timelines distinguish fast burn, on-pace, and plenty-left states
-- **Actionable recommendation** — Combines connected providers into a clear Run, Wait, or Switch signal
+- **Actionable recommendation** — Combines connected providers into a confidence-rated Run, Wait, Switch, or Refresh signal
+- **Task-fit learning** — Learns local consumption bursts and estimates whether a small, medium, or large run is likely to fit
+- **Decision actions** — Copy the recommended CLI command, schedule a reset reminder, and rate recommendation quality in place
 - **Provider switcher** — A compact selector appears only when both providers have usable data
 - **Cost threshold alerts** — macOS notifications at 70% and 90% usage
 - **Global hotkey** — Toggle overlay with `Cmd+Shift+A`
