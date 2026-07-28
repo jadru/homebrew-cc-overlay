@@ -23,6 +23,10 @@ final class AppSettings {
         static let pillClickThrough = "pillClickThrough"
         static let autoUpdateEnabled = "autoUpdateEnabled"
         static let lastUpdateCheck = "lastUpdateCheck"
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let firstLaunchAt = "firstLaunchAt"
+        static let firstUsageAt = "firstUsageAt"
+        static let plannedTaskSize = "plannedTaskSize"
     }
 
     // MARK: - General
@@ -177,7 +181,74 @@ final class AppSettings {
         set { withMutation(keyPath: \.lastUpdateCheck) { UserDefaults.standard.set(newValue, forKey: Key.lastUpdateCheck) } }
     }
 
+    // MARK: - Activation and Onboarding
+
+    var hasCompletedOnboarding: Bool {
+        get {
+            access(keyPath: \.hasCompletedOnboarding)
+            return UserDefaults.standard.bool(forKey: Key.hasCompletedOnboarding)
+        }
+        set {
+            withMutation(keyPath: \.hasCompletedOnboarding) {
+                UserDefaults.standard.set(newValue, forKey: Key.hasCompletedOnboarding)
+            }
+        }
+    }
+
+    var firstLaunchAt: Date? {
+        get {
+            access(keyPath: \.firstLaunchAt)
+            return UserDefaults.standard.object(forKey: Key.firstLaunchAt) as? Date
+        }
+        set {
+            withMutation(keyPath: \.firstLaunchAt) {
+                UserDefaults.standard.set(newValue, forKey: Key.firstLaunchAt)
+            }
+        }
+    }
+
+    var firstUsageAt: Date? {
+        get {
+            access(keyPath: \.firstUsageAt)
+            return UserDefaults.standard.object(forKey: Key.firstUsageAt) as? Date
+        }
+        set {
+            withMutation(keyPath: \.firstUsageAt) {
+                UserDefaults.standard.set(newValue, forKey: Key.firstUsageAt)
+            }
+        }
+    }
+
+    var activationDuration: TimeInterval? {
+        guard let firstLaunchAt, let firstUsageAt else { return nil }
+        return max(firstUsageAt.timeIntervalSince(firstLaunchAt), 0)
+    }
+
+    var plannedTaskSize: PlannedTaskSize {
+        get {
+            access(keyPath: \.plannedTaskSize)
+            let rawValue = UserDefaults.standard.string(forKey: Key.plannedTaskSize)
+            return PlannedTaskSize(rawValue: rawValue ?? "") ?? .medium
+        }
+        set {
+            withMutation(keyPath: \.plannedTaskSize) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.plannedTaskSize)
+            }
+        }
+    }
+
     init() {
+        let defaults = UserDefaults.standard
+        let isExistingInstall = defaults.object(forKey: Key.showOverlay) != nil
+            || defaults.object(forKey: Key.lastUpdateCheck) != nil
+
+        if defaults.object(forKey: Key.hasCompletedOnboarding) == nil {
+            defaults.set(isExistingInstall, forKey: Key.hasCompletedOnboarding)
+        }
+        if defaults.object(forKey: Key.firstLaunchAt) == nil {
+            defaults.set(Date(), forKey: Key.firstLaunchAt)
+        }
+
         UserDefaults.standard.register(defaults: [
             Key.showOverlay: true,
             Key.refreshInterval: 60.0,
@@ -190,6 +261,8 @@ final class AppSettings {
             Key.pillAlwaysExpanded: false,
             Key.pillClickThrough: false,
             Key.autoUpdateEnabled: true,
+            Key.hasCompletedOnboarding: false,
+            Key.plannedTaskSize: PlannedTaskSize.medium.rawValue,
         ])
     }
 }

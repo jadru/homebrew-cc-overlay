@@ -1,0 +1,57 @@
+name: Product feedback
+description: Tell us when CC-Overlay changed—or failed to change—your next-run decision
+title: "[Feedback]: "
+labels: ["feedback"]
+body:
+  - type: dropdown
+    id: decision
+    attributes:
+      label: What were you deciding?
+      options:
+        - Run another task now
+        - Wait for a reset
+        - Switch between Claude Code and Codex
+        - Check whether usage data was trustworthy
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What did CC-Overlay help with—or miss?
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often do you check it?
+      options:
+        - Several times a day
+        - About once a day
+        - A few times a week
+        - Rarely
+  - type: checkboxes
+    id: pro_features
+    attributes:
+      label: Which power features would matter enough to support development?
+      options:
+        - label: More accurate exhaustion forecasting
+        - label: Automatic provider-switch recommendations
+        - label: Longer local history and project analysis
+        - label: Custom notification rules and schedules
+        - label: macOS widgets and Shortcuts actions
+  - type: dropdown
+    id: price
+    attributes:
+      label: If those features worked reliably, what one-time price feels reasonable?
+      options:
+        - Free only
+        - $19
+        - $29
+        - $39
+        - Prefer a voluntary supporter option
+  - type: textarea
+    id: contact
+    attributes:
+      label: Anything else?
+      description: Optional. Do not include provider credentials or private usage data.

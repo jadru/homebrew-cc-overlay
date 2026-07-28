@@ -133,7 +133,9 @@ final class CodexProviderService: BaseProviderService {
             hasCredits: snapshot.credits?.hasCredits ?? false,
             unlimited: snapshot.credits?.unlimited ?? false,
             balance: snapshot.credits?.balance,
-            extraUsageEnabled: snapshot.extraUsageEnabled
+            extraUsageEnabled: snapshot.extraUsageEnabled,
+            resetCreditsAvailable: snapshot.rateLimitResetCredits?.availableCount ?? 0,
+            resetCreditsApplicable: snapshot.rateLimitResetCredits?.applicableAvailableCount ?? 0
         )
 
         var detailedWindows = [DetailedRateWindow]()

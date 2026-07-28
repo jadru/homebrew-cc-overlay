@@ -107,13 +107,29 @@ final class CostAlertManager {
         lastWeeklyAlertedThreshold = 0
     }
 
+    func scheduleResetNotification(at resetAt: Date, provider: CLIProvider?) {
+        let interval = resetAt.timeIntervalSinceNow
+        guard interval > 1 else { return }
+
+        let providerName = provider?.rawValue ?? "Provider"
+        sendNotification(
+            title: "\(providerName) headroom is back",
+            body: "The active usage window has reset. Recheck CC-Overlay before starting the next run.",
+            scheduledAt: resetAt
+        )
+    }
+
     private func thresholds(from settings: AppSettings) -> [Double] {
         let warning = min(max(settings.alertWarningThreshold, 1), 100)
         let critical = min(max(settings.alertCriticalThreshold, 1), 100)
         return Array(Set([warning, critical])).sorted()
     }
 
-    private func sendNotification(title: String, body: String) {
+    private func sendNotification(
+        title: String,
+        body: String,
+        scheduledAt: Date? = nil
+    ) {
         let center = notificationCenter()
         center.getAuthorizationStatus { status in
             Task { @MainActor [weak self] in
@@ -123,27 +139,37 @@ final class CostAlertManager {
                         self.notificationCenter().requestAuthorization { granted in
                             guard granted else { return }
                             Task { @MainActor [weak self] in
-                                self?.deliverNotification(title: title, body: body)
+                                self?.deliverNotification(title: title, body: body, scheduledAt: scheduledAt)
                             }
                         }
                     }
                     return
                 }
-                self.deliverNotification(title: title, body: body)
+                self.deliverNotification(title: title, body: body, scheduledAt: scheduledAt)
             }
         }
     }
 
-    private func deliverNotification(title: String, body: String) {
+    private func deliverNotification(
+        title: String,
+        body: String,
+        scheduledAt: Date? = nil
+    ) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
 
+        let trigger = scheduledAt.map {
+            UNTimeIntervalNotificationTrigger(
+                timeInterval: max($0.timeIntervalSinceNow, 1),
+                repeats: false
+            )
+        }
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
             content: content,
-            trigger: nil
+            trigger: trigger
         )
 
         notificationCenter().addNotificationRequest(request) { error in

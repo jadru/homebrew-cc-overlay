@@ -44,6 +44,7 @@ struct CCOverlayApp: App {
                 multiService: multiService,
                 settings: settings,
                 updateService: updateService,
+                costAlertManager: costAlertManager,
                 onOpenSettings: {
                     appDelegate.showSettings(settings: settings, multiService: multiService, updateService: updateService)
                 }
@@ -72,6 +73,10 @@ struct CCOverlayApp: App {
                 }
                 .onChange(of: multiService.availableProviders) { _, _ in
                     appDelegate.overlayManager?.updateUsageVisibility()
+                    recordActivationIfNeeded()
+                }
+                .onChange(of: multiService.lastRefresh) { _, _ in
+                    multiService.recordCurrentSamples()
                 }
                 .onChange(of: settings.pillClickThrough) { _, _ in
                     appDelegate.overlayManager?.updateFromSettings()
@@ -118,6 +123,20 @@ struct CCOverlayApp: App {
         appDelegate.setupHotkey(settings: settings) {
             toggleOverlay()
         }
+
+        if !settings.hasCompletedOnboarding {
+            appDelegate.showOnboarding(
+                settings: settings,
+                multiService: multiService,
+                onComplete: {}
+            )
+        }
+    }
+
+    private func recordActivationIfNeeded() {
+        guard settings.firstUsageAt == nil, !multiService.availableProviders.isEmpty else { return }
+        settings.firstUsageAt = Date()
+        AppLogger.data.info("Recorded first usable provider activation")
     }
 
     private func repairLaunchAtLoginRegistrationIfNeeded() {

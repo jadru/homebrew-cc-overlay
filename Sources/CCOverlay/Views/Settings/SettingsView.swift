@@ -5,10 +5,12 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
     let updateService: UpdateService
+    var onShowOnboarding: (() -> Void)? = nil
 
     @State private var fallbackExpanded = false
     @State private var launchAtLoginStatus: SMAppService.Status = .notRegistered
     @State private var launchAtLoginError: String?
+    @State private var diagnosticsCopied = false
 
     private let weightedLimitFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -67,6 +69,10 @@ struct SettingsView: View {
                     Text(launchAtLoginError)
                         .font(.caption)
                         .foregroundStyle(.orange)
+                }
+
+                if let onShowOnboarding {
+                    Button("Open setup guide", action: onShowOnboarding)
                 }
             }
         }
@@ -169,6 +175,41 @@ struct SettingsView: View {
 
             Section {
                 Toggle("Diagnostic logging", isOn: $settings.debugFlowLogging)
+            }
+
+            Section("Support") {
+                Button {
+                    SupportDiagnosticsService.copyReport(
+                        settings: settings,
+                        multiService: multiService
+                    )
+                    diagnosticsCopied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        diagnosticsCopied = false
+                    }
+                } label: {
+                    Label(
+                        diagnosticsCopied ? "Diagnostics copied" : "Copy safe diagnostics",
+                        systemImage: diagnosticsCopied ? "checkmark" : "doc.on.doc"
+                    )
+                }
+
+                Button {
+                    NSWorkspace.shared.open(SupportDiagnosticsService.issuesURL)
+                } label: {
+                    Label("Report a problem", systemImage: "ant")
+                }
+
+                Button {
+                    NSWorkspace.shared.open(SupportDiagnosticsService.feedbackURL)
+                } label: {
+                    Label("Share product feedback", systemImage: "bubble.left.and.bubble.right")
+                }
+
+                Text("Diagnostics never include credentials, project names, usage history, or local paths.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

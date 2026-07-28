@@ -20,9 +20,17 @@ final class MultiProviderUsageService {
     private var monitoringInterval = AppConstants.defaultRefreshInterval
     private var monitoredProviders = Set<CLIProvider>()
     private var detectionGeneration = 0
+    @ObservationIgnored
+    private let decisionHistory: DecisionHistoryStore
+    @ObservationIgnored
+    private let decisionStabilizer = UsageDecisionStabilizer()
 
-    init(serviceFactory: ProviderServiceFactory? = nil) {
+    init(
+        serviceFactory: ProviderServiceFactory? = nil,
+        decisionHistory: DecisionHistoryStore? = nil
+    ) {
         self.serviceFactory = serviceFactory ?? Self.defaultServiceFactory
+        self.decisionHistory = decisionHistory ?? DecisionHistoryStore()
     }
 
     /// Bind settings for reading provider enable/disable and API keys.
@@ -46,6 +54,41 @@ final class MultiProviderUsageService {
         activeProviders
             .filter { usageData(for: $0).isAvailable }
             .min { usageData(for: $0).remainingPercentage < usageData(for: $1).remainingPercentage }
+    }
+
+    /// Global Run / Wait / Switch recommendation across every usable provider.
+    var usageDecision: UsageDecision {
+        let taskSize = settings?.plannedTaskSize ?? .medium
+        let evidence = Dictionary(uniqueKeysWithValues: activeProviders.compactMap { provider in
+            decisionHistory.evidence(for: provider, taskSize: taskSize).map { (provider, $0) }
+        })
+        let candidate = UsageDecisionEngine.recommend(
+            from: activeProviders.map { usageData(for: $0) },
+            currentProvider: recentlyActiveProviders.first,
+            plannedTaskSize: taskSize,
+            fitEvidence: evidence,
+            staleAfter: staleThreshold
+        )
+        return decisionStabilizer.resolve(candidate: candidate, snapshotVersion: lastRefresh)
+    }
+
+    func recordCurrentSamples(now: Date = Date()) {
+        for provider in activeProviders {
+            decisionHistory.record(usageData(for: provider), now: now)
+        }
+    }
+
+    func recordDecisionFeedback(helpful: Bool, decision: UsageDecision) {
+        decisionHistory.recordFeedback(helpful: helpful, decision: decision)
+    }
+
+    func updatePlannedTaskSize(_ taskSize: PlannedTaskSize) {
+        settings?.plannedTaskSize = taskSize
+        decisionStabilizer.reset()
+    }
+
+    var decisionFeedbackSummary: DecisionHistoryStore.FeedbackSummary {
+        decisionHistory.feedbackSummary
     }
 
     /// Cached snapshot of the last non-empty recently-active list.
