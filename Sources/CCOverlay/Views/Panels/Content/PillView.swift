@@ -221,6 +221,7 @@ struct PillView: View {
     private var expandedCommandSurface: some View {
         VStack(alignment: .leading, spacing: 10) {
             commandHeader
+            UsageDecisionView(decision: multiService.usageDecision, compact: true)
             if visibleProviders.count == 1 {
                 singleProviderRateWindows
             } else {

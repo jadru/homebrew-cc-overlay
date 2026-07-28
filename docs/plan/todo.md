@@ -19,7 +19,15 @@
   - `Sources/CCOverlay/Views/Panels/Content/*.swift`
   - `Sources/CCOverlay/Views/Components/*.swift`
 
-## Strategic 미진행
+## 90일 실행 완료
+
+- 신규 사용자 온보딩 및 기존 사용자 무중단 마이그레이션
+- 프로바이더 상태를 종합한 Run / Wait / Switch 추천
+- credential·프로젝트·경로·사용량 기록을 제외한 안전한 진단 복사
+- 앱 내 버그 신고 및 제품/가격 피드백 진입점
+- 랜딩 페이지, 전환 측정, 출시 키트, 90일 스코어카드, BM 검증 게이트
+
+## Strategic 후속 후보
 
 ### 7) OSLog 통합
 - `Utilities/AppLogger.swift` 추가
@@ -33,7 +41,7 @@
 - SwiftData 기반 usage snapshot 저장소
 - 스파크라인(Charts) UI 추가
 
-### 10) Rate Limit 소진 예측
+### 10) 정밀 Rate Limit 소진 예측
 - 최근 사용량 기울기 기반 ETA 계산
 - Gauge/Pill에 `~Xh Ym to limit` 노출
 

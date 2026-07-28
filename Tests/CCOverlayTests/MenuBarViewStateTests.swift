@@ -124,6 +124,39 @@ final class MenuBarViewStateTests: XCTestCase {
         XCTAssertGreaterThan(actionCoverage, 0.003)
     }
 
+    func testUsageDecisionCardRendersAtCompactAndStandardSizes() {
+        let decision = UsageDecision(
+            kind: .switchProvider,
+            title: "Switch to CX",
+            detail: "82% headroom there versus 14% on CC.",
+            recommendedProvider: .codex,
+            resetAt: nil
+        )
+
+        for compact in [false, true] {
+            let hostingView = NSHostingView(
+                rootView: UsageDecisionView(decision: decision, compact: compact)
+            )
+            let size = hostingView.fittingSize
+            XCTAssertGreaterThan(size.width, 80)
+            XCTAssertGreaterThan(size.height, 20)
+            XCTAssertLessThan(size.height, compact ? 60 : 100)
+        }
+    }
+
+    func testOnboardingFitsItsWindow() {
+        let view = OnboardingView(
+            settings: AppSettings(),
+            multiService: MultiProviderUsageService(),
+            onComplete: {}
+        )
+        let hostingView = NSHostingView(rootView: view)
+        let size = hostingView.fittingSize
+
+        XCTAssertEqual(size.width, 520, accuracy: 1)
+        XCTAssertEqual(size.height, 460, accuracy: 1)
+    }
+
     private func meanAlpha(
         in bitmap: NSBitmapImageRep,
         x xRange: Range<Double>,

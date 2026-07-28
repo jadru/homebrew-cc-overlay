@@ -119,6 +119,7 @@ struct MenuBarView: View {
                 if availableProviders.count > 1 {
                     providerRail
                 }
+                UsageDecisionView(decision: multiService.usageDecision)
                 ProviderSectionView(data: multiService.usageData(for: provider))
             }
         case .loading, .failed, .noProviders, .noUsage:

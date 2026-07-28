@@ -48,6 +48,14 @@ final class MultiProviderUsageService {
             .min { usageData(for: $0).remainingPercentage < usageData(for: $1).remainingPercentage }
     }
 
+    /// Global Run / Wait / Switch recommendation across every usable provider.
+    var usageDecision: UsageDecision {
+        UsageDecisionEngine.recommend(
+            from: activeProviders.map { usageData(for: $0) },
+            currentProvider: recentlyActiveProviders.first
+        )
+    }
+
     /// Cached snapshot of the last non-empty recently-active list.
     private var lastKnownActiveProviders: [CLIProvider] = []
 

@@ -6,6 +6,8 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 
 > [English](README.md) | [릴리스 노트](RELEASE_NOTES_KO.md) | [기여](CONTRIBUTING.md) | [보안](SECURITY.md)
 
+**웹사이트:** [cc-overlay.jadru.com](https://cc-overlay.jadru.com)
+
 ## 주요 기능
 
 - **멀티 프로바이더 모니터링** — Claude Code와 OpenAI Codex CLI 사용량 동시 추적
@@ -14,6 +16,7 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 - **명확한 로컬 폴백** — Claude JSONL 추정값에는 `~`와 "local estimate"를 표시
 - **플로팅 Liquid Glass 오버레이** — 화면 경계를 넘지 않고 호버 시 확장되는 상태 surface
 - **페이스 신호** — 5H·7D 타임라인에서 빠른 소진, 정상 페이스, 여유 상태를 구분
+- **실행 가능한 추천** — 연결된 프로바이더를 종합해 Run, Wait, Switch 중 하나를 명확하게 제안
 - **조건부 프로바이더 전환** — 두 프로바이더 모두 사용량이 있을 때만 compact selector 표시
 - **비용 임계값 알림** — 70%, 90% 사용 시 macOS 알림
 - **글로벌 단축키** — `Cmd+Shift+A`로 오버레이 토글
@@ -147,5 +150,9 @@ provider token은 민감한 정보입니다. provider를 활성화하기 전에 
 ## 라이선스
 
 [MIT](LICENSE)
+
+## 피드백
+
+앱의 **Settings → Advanced → Share product feedback**을 사용하거나 [제품 피드백 이슈](https://github.com/jadru/homebrew-cc-overlay/issues/new?template=user_feedback.yml)를 열어주세요. 같은 설정 화면에서 credential, 프로젝트 이름, 사용량 기록, 로컬 경로를 제외한 안전한 진단 정보도 복사할 수 있습니다.
 
 provider 이름과 mark는 각 권리자의 자산입니다. 여기서는 호환 도구를 식별하는 용도로만 사용합니다.
