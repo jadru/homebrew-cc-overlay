@@ -9,6 +9,7 @@ struct UsageDecisionView: View {
 
     @State private var actionCompleted = false
     @State private var feedbackSelection: Bool?
+    @State private var showsExplanation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 5 : 8) {
@@ -120,11 +121,33 @@ struct UsageDecisionView: View {
                         systemImage: actionCompleted ? "checkmark" : primaryActionSymbol
                     )
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.mini)
+                .buttonStyle(PrimaryDecisionButtonStyle(tint: primaryActionTint))
             }
 
             Spacer(minLength: 2)
+
+            if !decision.reasons.isEmpty {
+                Button {
+                    showsExplanation.toggle()
+                } label: {
+                    Label("Why?", systemImage: "info.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .popover(isPresented: $showsExplanation, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("Why this recommendation")
+                            .font(.headline)
+
+                        ForEach(Array(decision.reasons.enumerated()), id: \.offset) { _, reason in
+                            Label(reason, systemImage: "checkmark.circle")
+                                .font(.system(size: 11))
+                        }
+                    }
+                    .padding(16)
+                    .frame(width: 320, alignment: .leading)
+                }
+            }
 
             if let onFeedback {
                 Button {
@@ -178,9 +201,12 @@ struct UsageDecisionView: View {
 
     private var primaryActionLabel: String? {
         switch decision.kind {
-        case .run, .switchProvider:
+        case .run:
             guard let provider = decision.recommendedProvider else { return nil }
-            return "Copy \(provider.launchCommand)"
+            return "Run \(provider.rawValue)"
+        case .switchProvider:
+            guard let provider = decision.recommendedProvider else { return nil }
+            return "Switch & run \(provider.rawValue)"
         case .useReset:
             return "Open Codex Usage"
         case .wait:
@@ -194,7 +220,7 @@ struct UsageDecisionView: View {
 
     private var completedActionLabel: String {
         switch decision.kind {
-        case .run, .switchProvider: return "Command copied"
+        case .run, .switchProvider: return "Opening terminal"
         case .useReset: return "Usage opened"
         case .wait: return "Reminder set"
         case .refresh: return "Refreshing"
@@ -204,7 +230,8 @@ struct UsageDecisionView: View {
 
     private var primaryActionSymbol: String {
         switch decision.kind {
-        case .run, .switchProvider: return "doc.on.doc"
+        case .run: return "play.fill"
+        case .switchProvider: return "arrow.left.arrow.right"
         case .useReset: return "arrow.counterclockwise.circle"
         case .wait: return "bell"
         case .refresh: return "arrow.clockwise"
@@ -240,5 +267,36 @@ struct UsageDecisionView: View {
         case .refresh: return .orange
         case .setup: return .secondary
         }
+    }
+
+    private var primaryActionTint: Color {
+        switch decision.kind {
+        case .run:
+            return Color(red: 0.0, green: 0.40, blue: 0.34)
+        case .switchProvider, .refresh, .setup:
+            return Color(red: 0.08, green: 0.32, blue: 0.72)
+        case .useReset:
+            return Color(red: 0.46, green: 0.18, blue: 0.67)
+        case .wait:
+            return Color(red: 0.70, green: 0.28, blue: 0.0)
+        }
+    }
+}
+
+private struct PrimaryDecisionButtonStyle: ButtonStyle {
+    let tint: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                tint.opacity(configuration.isPressed ? 0.78 : 1),
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }

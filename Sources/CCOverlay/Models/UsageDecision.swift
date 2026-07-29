@@ -76,6 +76,8 @@ struct UsageDecision: Equatable, Sendable {
     let confidence: Confidence
     let dataQuality: DataQuality
     let taskFit: TaskFitAssessment?
+    let recommendedHeadroom: Double?
+    let reasons: [String]
 
     init(
         kind: Kind,
@@ -85,7 +87,9 @@ struct UsageDecision: Equatable, Sendable {
         resetAt: Date?,
         confidence: Confidence = .medium,
         dataQuality: DataQuality = .live,
-        taskFit: TaskFitAssessment? = nil
+        taskFit: TaskFitAssessment? = nil,
+        recommendedHeadroom: Double? = nil,
+        reasons: [String] = []
     ) {
         self.kind = kind
         self.title = title
@@ -95,6 +99,8 @@ struct UsageDecision: Equatable, Sendable {
         self.confidence = confidence
         self.dataQuality = dataQuality
         self.taskFit = taskFit
+        self.recommendedHeadroom = recommendedHeadroom
+        self.reasons = reasons
     }
 }
 
@@ -104,6 +110,8 @@ enum UsageDecisionEngine {
         currentProvider: CLIProvider? = nil,
         plannedTaskSize: PlannedTaskSize = .medium,
         fitEvidence: [CLIProvider: TaskFitEvidence] = [:],
+        providerPriority: ProviderPriority = .codexFirst,
+        fullResetPolicy: FullResetPolicy = .balanced,
         staleAfter: TimeInterval = 180,
         now: Date = Date()
     ) -> UsageDecision {
@@ -116,7 +124,8 @@ enum UsageDecisionEngine {
                 recommendedProvider: nil,
                 resetAt: nil,
                 confidence: .low,
-                dataQuality: .stale
+                dataQuality: .stale,
+                reasons: ["No connected provider returned usable usage data."]
             )
         }
 
@@ -133,15 +142,20 @@ enum UsageDecisionEngine {
                 recommendedProvider: currentProvider,
                 resetAt: nil,
                 confidence: .low,
-                dataQuality: .stale
+                dataQuality: .stale,
+                reasons: ["Every connected snapshot is stale or contains a refresh error."]
             )
         }
 
         let ranked = fresh.sorted { headroom(for: $0) > headroom(for: $1) }
-        let best = ranked[0]
-        let mostConstrained = ranked[ranked.count - 1]
+        let best = prioritizedProvider(
+            in: fresh,
+            fallback: ranked[0],
+            priority: providerPriority,
+            plannedTaskSize: plannedTaskSize,
+            fitEvidence: fitEvidence
+        )
         let bestHeadroom = headroom(for: best)
-        let constrainedHeadroom = headroom(for: mostConstrained)
         let bestPace = mostUrgentPace(for: best, now: now)
         let taskFit = taskFitAssessment(
             evidence: fitEvidence[best.provider],
@@ -150,45 +164,101 @@ enum UsageDecisionEngine {
         )
         let quality = dataQuality(fresh: fresh, availableCount: available.count)
         let baseConfidence = confidence(quality: quality, taskFit: taskFit)
+        let applicableResetProvider = fresh.first {
+            $0.creditsInfo?.hasUsableResetCredit(at: now) == true
+        }
+
+        func reasons(
+            for data: ProviderUsageData,
+            headroom: Double,
+            fit: TaskFitAssessment
+        ) -> [String] {
+            var values = [
+                "\(data.provider.rawValue) has \(Int(headroom.rounded()))% active-window headroom.",
+                "\(fit.taskSize.label) task fit: \(fit.label).",
+                "Data quality: \(quality.label).",
+            ]
+            if let alternative = ranked.first(where: { $0.provider != data.provider }) {
+                values.append(
+                    "\(alternative.provider.rawValue) has \(Int(Self.headroom(for: alternative).rounded()))% headroom."
+                )
+            }
+            values.append("Provider priority: \(providerPriority.label).")
+            return values
+        }
+
+        func fullResetDecision(for data: ProviderUsageData) -> UsageDecision {
+            let count = data.creditsInfo?.resetCreditsApplicable ?? 0
+            let expiration = data.creditsInfo?.nextResetCreditExpiration(after: now)
+            let expirationDetail = expiration.map {
+                " It expires in \(DurationFormatting.compactReset($0.timeIntervalSince(now)))."
+            } ?? ""
+            let resetTaskFit = taskFitAssessment(
+                evidence: fitEvidence[data.provider],
+                taskSize: plannedTaskSize,
+                availableHeadroom: 100
+            )
+            return UsageDecision(
+                kind: .useReset,
+                title: "Use a Codex full reset",
+                detail: "\(count) banked reset\(count == 1 ? " is" : "s are") ready to restore the Codex rate limit.\(expirationDetail)",
+                recommendedProvider: data.provider,
+                resetAt: nil,
+                confidence: confidence(quality: quality, taskFit: resetTaskFit),
+                dataQuality: quality,
+                taskFit: resetTaskFit,
+                recommendedHeadroom: 100,
+                reasons: [
+                    "Codex reports \(count) Full Reset\(count == 1 ? "" : "s") ready now.",
+                    "A reset restores the active rate-limit window before this run.",
+                    "Reset policy: \(fullResetPolicy.label).",
+                ] + (expiration.map {
+                    ["The next Full Reset expires in \(DurationFormatting.compactReset($0.timeIntervalSince(now)))."]
+                } ?? [])
+            )
+        }
+
+        if let resetProvider = applicableResetProvider,
+           resetProvider.creditsInfo?.resetCreditExpiresSoon(at: now) == true,
+           headroom(for: resetProvider) <= 10 {
+            return fullResetDecision(for: resetProvider)
+        }
+
+        if fullResetPolicy == .preferReset,
+           let resetProvider = applicableResetProvider,
+           headroom(for: resetProvider) <= 10 {
+            return fullResetDecision(for: resetProvider)
+        }
 
         if ranked.count > 1,
-           currentProvider == mostConstrained.provider,
-           mostConstrained.provider != best.provider,
-           constrainedHeadroom <= 25,
-           bestHeadroom - constrainedHeadroom >= 20
+           let currentProvider,
+           let currentData = fresh.first(where: { $0.provider == currentProvider }),
+           currentProvider != best.provider,
+           headroom(for: currentData) <= 25,
+           bestHeadroom - headroom(for: currentData) >= 20
         {
+            let currentHeadroom = headroom(for: currentData)
             return UsageDecision(
                 kind: .switchProvider,
                 title: "Switch to \(best.provider.rawValue)",
-                detail: "\(Int(bestHeadroom.rounded()))% headroom there versus \(Int(constrainedHeadroom.rounded()))% on \(mostConstrained.provider.rawValue).",
+                detail: "\(Int(bestHeadroom.rounded()))% headroom there versus \(Int(currentHeadroom.rounded()))% on \(currentProvider.rawValue).",
                 recommendedProvider: best.provider,
                 resetAt: best.resetsAt,
                 confidence: baseConfidence,
                 dataQuality: quality,
-                taskFit: taskFit
+                taskFit: taskFit,
+                recommendedHeadroom: bestHeadroom,
+                reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
             )
         }
 
         if taskFit.outcome == .unlikely || bestHeadroom <= 10 || (bestHeadroom <= 20 && bestPace == .burningFast) {
-            if let resetProvider = fresh.first(where: {
-                ($0.creditsInfo?.resetCreditsApplicable ?? 0) > 0
-            }) {
-                let count = resetProvider.creditsInfo?.resetCreditsApplicable ?? 0
-                let resetTaskFit = taskFitAssessment(
-                    evidence: fitEvidence[resetProvider.provider],
-                    taskSize: plannedTaskSize,
-                    availableHeadroom: 100
-                )
-                return UsageDecision(
-                    kind: .useReset,
-                    title: "Use a Codex full reset",
-                    detail: "\(count) banked reset\(count == 1 ? " is" : "s are") ready to restore the Codex rate limit.",
-                    recommendedProvider: resetProvider.provider,
-                    resetAt: nil,
-                    confidence: confidence(quality: quality, taskFit: resetTaskFit),
-                    dataQuality: quality,
-                    taskFit: resetTaskFit
-                )
+            if let resetProvider = applicableResetProvider {
+                let available = resetProvider.creditsInfo?.resetCreditsAvailable ?? 0
+                let expiresSoon = resetProvider.creditsInfo?.resetCreditExpiresSoon(at: now) == true
+                if fullResetPolicy != .conserveLast || available > 1 || expiresSoon {
+                    return fullResetDecision(for: resetProvider)
+                }
             }
 
             let reset = earliestFutureReset(in: fresh, now: now)
@@ -205,7 +275,12 @@ enum UsageDecisionEngine {
                 resetAt: reset,
                 confidence: baseConfidence,
                 dataQuality: quality,
-                taskFit: taskFit
+                taskFit: taskFit,
+                recommendedHeadroom: bestHeadroom,
+                reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
+                    + (fullResetPolicy == .conserveLast && applicableResetProvider != nil
+                        ? ["The final Full Reset is being preserved because it is not close to expiring."]
+                        : [])
             )
         }
 
@@ -229,7 +304,9 @@ enum UsageDecisionEngine {
             resetAt: best.resetsAt,
             confidence: taskFit.outcome == .risky ? .low : baseConfidence,
             dataQuality: quality,
-            taskFit: taskFit
+            taskFit: taskFit,
+            recommendedHeadroom: bestHeadroom,
+            reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
         )
     }
 
@@ -239,6 +316,33 @@ enum UsageDecisionEngine {
             .map { max(0, min(100, 100 - $0.utilization)) }
 
         return activeWindowHeadroom.min() ?? max(0, min(100, data.remainingPercentage))
+    }
+
+    private static func prioritizedProvider(
+        in fresh: [ProviderUsageData],
+        fallback: ProviderUsageData,
+        priority: ProviderPriority,
+        plannedTaskSize: PlannedTaskSize,
+        fitEvidence: [CLIProvider: TaskFitEvidence]
+    ) -> ProviderUsageData {
+        guard priority == .codexFirst,
+              let codex = fresh.first(where: { $0.provider == .codex })
+        else {
+            return fallback
+        }
+        if fallback.provider == .codex || fresh.count == 1 {
+            return codex
+        }
+
+        let codexHeadroom = headroom(for: codex)
+        let fit = taskFitAssessment(
+            evidence: fitEvidence[.codex],
+            taskSize: plannedTaskSize,
+            availableHeadroom: codexHeadroom
+        )
+        let safelyFits = codexHeadroom >= 25
+            && (fit.outcome == .likely || fit.outcome == .learning)
+        return safelyFits ? codex : fallback
     }
 
     private static func taskFitAssessment(

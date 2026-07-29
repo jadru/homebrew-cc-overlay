@@ -141,6 +141,7 @@ struct CreditsDisplayInfo: Sendable {
     let extraUsageEnabled: Bool
     let resetCreditsAvailable: Int
     let resetCreditsApplicable: Int
+    let resetCreditExpirations: [Date]
 
     init(
         planType: String,
@@ -149,7 +150,8 @@ struct CreditsDisplayInfo: Sendable {
         balance: String?,
         extraUsageEnabled: Bool,
         resetCreditsAvailable: Int = 0,
-        resetCreditsApplicable: Int = 0
+        resetCreditsApplicable: Int = 0,
+        resetCreditExpirations: [Date] = []
     ) {
         self.planType = planType
         self.hasCredits = hasCredits
@@ -158,6 +160,24 @@ struct CreditsDisplayInfo: Sendable {
         self.extraUsageEnabled = extraUsageEnabled
         self.resetCreditsAvailable = max(resetCreditsAvailable, 0)
         self.resetCreditsApplicable = max(resetCreditsApplicable, 0)
+        self.resetCreditExpirations = resetCreditExpirations.sorted()
+    }
+
+    func nextResetCreditExpiration(after now: Date = Date()) -> Date? {
+        resetCreditExpirations.first { $0 > now }
+    }
+
+    func hasUsableResetCredit(at now: Date = Date()) -> Bool {
+        guard resetCreditsApplicable > 0 else { return false }
+        return resetCreditExpirations.isEmpty || nextResetCreditExpiration(after: now) != nil
+    }
+
+    func resetCreditExpiresSoon(
+        at now: Date = Date(),
+        threshold: TimeInterval = 24 * 60 * 60
+    ) -> Bool {
+        guard let expiration = nextResetCreditExpiration(after: now) else { return false }
+        return expiration.timeIntervalSince(now) <= threshold
     }
 }
 

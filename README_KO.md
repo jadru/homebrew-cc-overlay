@@ -1,6 +1,6 @@
 # CC-Overlay
 
-**Claude Code**와 **Codex CLI** 사용량을 실시간으로 모니터링하는 macOS 메뉴바 앱.
+**Codex**를 중심으로 **Claude Code** 사용량까지 종합해 다음 실행을 결정하는 macOS 메뉴바 앱.
 
 CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈소스 유틸리티입니다. Anthropic이나 OpenAI와 제휴, 보증 또는 지원 관계가 아닙니다.
 
@@ -11,6 +11,7 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 ## 주요 기능
 
 - **멀티 프로바이더 모니터링** — Claude Code와 OpenAI Codex CLI 사용량 동시 추적
+- **Codex 우선 라우팅** — 계획한 작업이 안전하게 들어가면 Codex를 우선하고, 부족할 때 Claude Code로 자동 폴백
 - **인증된 프로바이더만 표시** — 설정되지 않은 프로바이더를 setup/사용량 지표로 잘못 노출하지 않음
 - **실시간 rate-limit 윈도우** — Claude Code와 Codex OAuth의 5시간·7일 한도 표시
 - **명확한 로컬 폴백** — Claude JSONL 추정값에는 `~`와 "local estimate"를 표시
@@ -18,8 +19,12 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 - **페이스 신호** — 5H·7D 타임라인에서 빠른 소진, 정상 페이스, 여유 상태를 구분
 - **실행 가능한 추천** — 연결된 프로바이더를 종합해 신뢰도가 표시된 Run, Wait, Switch, Refresh 상태를 제안
 - **작업 적합도 학습** — 로컬 사용 변화에서 Small, Medium, Large 작업이 현재 한도에 들어갈 가능성을 계산
-- **의사결정 액션** — 추천 CLI 명령 복사, 리셋 알림 예약, 추천 품질 평가를 카드에서 바로 실행
-- **Codex Full Reset** — 보유한 rate-limit reset을 표시하고 사용 가능할 때 Codex Usage로 바로 이동
+- **가이드 Run / Switch** — 활성 프로젝트 위치에서 추천 CLI를 Terminal 또는 iTerm2로 실행하고 실패 시 전체 명령을 안전하게 복사
+- **설명 가능한 추천** — 각 결정에 사용한 잔여량, 작업 적합도, 데이터 품질, 대안 신호 확인
+- **실행 결과 학습** — 완료, 한도 도달, 전환, 리셋, 취소 결과를 로컬에 기록해 이후 작업 적합도 개선
+- **만료 인식 Codex Full Reset** — 확인 가능한 reset 만료까지 표시하고, 적용 가능한 reset이 소멸되기 전에 추천에 반영
+- **로컬 히스토리와 예측** — 7일 잔여량 변화와 현재 페이스 기준 한도 도달 예상 시간 표시
+- **활성화 및 프로바이더 상태** — 설치, 로그인, stale, 응답 변경, 지연, 반복 실패 상태 진단
 - **조건부 프로바이더 전환** — 두 프로바이더 모두 사용량이 있을 때만 compact selector 표시
 - **비용 임계값 알림** — 70%, 90% 사용 시 macOS 알림
 - **글로벌 단축키** — `Cmd+Shift+A`로 오버레이 토글
@@ -98,13 +103,14 @@ VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./s
 |------|-----------|----------|
 | **Anthropic OAuth** | Claude Code | Claude Code Keychain 인증 정보 — 실시간 5시간·7일 버킷 |
 | **Codex OAuth** | Codex CLI | Codex가 `~/.codex/auth.json`에 저장한 ChatGPT 로그인 |
+| **Codex app-server** | Codex / ChatGPT 앱 | 지원되는 경우 Full Reset 개수에 공식 `expiresAt` 상세를 보강 |
 | **로컬 JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` 폴백 — 로그 기반 추정값임을 명시 |
 
 ## 개인정보 및 프로바이더 접근
 
-CC-Overlay는 개발자가 운영하는 backend를 두지 않으며, 사용량 기록이나 OAuth credential을 프로젝트 유지보수자에게 업로드하지 않습니다. 선택한 provider의 usage endpoint와, 업데이트 확인을 켠 경우 GitHub Releases에만 outbound request를 보냅니다.
+CC-Overlay는 개발자가 운영하는 backend를 두지 않으며, 사용량 기록이나 OAuth credential을 프로젝트 유지보수자에게 업로드하지 않습니다. 사용량 메타데이터에 필요한 provider 소유 서비스와, 업데이트 확인을 켠 경우 GitHub Releases에만 통신합니다.
 
-- Codex 사용량은 로컬 Codex CLI 인증 파일을 읽고 provider usage endpoint에 직접 요청합니다.
+- Codex 사용량은 로컬 인증 파일을 읽고 usage endpoint에 직접 요청합니다. 최신 Codex app-server가 있으면 이를 로컬에서 실행해 Full Reset 만료 메타데이터만 읽으며 대화는 만들지 않습니다.
 - Claude transcript 추정은 최근 로컬 JSONL 파일을 읽습니다. Claude OAuth rate limit 접근은 기본적으로 꺼져 있으며 Settings에서 명시적으로 켤 때만 시도합니다.
 - 사용량 기록, 설정, diagnostic log는 로컬 Mac에 저장됩니다.
 
@@ -135,6 +141,9 @@ provider token은 민감한 정보입니다. provider를 활성화하기 전에 
 | Plan tier | Pro | 로컬 JSONL 모드용 (Pro/Max/Enterprise/Custom) |
 | Claude OAuth rate limits | Off | 명시적으로 켠 경우에만 Claude Keychain credential 읽기 |
 | Refresh interval | 1분 | 사용량 데이터 갱신 주기 |
+| Run in | Terminal | 가이드 Run / Switch 액션에 사용할 Terminal 또는 iTerm2 |
+| Provider priority | Codex first | 작업이 안전하게 들어가면 Codex를 우선하고, 아니면 충분한 headroom이 있는 프로바이더 사용 |
+| Full Reset policy | Balanced | reset 균형 사용, 마지막 reset 보존, 전환보다 reset 우선 설정 |
 | Launch at login | Off | macOS 시작 시 자동 실행 |
 
 ### 모델별 가격

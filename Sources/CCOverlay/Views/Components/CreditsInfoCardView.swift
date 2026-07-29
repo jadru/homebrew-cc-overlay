@@ -81,10 +81,13 @@ struct CreditsInfoCardView: View {
     }
 
     private var resetCreditsValue: String {
+        let expiration = credits.nextResetCreditExpiration().map {
+            " · \(DurationFormatting.compactReset($0.timeIntervalSinceNow)) left"
+        } ?? ""
         if credits.resetCreditsApplicable > 0 {
-            return "\(credits.resetCreditsAvailable) available · Use now"
+            return "\(credits.resetCreditsAvailable) available · Use now\(expiration)"
         }
-        return "\(credits.resetCreditsAvailable) banked"
+        return "\(credits.resetCreditsAvailable) banked\(expiration)"
     }
 
     @ViewBuilder

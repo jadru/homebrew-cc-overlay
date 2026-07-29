@@ -10,6 +10,8 @@ final class MockProviderService: ProviderServiceProtocol {
     var isLoading: Bool = false
     var error: String?
     var lastRefresh: Date?
+    var lastRefreshDuration: TimeInterval?
+    var consecutiveNetworkFailures = 0
     var lastActivityAt: Date?
 
     var usedPercentage: Double

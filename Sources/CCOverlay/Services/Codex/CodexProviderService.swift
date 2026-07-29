@@ -6,6 +6,8 @@ import Observation
 final class CodexProviderService: BaseProviderService {
     private var oauthService: CodexOAuthService?
     private var oauthSnapshot: CodexOAuthService.UsageSnapshot?
+    private let appServerService = CodexAppServerService()
+    private var codexBinaryPath: String?
 
     init() {
         super.init(provider: .codex)
@@ -17,6 +19,7 @@ final class CodexProviderService: BaseProviderService {
     func detect() async -> Bool {
         let detection = CodexDetector.detect()
         setDetected(detection.binaryPath != nil)
+        codexBinaryPath = detection.binaryPath
 
         guard let auth = detection.chatgptAuth else {
             setAuthenticated(false)
@@ -50,7 +53,16 @@ final class CodexProviderService: BaseProviderService {
         guard canAttemptNetworkRefresh() else { return }
 
         do {
-            let snapshot = try await oauthService.fetchUsage()
+            var snapshot = try await oauthService.fetchUsage()
+            if let resetCredits = snapshot.rateLimitResetCredits,
+               resetCredits.availableCount > 0,
+               let codexBinaryPath,
+               let details = try? await appServerService.fetchResetCredits(
+                   binaryPath: codexBinaryPath,
+                   expectedCount: resetCredits.availableCount
+               ) {
+                snapshot = Self.enrich(snapshot, with: details)
+            }
             trackActivity(newUsedPct: Double(snapshot.primaryWindow?.usedPercent ?? 0))
             oauthSnapshot = snapshot
             markRefreshed()
@@ -128,14 +140,25 @@ final class CodexProviderService: BaseProviderService {
             }
         }
 
+        let availableResetCredits = Self.effectiveResetCreditCount(
+            snapshot.rateLimitResetCredits,
+            now: now
+        )
         let creditsDisplay = CreditsDisplayInfo(
             planType: snapshot.planType.capitalized,
             hasCredits: snapshot.credits?.hasCredits ?? false,
             unlimited: snapshot.credits?.unlimited ?? false,
             balance: snapshot.credits?.balance,
             extraUsageEnabled: snapshot.extraUsageEnabled,
-            resetCreditsAvailable: snapshot.rateLimitResetCredits?.availableCount ?? 0,
-            resetCreditsApplicable: snapshot.rateLimitResetCredits?.applicableAvailableCount ?? 0
+            resetCreditsAvailable: availableResetCredits,
+            resetCreditsApplicable: min(
+                snapshot.rateLimitResetCredits?.applicableAvailableCount ?? 0,
+                availableResetCredits
+            ),
+            resetCreditExpirations: snapshot.rateLimitResetCredits?.credits.compactMap { credit in
+                guard credit.status == "available" else { return nil }
+                return credit.expiresAt
+            } ?? []
         )
 
         var detailedWindows = [DetailedRateWindow]()
@@ -220,6 +243,39 @@ final class CodexProviderService: BaseProviderService {
         }
 
         return "\(windowSeconds / 60)m"
+    }
+
+    nonisolated static func enrich(
+        _ snapshot: CodexOAuthService.UsageSnapshot,
+        with details: CodexOAuthService.RateLimitResetCredits
+    ) -> CodexOAuthService.UsageSnapshot {
+        let originalApplicable = snapshot.rateLimitResetCredits?.applicableAvailableCount ?? 0
+        let mergedResetCredits = CodexOAuthService.RateLimitResetCredits(
+            availableCount: details.availableCount,
+            applicableAvailableCount: min(originalApplicable, details.availableCount),
+            credits: details.credits
+        )
+        return CodexOAuthService.UsageSnapshot(
+            planType: snapshot.planType,
+            primaryWindow: snapshot.primaryWindow,
+            secondaryWindow: snapshot.secondaryWindow,
+            credits: snapshot.credits,
+            rateLimitResetCredits: mergedResetCredits,
+            additionalLimits: snapshot.additionalLimits,
+            fetchedAt: snapshot.fetchedAt,
+            extraUsageEnabled: snapshot.extraUsageEnabled
+        )
+    }
+
+    nonisolated static func effectiveResetCreditCount(
+        _ resetCredits: CodexOAuthService.RateLimitResetCredits?,
+        now: Date = Date()
+    ) -> Int {
+        guard let resetCredits else { return 0 }
+        let expiredDetailedCredits = resetCredits.credits.filter { credit in
+            credit.status == "available" && credit.expiresAt.map { $0 <= now } == true
+        }.count
+        return max(resetCredits.availableCount - expiredDetailedCredits, 0)
     }
 
     nonisolated static func normalizedAdditionalLimitLabel(limitName: String, meteredFeature: String?) -> String {

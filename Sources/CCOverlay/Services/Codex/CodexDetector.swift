@@ -34,7 +34,9 @@ enum CodexDetector {
     }
 
     static func findBinary(home: String = FileManager.default.homeDirectoryForCurrentUser.path) -> String? {
-        let candidates = [
+        var candidates = [
+            "\(home)/Applications/Codex.app/Contents/Resources/codex",
+            "\(home)/Applications/ChatGPT.app/Contents/Resources/codex",
             "\(home)/Library/Application Support/com.conductor.app/bin/codex",
             "\(home)/.asdf/shims/codex",
             "/opt/homebrew/bin/codex",
@@ -42,6 +44,12 @@ enum CodexDetector {
             "\(home)/.local/bin/codex",
             "\(home)/.npm/bin/codex",
         ]
+        if home == FileManager.default.homeDirectoryForCurrentUser.path {
+            candidates.insert(contentsOf: [
+                "/Applications/Codex.app/Contents/Resources/codex",
+                "/Applications/ChatGPT.app/Contents/Resources/codex",
+            ], at: 0)
+        }
         for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
             return path
         }
