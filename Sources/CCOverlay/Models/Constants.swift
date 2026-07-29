@@ -145,7 +145,7 @@ enum TokenCostWeight {
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.12.1"
+    static let version = "0.13.0"
     static let githubRepo = "jadru/homebrew-cc-overlay"
     static let codexUsageDashboardURL = URL(string: "https://chatgpt.com/codex/settings/usage")!
     static let homebrewTap = "jadru/cc-overlay"

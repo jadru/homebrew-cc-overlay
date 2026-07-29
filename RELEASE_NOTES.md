@@ -1,3 +1,20 @@
+# v0.13.0
+
+## Unlimited Codex CLI Profiles and Token Activity
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Unlimited Codex CLI profiles** — Adds any number of isolated `CODEX_HOME` profiles, with enable, select, sign-in, and remove controls that never delete the underlying credential directory.
+- **Per-account headroom and token activity** — Reads official Codex app-server rate limits and exact activity totals for today and the last seven days without presenting activity as a token allowance.
+- **Manual switching with a best-account hint** — Keeps account rotation under user control while showing which enabled profile currently has the most headroom.
+- **Profile-aware terminal runs** — Launches Codex CLI and login sessions with the selected profile's `CODEX_HOME`; the Codex desktop GUI login is intentionally left unchanged.
+- **Bounded background refresh** — Refreshes the selected account at the configured interval, other accounts every five minutes, and no more than three profiles concurrently.
+- **Migration and scale coverage** — Migrates the existing `~/.codex` login into a default profile and verifies zero, one, two, five, and twenty-profile states.
+
+---
+
 # v0.12.1
 
 ## Reliable In-App Updates

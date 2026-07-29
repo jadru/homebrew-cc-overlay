@@ -31,4 +31,22 @@ final class TerminalLauncherTests: XCTestCase {
         XCTAssertTrue(source.contains("echo \\\\\\\"ready\\\\\\\""))
         XCTAssertTrue(source.contains("printf '\\\\\\\\n'"))
     }
+
+    func testCodexProfileLaunchCommandSetsQuotedCodexHome() {
+        let command = TerminalLauncher.codexLaunchCommand(
+            codexHome: "/Users/tester/Codex Accounts/client's work"
+        )
+
+        XCTAssertTrue(command.contains("CODEX_HOME='/Users/tester/Codex Accounts/client'\\''s work'"))
+        XCTAssertTrue(command.contains("codex"))
+    }
+
+    func testCodexProfileLoginUsesFileCredentialStorage() {
+        let command = TerminalLauncher.codexLoginCommand(codexHome: "/Users/tester/.codex-client")
+
+        XCTAssertTrue(command.contains("mkdir -p"))
+        XCTAssertTrue(command.contains("CODEX_HOME='/Users/tester/.codex-client'"))
+        XCTAssertTrue(command.contains("cli_auth_credentials_store"))
+        XCTAssertTrue(command.hasSuffix(" login"))
+    }
 }
