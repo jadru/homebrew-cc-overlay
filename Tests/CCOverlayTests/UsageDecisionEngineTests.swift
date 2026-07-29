@@ -13,6 +13,50 @@ final class UsageDecisionEngineTests: XCTestCase {
         XCTAssertEqual(decision.recommendedProvider, .codex)
     }
 
+    func testCodexFirstPrefersSafeCodexEvenWhenClaudeHasMoreHeadroom() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(.claudeCode, remaining: 90, refreshedAt: now),
+                data(.codex, remaining: 55, refreshedAt: now),
+            ],
+            providerPriority: .codexFirst,
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .run)
+        XCTAssertEqual(decision.recommendedProvider, .codex)
+        XCTAssertTrue(decision.reasons.contains { $0.contains("Codex first") })
+    }
+
+    func testMostHeadroomStrategyCanPreferClaude() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(.claudeCode, remaining: 90, refreshedAt: now),
+                data(.codex, remaining: 55, refreshedAt: now),
+            ],
+            providerPriority: .mostHeadroom,
+            now: now
+        )
+
+        XCTAssertEqual(decision.recommendedProvider, .claudeCode)
+    }
+
+    func testCodexFirstFallsBackWhenCodexDoesNotSafelyFit() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(.claudeCode, remaining: 80, refreshedAt: now),
+                data(.codex, remaining: 20, refreshedAt: now),
+            ],
+            providerPriority: .codexFirst,
+            now: now
+        )
+
+        XCTAssertEqual(decision.recommendedProvider, .claudeCode)
+    }
+
     func testRecommendsSwitchWhenCurrentProviderIsConstrained() {
         let now = Date()
         let decision = UsageDecisionEngine.recommend(from: [
@@ -89,6 +133,47 @@ final class UsageDecisionEngineTests: XCTestCase {
 
         XCTAssertEqual(decision.kind, .wait)
         XCTAssertTrue(decision.reasons.contains { $0.contains("preserved") })
+    }
+
+    func testExpiringResetOverridesConservePolicyWhenCodexIsAtLimit() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let expiration = now.addingTimeInterval(6 * 60 * 60)
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(
+                    .codex,
+                    remaining: 0,
+                    refreshedAt: now,
+                    resetCreditsAvailable: 1,
+                    resetCreditsApplicable: 1,
+                    resetCreditExpirations: [expiration]
+                ),
+            ],
+            fullResetPolicy: .conserveLast,
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .useReset)
+        XCTAssertTrue(decision.detail.contains("expires in"))
+    }
+
+    func testExpiredResetIsNotRecommended() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(
+                    .codex,
+                    remaining: 0,
+                    refreshedAt: now,
+                    resetCreditsAvailable: 1,
+                    resetCreditsApplicable: 1,
+                    resetCreditExpirations: [now.addingTimeInterval(-1)]
+                ),
+            ],
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .wait)
     }
 
     func testPreferResetPolicyUsesResetBeforeHealthyAlternative() {
@@ -194,7 +279,8 @@ final class UsageDecisionEngineTests: XCTestCase {
         reset: Date? = nil,
         refreshedAt: Date? = Date(),
         resetCreditsAvailable: Int = 0,
-        resetCreditsApplicable: Int = 0
+        resetCreditsApplicable: Int = 0,
+        resetCreditExpirations: [Date] = []
     ) -> ProviderUsageData {
         ProviderUsageData(
             provider: provider,
@@ -214,7 +300,8 @@ final class UsageDecisionEngineTests: XCTestCase {
                     balance: nil,
                     extraUsageEnabled: false,
                     resetCreditsAvailable: resetCreditsAvailable,
-                    resetCreditsApplicable: resetCreditsApplicable
+                    resetCreditsApplicable: resetCreditsApplicable,
+                    resetCreditExpirations: resetCreditExpirations
                 )
                 : nil,
             lastRefresh: refreshedAt

@@ -26,6 +26,7 @@
 - 프로바이더 상태를 종합한 Run / Wait / Switch 추천
 - stale 차단, 신뢰도, 추천 안정화 및 작업 크기별 적합도 학습
 - 활성 프로젝트에서 실제 CLI 실행/전환, 결과 기록, 설명 가능한 추천, Full Reset 정책
+- Codex-first 안전 라우팅과 Codex app-server 기반 Full Reset 만료 인식
 - 7일 로컬 히스토리, 소진 ETA, Provider Health Dashboard
 - 서비스·네트워크·인증·데이터·UI 채널별 OSLog와 adaptive polling backoff
 - `UNUserNotificationCenter` 기반 사용량/리셋 알림

@@ -6,6 +6,8 @@ enum CLIProvider: String, CaseIterable, Codable, Identifiable, Hashable, Sendabl
     case claudeCode = "Claude Code"
     case codex = "Codex"
 
+    static let productOrder: [CLIProvider] = [.codex, .claudeCode]
+
     var id: String { rawValue }
 
     var iconName: String {

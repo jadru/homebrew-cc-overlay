@@ -70,7 +70,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Know before you run")
                     .font(.system(size: 29, weight: .bold, design: .rounded))
-                Text("CC-Overlay keeps Claude Code and Codex headroom visible, then recommends whether to run, wait, or switch providers.")
+                Text("CC-Overlay puts Codex headroom and Full Reset expiry first, then uses Claude Code as a safe fallback when Codex cannot fit the run.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -95,13 +95,13 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Connect your coding tools")
                     .font(.system(size: 25, weight: .bold, design: .rounded))
-                Text("Signed-in providers are detected locally. Unconfigured tools stay hidden from the overlay.")
+                Text("Codex is the default recommendation. Signed-in providers are detected locally, and unconfigured tools stay hidden.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            ForEach(CLIProvider.allCases) { provider in
+            ForEach(CLIProvider.productOrder) { provider in
                 providerRow(provider)
             }
 

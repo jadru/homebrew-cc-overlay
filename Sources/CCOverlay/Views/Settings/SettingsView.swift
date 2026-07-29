@@ -41,7 +41,7 @@ struct SettingsView: View {
     private var generalTab: some View {
         Form {
             Section("Providers") {
-                ForEach(CLIProvider.allCases) { provider in
+                ForEach(CLIProvider.productOrder) { provider in
                     providerStatusRow(for: provider)
 
                     if provider == .claudeCode {
@@ -64,6 +64,19 @@ struct SettingsView: View {
             }
 
             Section("Decision workflow") {
+                Picker("Provider priority", selection: $settings.providerPriority) {
+                    ForEach(ProviderPriority.allCases) { priority in
+                        Text(priority.label).tag(priority)
+                    }
+                }
+                .onChange(of: settings.providerPriority) { _, priority in
+                    multiService.updateProviderPriority(priority)
+                }
+
+                Text(settings.providerPriority.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("Run in", selection: $settings.preferredTerminal) {
                     ForEach(PreferredTerminal.allCases) { terminal in
                         Text(terminal.label).tag(terminal)

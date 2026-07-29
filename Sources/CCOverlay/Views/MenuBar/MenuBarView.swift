@@ -232,7 +232,7 @@ struct MenuBarView: View {
             actionError = error.localizedDescription
             UsageExportService.copyToClipboard(
                 TerminalLauncher.shellCommand(
-                    command: provider.launchCommand,
+                    command: TerminalLauncher.launchCommand(for: provider),
                     workingDirectory: directory
                 )
             )
