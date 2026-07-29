@@ -6,6 +6,8 @@
 
 ### Highlights
 
+- **Codex-first routing** — Makes Codex the default provider when the selected task safely fits, while retaining a highest-headroom strategy and Claude Code fallback.
+- **Expiry-aware Full Resets** — Reads official reset-credit details from current Codex app-server builds, shows the next expiration, ignores expired details, and uses an expiring applicable reset instead of preserving it past usefulness.
 - **Activation Doctor** — Distinguishes a missing CLI, required sign-in, stale data, provider-response changes, and healthy connections, with direct recovery actions.
 - **Real Run / Switch actions** — Opens Claude Code or Codex in Terminal or iTerm2 at the active project, with a safe command-copy fallback.
 - **Outcome learning** — Tracks completed runs, limit hits, provider switches, resets, and cancellations locally so task-fit estimates can improve from actual outcomes.

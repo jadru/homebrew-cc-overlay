@@ -49,7 +49,14 @@ final class MultiProviderUsageService {
 
     /// Providers with usage data ready for display.
     var availableProviders: [CLIProvider] {
-        activeProviders.filter { usageData(for: $0).isAvailable }
+        let available = activeProviders.filter { usageData(for: $0).isAvailable }
+        guard settings?.providerPriority == .mostHeadroom else {
+            return CLIProvider.productOrder.filter(available.contains)
+        }
+        return available.sorted {
+            UsageDecisionEngine.headroom(for: usageData(for: $0))
+                > UsageDecisionEngine.headroom(for: usageData(for: $1))
+        }
     }
 
     /// The provider with the lowest remaining percentage (most critical).
@@ -70,6 +77,7 @@ final class MultiProviderUsageService {
             currentProvider: recentlyActiveProviders.first,
             plannedTaskSize: taskSize,
             fitEvidence: evidence,
+            providerPriority: settings?.providerPriority ?? .codexFirst,
             fullResetPolicy: settings?.fullResetPolicy ?? .balanced,
             staleAfter: staleThreshold
         )
@@ -93,6 +101,11 @@ final class MultiProviderUsageService {
 
     func updateFullResetPolicy(_ policy: FullResetPolicy) {
         settings?.fullResetPolicy = policy
+        decisionStabilizer.reset()
+    }
+
+    func updateProviderPriority(_ priority: ProviderPriority) {
+        settings?.providerPriority = priority
         decisionStabilizer.reset()
     }
 

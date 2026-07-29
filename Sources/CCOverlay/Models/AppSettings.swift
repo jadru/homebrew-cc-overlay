@@ -28,6 +28,7 @@ final class AppSettings {
         static let firstUsageAt = "firstUsageAt"
         static let plannedTaskSize = "plannedTaskSize"
         static let preferredTerminal = "preferredTerminal"
+        static let providerPriority = "providerPriority"
         static let fullResetPolicy = "fullResetPolicy"
     }
 
@@ -252,6 +253,19 @@ final class AppSettings {
         }
     }
 
+    var providerPriority: ProviderPriority {
+        get {
+            access(keyPath: \.providerPriority)
+            let rawValue = UserDefaults.standard.string(forKey: Key.providerPriority)
+            return ProviderPriority(rawValue: rawValue ?? "") ?? .codexFirst
+        }
+        set {
+            withMutation(keyPath: \.providerPriority) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.providerPriority)
+            }
+        }
+    }
+
     var fullResetPolicy: FullResetPolicy {
         get {
             access(keyPath: \.fullResetPolicy)
@@ -292,6 +306,7 @@ final class AppSettings {
             Key.hasCompletedOnboarding: false,
             Key.plannedTaskSize: PlannedTaskSize.medium.rawValue,
             Key.preferredTerminal: PreferredTerminal.terminal.rawValue,
+            Key.providerPriority: ProviderPriority.codexFirst.rawValue,
             Key.fullResetPolicy: FullResetPolicy.balanced.rawValue,
         ])
     }

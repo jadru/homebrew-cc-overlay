@@ -69,4 +69,75 @@ final class CodexOAuthServiceTests: XCTestCase {
             .init(availableCount: 2, applicableAvailableCount: 1)
         )
     }
+
+    func testParsesResetCreditExpirationWhenUsageEndpointProvidesDetails() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "rate_limit": [
+                "primary_window": [
+                    "used_percent": 100,
+                    "limit_window_seconds": 18_000,
+                    "reset_at": 1_700_003_600,
+                ],
+            ],
+            "rate_limit_reset_credits": [
+                "available_count": 1,
+                "applicable_available_count": 1,
+                "credits": [[
+                    "status": "available",
+                    "granted_at": 1_783_963_632,
+                    "expires_at": 1_786_555_632,
+                ]],
+            ],
+        ])
+
+        let usage = try CodexOAuthService.parseUsageResponse(data)
+
+        XCTAssertEqual(usage.rateLimitResetCredits?.credits.count, 1)
+        XCTAssertEqual(
+            usage.rateLimitResetCredits?.credits.first?.expiresAt,
+            Date(timeIntervalSince1970: 1_786_555_632)
+        )
+    }
+
+    func testParsesOfficialAppServerResetCreditShape() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "id": 2,
+            "result": [
+                "rateLimitResetCredits": [
+                    "availableCount": 1,
+                    "credits": [[
+                        "status": "available",
+                        "grantedAt": 1_783_963_632,
+                        "expiresAt": 1_786_555_632,
+                    ]],
+                ],
+            ],
+        ])
+
+        let snapshot = try CodexAppServerService.parseRateLimitResetResponse(data)
+
+        XCTAssertEqual(snapshot.availableCount, 1)
+        XCTAssertEqual(snapshot.credits.first?.status, "available")
+        XCTAssertEqual(
+            snapshot.credits.first?.expiresAt,
+            Date(timeIntervalSince1970: 1_786_555_632)
+        )
+    }
+
+    func testExpiredDetailedResetIsRemovedFromEffectiveCount() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let credits = CodexOAuthService.RateLimitResetCredits(
+            availableCount: 1,
+            applicableAvailableCount: 1,
+            credits: [
+                .init(
+                    status: "available",
+                    grantedAt: nil,
+                    expiresAt: now.addingTimeInterval(-1)
+                ),
+            ]
+        )
+
+        XCTAssertEqual(CodexProviderService.effectiveResetCreditCount(credits, now: now), 0)
+    }
 }

@@ -23,10 +23,17 @@ enum TerminalLauncher {
         terminal: PreferredTerminal
     ) throws {
         try launch(
-            command: provider.launchCommand,
+            command: launchCommand(for: provider),
             workingDirectory: workingDirectory,
             terminal: terminal
         )
+    }
+
+    nonisolated static func launchCommand(for provider: CLIProvider) -> String {
+        if provider == .codex, let binaryPath = CodexDetector.findBinary() {
+            return shellQuote(binaryPath)
+        }
+        return provider.launchCommand
     }
 
     static func launch(

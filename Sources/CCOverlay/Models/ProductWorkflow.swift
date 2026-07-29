@@ -14,6 +14,30 @@ enum PreferredTerminal: String, CaseIterable, Codable, Identifiable, Sendable {
     }
 }
 
+enum ProviderPriority: String, CaseIterable, Codable, Identifiable, Sendable {
+    case codexFirst
+    case mostHeadroom
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .codexFirst: return "Codex first"
+        case .mostHeadroom: return "Most headroom"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .codexFirst:
+            return "Prefer Codex when it can safely fit the task, then fall back to Claude Code."
+        case .mostHeadroom:
+            return "Choose whichever connected provider currently has the most usable headroom."
+        }
+    }
+
+}
+
 enum FullResetPolicy: String, CaseIterable, Codable, Identifiable, Sendable {
     case balanced
     case conserveLast
@@ -31,8 +55,8 @@ enum FullResetPolicy: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var detail: String {
         switch self {
-        case .balanced: return "Use a Full Reset only when no safer provider has enough room."
-        case .conserveLast: return "Keep the final banked reset and recommend waiting instead."
+        case .balanced: return "Use a Full Reset when Codex needs it and switching is not safer."
+        case .conserveLast: return "Keep the final reset unless it is close to expiring."
         case .preferReset: return "Prefer an applicable Full Reset over switching providers."
         }
     }
