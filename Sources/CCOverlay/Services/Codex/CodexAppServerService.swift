@@ -9,6 +9,7 @@ import Foundation
 actor CodexAppServerService {
     private struct Cache: Sendable {
         let binaryPath: String
+        let codexHome: String
         let expectedCount: Int
         let snapshot: CodexOAuthService.RateLimitResetCredits
         let fetchedAt: Date
@@ -35,11 +36,13 @@ actor CodexAppServerService {
 
     func fetchResetCredits(
         binaryPath: String,
+        codexHome: String = AppConstants.codexConfigPath,
         expectedCount: Int,
         now: Date = Date()
     ) async throws -> CodexOAuthService.RateLimitResetCredits {
         if let cache,
            cache.binaryPath == binaryPath,
+           cache.codexHome == codexHome,
            cache.expectedCount == expectedCount,
            now.timeIntervalSince(cache.fetchedAt) < 60 * 60 {
             return cache.snapshot
@@ -51,10 +54,11 @@ actor CodexAppServerService {
 
         do {
             let snapshot = try await Task.detached(priority: .utility) {
-                try Self.queryResetCredits(binaryPath: binaryPath, timeout: 5)
+                try Self.queryResetCredits(binaryPath: binaryPath, codexHome: codexHome, timeout: 5)
             }.value
             cache = Cache(
                 binaryPath: binaryPath,
+                codexHome: codexHome,
                 expectedCount: expectedCount,
                 snapshot: snapshot,
                 fetchedAt: now
@@ -99,6 +103,7 @@ actor CodexAppServerService {
 
     nonisolated private static func queryResetCredits(
         binaryPath: String,
+        codexHome: String,
         timeout: TimeInterval
     ) throws -> CodexOAuthService.RateLimitResetCredits {
         guard FileManager.default.isExecutableFile(atPath: binaryPath) else {
@@ -112,6 +117,9 @@ actor CodexAppServerService {
 
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = ["app-server", "--listen", "stdio://"]
+        var environment = ProcessInfo.processInfo.environment
+        environment["CODEX_HOME"] = codexHome
+        process.environment = environment
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         process.standardError = FileHandle.nullDevice

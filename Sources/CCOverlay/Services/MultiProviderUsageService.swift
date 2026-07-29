@@ -15,7 +15,8 @@ final class MultiProviderUsageService {
     private var services: [CLIProvider: any ProviderServiceProtocol] = [:]
     private var settings: AppSettings?
     private var detectionTask: Task<Void, Never>?
-    private let serviceFactory: ProviderServiceFactory
+    private let serviceFactory: ProviderServiceFactory?
+    private let codexHomeProvider: @MainActor () -> String?
     private var isMonitoring = false
     private var monitoringInterval = AppConstants.defaultRefreshInterval
     private var monitoredProviders = Set<CLIProvider>()
@@ -28,9 +29,11 @@ final class MultiProviderUsageService {
 
     init(
         serviceFactory: ProviderServiceFactory? = nil,
-        decisionHistory: DecisionHistoryStore? = nil
+        decisionHistory: DecisionHistoryStore? = nil,
+        codexHomeProvider: @escaping @MainActor () -> String? = { AppConstants.codexConfigPath }
     ) {
-        self.serviceFactory = serviceFactory ?? Self.defaultServiceFactory
+        self.serviceFactory = serviceFactory
+        self.codexHomeProvider = codexHomeProvider
         let history = decisionHistory ?? DecisionHistoryStore()
         self.decisionHistory = history
         self.pendingRun = history.pendingRun
@@ -330,7 +333,14 @@ final class MultiProviderUsageService {
     }
 
     private func createAndDetect(for provider: CLIProvider) async -> (any ProviderServiceProtocol)? {
-        await serviceFactory(provider, settings)
+        if let serviceFactory {
+            return await serviceFactory(provider, settings)
+        }
+        return await Self.defaultServiceFactory(
+            for: provider,
+            settings: settings,
+            codexHomeProvider: codexHomeProvider
+        )
     }
 
     private func startServicesIfNeeded() {
@@ -343,7 +353,8 @@ final class MultiProviderUsageService {
 
     private static func defaultServiceFactory(
         for provider: CLIProvider,
-        settings: AppSettings?
+        settings: AppSettings?,
+        codexHomeProvider: @escaping @MainActor () -> String?
     ) async -> (any ProviderServiceProtocol)? {
         switch provider {
         case .claudeCode:
@@ -354,7 +365,7 @@ final class MultiProviderUsageService {
             }
             return service.detect() ? service : nil
         case .codex:
-            let service = CodexProviderService()
+            let service = CodexProviderService(codexHomeProvider: codexHomeProvider)
             return await service.revalidate(settings: settings) ? service : nil
         }
     }

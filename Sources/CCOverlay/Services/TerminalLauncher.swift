@@ -36,6 +36,17 @@ enum TerminalLauncher {
         return provider.launchCommand
     }
 
+    nonisolated static func codexLaunchCommand(codexHome: String) -> String {
+        let binary = CodexDetector.findBinary().map(shellQuote) ?? CLIProvider.codex.launchCommand
+        return "CODEX_HOME=\(shellQuote(codexHome)) \(binary)"
+    }
+
+    nonisolated static func codexLoginCommand(codexHome: String) -> String {
+        let binary = CodexDetector.findBinary().map(shellQuote) ?? CLIProvider.codex.launchCommand
+        let config = shellQuote("cli_auth_credentials_store=\"file\"")
+        return "mkdir -p \(shellQuote(codexHome)) && CODEX_HOME=\(shellQuote(codexHome)) \(binary) -c \(config) login"
+    }
+
     static func launch(
         command: String,
         workingDirectory: URL,
