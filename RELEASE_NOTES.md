@@ -1,4 +1,4 @@
-# Unreleased
+# v0.12.0
 
 ## Guided Runs and Provider Health
 
