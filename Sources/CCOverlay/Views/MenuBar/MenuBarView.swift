@@ -11,6 +11,8 @@ struct MenuBarView: View {
     }
 
     let multiService: MultiProviderUsageService
+    let codexProfileStore: CodexAccountProfileStore
+    let codexAccountMonitor: CodexAccountMonitor
     @Bindable var settings: AppSettings
     let updateService: UpdateService
     var costAlertManager: CostAlertManager? = nil
@@ -127,6 +129,13 @@ struct MenuBarView: View {
                 if availableProviders.count > 1 {
                     providerRail
                 }
+                if provider == .codex {
+                    CodexAccountsMenuView(
+                        profileStore: codexProfileStore,
+                        monitor: codexAccountMonitor,
+                        onSelect: selectCodexProfile
+                    )
+                }
                 let decision = multiService.usageDecision
                 UsageDecisionView(
                     decision: decision,
@@ -165,7 +174,11 @@ struct MenuBarView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(provider.rawValue)
+                    Text(
+                        provider == .codex
+                            ? "Codex · \(codexProfileStore.selectedProfile?.displayName ?? "Default")"
+                            : provider.rawValue
+                    )
                         .font(.system(size: 17, weight: .bold))
                         .lineLimit(1)
                         .layoutPriority(1)
@@ -205,6 +218,12 @@ struct MenuBarView: View {
 
     private func launchRecommendedProvider(_ decision: UsageDecision) async {
         guard let provider = decision.recommendedProvider else { return }
+        let launchCommand: String
+        if provider == .codex, let profile = codexProfileStore.selectedProfile {
+            launchCommand = TerminalLauncher.codexLaunchCommand(codexHome: profile.codexHome)
+        } else {
+            launchCommand = TerminalLauncher.launchCommand(for: provider)
+        }
 
         let activeProject = sessionMonitor?.activeSessions
             .first(where: { $0.projectPath != nil })
@@ -219,7 +238,7 @@ struct MenuBarView: View {
 
         do {
             try TerminalLauncher.launch(
-                provider: provider,
+                command: launchCommand,
                 workingDirectory: directory,
                 terminal: settings.preferredTerminal
             )
@@ -232,10 +251,21 @@ struct MenuBarView: View {
             actionError = error.localizedDescription
             UsageExportService.copyToClipboard(
                 TerminalLauncher.shellCommand(
-                    command: TerminalLauncher.launchCommand(for: provider),
+                    command: launchCommand,
                     workingDirectory: directory
                 )
             )
+        }
+    }
+
+    private func selectCodexProfile(_ profileID: UUID) {
+        do {
+            try codexProfileStore.select(profileID)
+            actionError = nil
+            multiService.refresh()
+            Task { await codexAccountMonitor.refresh(profileID) }
+        } catch {
+            actionError = error.localizedDescription
         }
     }
 

@@ -4,13 +4,30 @@ import SwiftUI
 @main
 struct CCOverlayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var multiService = MultiProviderUsageService()
+    @State private var codexProfileStore: CodexAccountProfileStore
+    @State private var codexAccountMonitor: CodexAccountMonitor
+    @State private var multiService: MultiProviderUsageService
     @State private var settings = AppSettings()
     @State private var costAlertManager = CostAlertManager()
     @State private var updateService = UpdateService()
     @State private var sessionMonitor = SessionMonitor(autoStart: false)
     @State private var hasInitialized = false
     private let launchAtLoginService = LaunchAtLoginService()
+
+    init() {
+        let profileStore = CodexAccountProfileStore()
+        _codexProfileStore = State(initialValue: profileStore)
+        _codexAccountMonitor = State(
+            initialValue: CodexAccountMonitor(profileStore: profileStore)
+        )
+        _multiService = State(
+            initialValue: MultiProviderUsageService(
+                codexHomeProvider: {
+                    profileStore.selectedProfile?.codexHome
+                }
+            )
+        )
+    }
 
     private let modelContainer: ModelContainer = {
         let schema = Schema([UsageSnapshot.self])
@@ -43,12 +60,20 @@ struct CCOverlayApp: App {
         MenuBarExtra {
             MenuBarView(
                 multiService: multiService,
+                codexProfileStore: codexProfileStore,
+                codexAccountMonitor: codexAccountMonitor,
                 settings: settings,
                 updateService: updateService,
                 costAlertManager: costAlertManager,
                 sessionMonitor: sessionMonitor,
                 onOpenSettings: {
-                    appDelegate.showSettings(settings: settings, multiService: multiService, updateService: updateService)
+                    appDelegate.showSettings(
+                        settings: settings,
+                        multiService: multiService,
+                        codexProfileStore: codexProfileStore,
+                        codexAccountMonitor: codexAccountMonitor,
+                        updateService: updateService
+                    )
                 }
             )
             .onAppear {
@@ -79,6 +104,12 @@ struct CCOverlayApp: App {
                 }
                 .onChange(of: multiService.lastRefresh) { _, _ in
                     multiService.recordCurrentSamples()
+                }
+                .onChange(of: codexProfileStore.selectedProfileID) { _, profileID in
+                    multiService.refresh()
+                    if let profileID {
+                        Task { await codexAccountMonitor.refresh(profileID) }
+                    }
                 }
                 .onChange(of: settings.pillClickThrough) { _, _ in
                     appDelegate.overlayManager?.updateFromSettings()
@@ -112,11 +143,13 @@ struct CCOverlayApp: App {
         DebugFlowLogger.shared.configure(enabled: settings.debugFlowLogging)
         appDelegate.setTerminationHandler {
             multiService.stopMonitoring()
+            codexAccountMonitor.stopMonitoring()
             sessionMonitor.stopMonitoring()
             updateService.stopMonitoring()
         }
         multiService.configure(settings: settings)
         multiService.startMonitoring(interval: settings.refreshInterval)
+        codexAccountMonitor.startMonitoring(selectedInterval: settings.refreshInterval)
         sessionMonitor.startMonitoring()
 
         updateService.configure(settings: settings)

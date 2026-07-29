@@ -14,6 +14,8 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 - **Codex-first routing** — Prefer Codex whenever the planned task safely fits, with Claude Code as an automatic headroom fallback
 - **Authenticated-only display** — Unconfigured providers never appear as misleading setup or usage indicators
 - **Live rate-limit windows** — 5-hour and 7-day rate-limit data from Claude Code and Codex OAuth
+- **Unlimited Codex account profiles** — Keep any number of isolated `CODEX_HOME` profiles, switch manually, and compare account headroom
+- **Codex token activity** — See exact Codex activity totals for today and the last seven days without presenting them as a token allowance
 - **Local fallback, clearly labeled** — Claude JSONL estimates are marked with `~` and "local estimate"
 - **Floating Liquid Glass overlay** — A compact, screen-bounded status surface that expands on hover
 - **Pacing signals** — 5H and 7D timelines distinguish fast burn, on-pace, and plenty-left states
@@ -103,14 +105,14 @@ Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to s
 |--------|----------|-------------|
 | **Anthropic OAuth** | Claude Code | Claude Code Keychain credentials — live 5-hour and 7-day buckets |
 | **Codex OAuth** | Codex CLI | ChatGPT login stored by Codex in `~/.codex/auth.json` |
-| **Codex app-server** | Codex / ChatGPT app | Enriches Full Reset counts with official `expiresAt` details when supported |
+| **Codex app-server** | Codex / ChatGPT app | Reads per-profile rate limits, token activity, and Full Reset `expiresAt` details when supported |
 | **Local JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` fallback — clearly marked token-based estimate |
 
 ## Privacy and Provider Access
 
 CC-Overlay has no developer-operated backend and does not upload usage history or OAuth credentials to the project maintainer. It communicates only with provider-owned services needed for usage metadata and with GitHub Releases when update checks are enabled.
 
-- Codex usage reads the local Codex authentication file to make a direct usage request. When a current Codex app-server is available, CC-Overlay launches it locally to read Full Reset expiration metadata; no conversation is created.
+- Each Codex account profile is an isolated local `CODEX_HOME`. CC-Overlay launches the current Codex app-server locally with that directory to read rate limits, token activity, and Full Reset expiration metadata; no conversation is created and removing a profile never deletes its directory.
 - Claude transcript estimates read recent local JSONL files. Claude OAuth rate-limit access is off by default and requires an explicit Settings opt-in.
 - Usage history, settings, and diagnostic logs stay on the local Mac.
 
@@ -120,7 +122,8 @@ Provider tokens are sensitive. Review the source and use a release you trust bef
 
 The dropdown shows the selected provider's usage timeline. When both providers have
 data, a compact provider switcher is shown above it. Each primary window presents
-used and remaining capacity, reset timing, and a pace assessment.
+used and remaining capacity, reset timing, and a pace assessment. The Codex account
+card adds manual profile switching, account headroom, and clearly labeled token activity.
 
 ### Floating pill
 
