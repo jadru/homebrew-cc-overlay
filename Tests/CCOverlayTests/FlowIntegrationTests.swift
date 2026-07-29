@@ -64,6 +64,24 @@ final class FlowIntegrationTests: XCTestCase {
         XCTAssertEqual(CodexDetector.findBinary(home: home.path), shim.path)
     }
 
+    func testCodexDetectionPrefersBundledCodexAppBinary() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let bundled = home.appendingPathComponent("Applications/Codex.app/Contents/Resources/codex")
+        let shim = home.appendingPathComponent(".asdf/shims/codex")
+        for binary in [bundled, shim] {
+            try FileManager.default.createDirectory(
+                at: binary.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            FileManager.default.createFile(atPath: binary.path, contents: Data("#!/bin/sh\n".utf8))
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+        }
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        XCTAssertEqual(CodexDetector.findBinary(home: home.path), bundled.path)
+    }
+
     // MARK: - Alert flow
 
     @MainActor

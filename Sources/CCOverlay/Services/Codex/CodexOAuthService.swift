@@ -30,6 +30,23 @@ actor CodexOAuthService {
     struct RateLimitResetCredits: Equatable, Sendable {
         let availableCount: Int
         let applicableAvailableCount: Int
+        let credits: [ResetCredit]
+
+        init(
+            availableCount: Int,
+            applicableAvailableCount: Int,
+            credits: [ResetCredit] = []
+        ) {
+            self.availableCount = max(availableCount, 0)
+            self.applicableAvailableCount = max(applicableAvailableCount, 0)
+            self.credits = credits
+        }
+    }
+
+    struct ResetCredit: Equatable, Sendable {
+        let status: String
+        let grantedAt: Date?
+        let expiresAt: Date?
     }
 
     struct UsageSnapshot: Sendable {
@@ -129,12 +146,20 @@ actor CodexOAuthService {
 
         var rateLimitResetCredits: RateLimitResetCredits?
         if let resetCreditsJson = json["rate_limit_reset_credits"] as? [String: Any] {
+            let resetCreditDetails = (resetCreditsJson["credits"] as? [[String: Any]] ?? []).map {
+                ResetCredit(
+                    status: $0["status"] as? String ?? "available",
+                    grantedAt: unixDate($0["granted_at"] ?? $0["grantedAt"]),
+                    expiresAt: unixDate($0["expires_at"] ?? $0["expiresAt"])
+                )
+            }
             rateLimitResetCredits = RateLimitResetCredits(
                 availableCount: max(integerValue(resetCreditsJson["available_count"]) ?? 0, 0),
                 applicableAvailableCount: max(
                     integerValue(resetCreditsJson["applicable_available_count"]) ?? 0,
                     0
-                )
+                ),
+                credits: resetCreditDetails
             )
         }
 
@@ -197,6 +222,11 @@ actor CodexOAuthService {
         default:
             return nil
         }
+    }
+
+    nonisolated private static func unixDate(_ value: Any?) -> Date? {
+        guard let timestamp = integerValue(value), timestamp > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(timestamp))
     }
 
     nonisolated private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {

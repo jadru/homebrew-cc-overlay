@@ -1,6 +1,20 @@
 import Foundation
 
 enum CLIBinaryFinder {
+    static func find(_ binary: String, home: String = FileManager.default.homeDirectoryForCurrentUser.path) -> String? {
+        let candidates = [
+            "\(home)/.asdf/shims/\(binary)",
+            "/opt/homebrew/bin/\(binary)",
+            "/usr/local/bin/\(binary)",
+            "\(home)/.local/bin/\(binary)",
+            "\(home)/.npm/bin/\(binary)",
+        ]
+        for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
+            return path
+        }
+        return findInNvmVersions(binary, home: home) ?? resolveFromPATH(binary)
+    }
+
     static func findInNvmVersions(_ binary: String, home: String) -> String? {
         let nvmDir = "\(home)/.nvm/versions/node"
         guard let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmDir) else {

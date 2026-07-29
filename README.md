@@ -2,7 +2,7 @@
 
 > [한국어](README_KO.md) | [Release Notes](RELEASE_NOTES.md) ([한국어](RELEASE_NOTES_KO.md)) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
 
-macOS menu bar app that monitors your **Claude Code** and **Codex CLI** usage in real time.
+Codex-first macOS menu bar app that turns **Codex** and **Claude Code** usage into a safe next-run decision.
 
 **Website:** [cc-overlay.jadru.com](https://cc-overlay.jadru.com)
 
@@ -11,6 +11,7 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 ## Features
 
 - **Multi-provider monitoring** — Track Claude Code and OpenAI Codex CLI usage simultaneously
+- **Codex-first routing** — Prefer Codex whenever the planned task safely fits, with Claude Code as an automatic headroom fallback
 - **Authenticated-only display** — Unconfigured providers never appear as misleading setup or usage indicators
 - **Live rate-limit windows** — 5-hour and 7-day rate-limit data from Claude Code and Codex OAuth
 - **Local fallback, clearly labeled** — Claude JSONL estimates are marked with `~` and "local estimate"
@@ -18,8 +19,12 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 - **Pacing signals** — 5H and 7D timelines distinguish fast burn, on-pace, and plenty-left states
 - **Actionable recommendation** — Combines connected providers into a confidence-rated Run, Wait, Switch, or Refresh signal
 - **Task-fit learning** — Learns local consumption bursts and estimates whether a small, medium, or large run is likely to fit
-- **Decision actions** — Copy the recommended CLI command, schedule a reset reminder, and rate recommendation quality in place
-- **Codex Full Resets** — Shows banked rate-limit resets and opens Codex Usage when one can be applied
+- **Guided Run / Switch** — Launch the recommended CLI in Terminal or iTerm2 at the active project, with a safe copy fallback
+- **Explainable recommendations** — Inspect the headroom, task-fit, data-quality, and alternative signals behind each decision
+- **Outcome learning** — Record finished, limit-hit, switch, reset, or cancelled outcomes locally to improve future task-fit estimates
+- **Expiry-aware Codex Full Resets** — Shows each known reset expiry and prioritizes an applicable reset before it becomes stranded
+- **Private history and forecast** — Review seven-day local headroom trends and an active-pace estimate to the next limit
+- **Activation and provider health** — Diagnose install, sign-in, stale-data, response-change, latency, and repeated-failure states
 - **Provider switcher** — A compact selector appears only when both providers have usable data
 - **Cost threshold alerts** — macOS notifications at 70% and 90% usage
 - **Global hotkey** — Toggle overlay with `Cmd+Shift+A`
@@ -98,13 +103,14 @@ Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to s
 |--------|----------|-------------|
 | **Anthropic OAuth** | Claude Code | Claude Code Keychain credentials — live 5-hour and 7-day buckets |
 | **Codex OAuth** | Codex CLI | ChatGPT login stored by Codex in `~/.codex/auth.json` |
+| **Codex app-server** | Codex / ChatGPT app | Enriches Full Reset counts with official `expiresAt` details when supported |
 | **Local JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` fallback — clearly marked token-based estimate |
 
 ## Privacy and Provider Access
 
-CC-Overlay has no developer-operated backend and does not upload usage history or OAuth credentials to the project maintainer. It makes outbound requests only to the selected provider's usage endpoint and to GitHub Releases when update checks are enabled.
+CC-Overlay has no developer-operated backend and does not upload usage history or OAuth credentials to the project maintainer. It communicates only with provider-owned services needed for usage metadata and with GitHub Releases when update checks are enabled.
 
-- Codex usage reads the local Codex CLI authentication file to make a direct request to the provider's usage endpoint.
+- Codex usage reads the local Codex authentication file to make a direct usage request. When a current Codex app-server is available, CC-Overlay launches it locally to read Full Reset expiration metadata; no conversation is created.
 - Claude transcript estimates read recent local JSONL files. Claude OAuth rate-limit access is off by default and requires an explicit Settings opt-in.
 - Usage history, settings, and diagnostic logs stay on the local Mac.
 
@@ -135,6 +141,9 @@ All settings persist via `UserDefaults` and are accessible from the Settings win
 | Plan tier | Pro | For local JSONL mode (Pro/Max/Enterprise/Custom) |
 | Claude OAuth rate limits | Off | Read Claude Keychain credentials only after explicit opt-in |
 | Refresh interval | 1 min | How often usage data is refreshed |
+| Run in | Terminal | Terminal or iTerm2 for guided Run / Switch actions |
+| Provider priority | Codex first | Prefer Codex when the task safely fits, otherwise use the provider with enough headroom |
+| Full Reset policy | Balanced | Balance reset use, save the last reset, or prefer reset before switching |
 | Launch at login | Off | Start with macOS |
 
 ### Model pricing

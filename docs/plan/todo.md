@@ -5,7 +5,7 @@
 ## Quick Wins 잔여
 
 ### 1) `fatalError` 제거 마무리
-- 현재 상태: `ProviderServiceProtocol`에 `fetchUsage()`는 추가됨, `fatalError`는 제거됨
+- 현재 상태: `ProviderServiceProtocol`에 `fetchUsage()` 요구사항은 추가됨
 - 남은 작업: `BaseProviderService`의 기본 `fetchUsage()` 구현 자체 제거(프로토콜 요구를 서브클래스에서 강제)
 - 대상 파일:
   - `Sources/CCOverlay/Services/BaseProviderService.swift`
@@ -22,63 +22,45 @@
 ## 90일 실행 완료
 
 - 신규 사용자 온보딩 및 기존 사용자 무중단 마이그레이션
+- CLI 설치·로그인·stale·schema 변경을 구분하는 Activation Doctor와 복구 액션
 - 프로바이더 상태를 종합한 Run / Wait / Switch 추천
 - stale 차단, 신뢰도, 추천 안정화 및 작업 크기별 적합도 학습
-- 추천 CLI 명령 복사, 리셋 알림, 로컬 도움됨/틀림 피드백
+- 활성 프로젝트에서 실제 CLI 실행/전환, 결과 기록, 설명 가능한 추천, Full Reset 정책
+- Codex-first 안전 라우팅과 Codex app-server 기반 Full Reset 만료 인식
+- 7일 로컬 히스토리, 소진 ETA, Provider Health Dashboard
+- 서비스·네트워크·인증·데이터·UI 채널별 OSLog와 adaptive polling backoff
+- `UNUserNotificationCenter` 기반 사용량/리셋 알림
 - credential·프로젝트·경로·사용량 기록을 제외한 안전한 진단 복사
 - 앱 내 버그 신고 및 제품/가격 피드백 진입점
 - 랜딩 페이지, 전환 측정, 출시 키트, 90일 스코어카드, BM 검증 게이트
 
 ## Strategic 후속 후보
 
-### 7) OSLog 통합
-- `Utilities/AppLogger.swift` 추가
-- 서비스/네트워크/인증/데이터/UI 로거 채널 분리
-
-### 8) Intelligent Polling Backoff
-- idle 시 polling 4배(최대 5분)로 완화
-- `lastActivityAt` 기반 adaptive interval 적용
-
-### 9) 사용량 히스토리 & 트렌드
-- 현재 상태: 7일 로컬 소비 변화는 작업 적합도 학습에 연결됨
-- 남은 작업: SwiftData 장기 snapshot과 사용자용 스파크라인
-- 스파크라인(Charts) UI 추가
-
-### 10) 정밀 Rate Limit 소진 예측
-- 최근 사용량 기울기 기반 ETA 계산
-- Gauge/Pill에 `~Xh Ym to limit` 노출
-
-### 11) 프로젝트별 비용 분석
+### 7) 프로젝트별 비용 분석
 - `ParsedUsageEntry.projectPath` 보존
 - 프로젝트별 비용 카드 추가
 
-### 12) 사용량 복사/내보내기
-- Copy Summary(마크다운)
-- CSV export
+### 8) CSV 내보내기 UI
+- 현재 상태: Copy Summary와 CSV 생성/저장 서비스는 구현됨
+- 남은 작업: CSV export 진입점 노출
 
 ## Nice to Have 미진행
 
-### 13) Provider별 인라인 에러 표시
+### 9) Provider별 인라인 에러 표시
 - 탭 사이드바 경고 배지 추가
 
-### 14) 키보드 네비게이션
+### 10) 키보드 네비게이션
 - 방향키 provider 전환
 - `R` 새로고침 단축
 
-### 15) `NSUserNotification` → `UNUserNotificationCenter`
-- deprecated 알림 API 교체
-
-### 16) 모델별 토큰 추적
+### 11) 모델별 토큰 추적
 - 모델별 사용량 비중 분석/표시
 
-### 17) Dark/Light 글래스모피즘 최적화
+### 12) Dark/Light 글래스모피즘 최적화
 - `colorScheme` 기반 opacity/contrast 튜닝
 
-### 18) Provider 빠른 일시중지
+### 13) Provider 빠른 일시중지
 - 컨텍스트 메뉴 `Pause Monitoring`
 
-### 19) 세션 지속시간 표시
+### 14) 세션 지속시간 표시
 - `SessionMonitor` UI 연결
-
-### 20) Provider Health Dashboard
-- 인증 상태/마지막 성공 시각/응답 지연 통합 뷰

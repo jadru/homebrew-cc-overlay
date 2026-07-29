@@ -37,7 +37,7 @@ struct UsageTimelineView: View {
                         .overlay(Color.dividerSubtle)
                         .padding(.vertical, 10)
 
-                    resetCreditsRow(credits)
+                    resetCreditsRow(credits, now: context.date)
                 }
 
                 Divider()
@@ -119,8 +119,10 @@ struct UsageTimelineView: View {
         .frame(minHeight: 62)
     }
 
-    private func resetCreditsRow(_ credits: CreditsDisplayInfo) -> some View {
-        Link(destination: AppConstants.codexUsageDashboardURL) {
+    private func resetCreditsRow(_ credits: CreditsDisplayInfo, now: Date) -> some View {
+        let expiration = credits.nextResetCreditExpiration(after: now)
+        let expiresSoon = credits.resetCreditExpiresSoon(at: now)
+        return Link(destination: AppConstants.codexUsageDashboardURL) {
             HStack(spacing: 8) {
                 Image(systemName: "arrow.counterclockwise.circle.fill")
                     .foregroundStyle(credits.resetCreditsApplicable > 0 ? Color.green : Color.purple)
@@ -135,6 +137,13 @@ struct UsageTimelineView: View {
 
                 Spacer()
 
+                if let expiration {
+                    Text("Expires in \(DurationFormatting.compactReset(expiration.timeIntervalSince(now)))")
+                        .font(.system(size: 9, weight: expiresSoon ? .semibold : .medium, design: .rounded))
+                        .foregroundStyle(expiresSoon ? Color.orange : Color.secondary)
+                        .lineLimit(1)
+                }
+
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.tertiary)
@@ -145,6 +154,7 @@ struct UsageTimelineView: View {
         .accessibilityLabel(
             "\(credits.resetCreditsAvailable) Codex full resets, "
                 + (credits.resetCreditsApplicable > 0 ? "ready now" : "banked")
+                + (expiration.map { ", expires in \(DurationFormatting.compactReset($0.timeIntervalSince(now)))" } ?? "")
         )
         .help("Open Codex Usage")
     }

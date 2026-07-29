@@ -122,7 +122,7 @@ export function App() {
             <p className="eyebrow">LIVE HEADROOM / CC-OVRLY-01</p>
             <h1>Can I fit<br />one more run?</h1>
             <div className="hero-action-block">
-              <p>Live headroom for Claude Code<br />and Codex, always in view.</p>
+              <p>Codex headroom and Full Reset expiry,<br />with a safe Claude fallback.</p>
               <a
                 className="primary-button"
                 href={releaseUrl}
@@ -180,7 +180,7 @@ export function App() {
           <div className="story-copy">
             <article>
               <h3>You lose flow when you guess.</h3>
-              <p>CC-Overlay surfaces live usage headroom for Claude Code and Codex so you can plan your next run with confidence.</p>
+              <p>CC-Overlay prefers Codex when your next task safely fits, then falls back to Claude Code when it does not.</p>
             </article>
             <article>
               <h3>Always in view.</h3>
@@ -188,7 +188,7 @@ export function App() {
             </article>
             <article>
               <h3>Built for daily use.</h3>
-              <p>Lightweight, glanceable, and designed to disappear into the background while you stay in flow.</p>
+              <p>See when a banked Codex Full Reset expires, so the final credit is saved only while saving it still makes sense.</p>
             </article>
           </div>
           <CrosshairSimple className="story-mark" weight="thin" aria-hidden="true" />

@@ -1,3 +1,23 @@
+# v0.12.0
+
+## Guided Runs and Provider Health
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Codex-first routing** — Makes Codex the default provider when the selected task safely fits, while retaining a highest-headroom strategy and Claude Code fallback.
+- **Expiry-aware Full Resets** — Reads official reset-credit details from current Codex app-server builds, shows the next expiration, ignores expired details, and uses an expiring applicable reset instead of preserving it past usefulness.
+- **Activation Doctor** — Distinguishes a missing CLI, required sign-in, stale data, provider-response changes, and healthy connections, with direct recovery actions.
+- **Real Run / Switch actions** — Opens Claude Code or Codex in Terminal or iTerm2 at the active project, with a safe command-copy fallback.
+- **Outcome learning** — Tracks completed runs, limit hits, provider switches, resets, and cancellations locally so task-fit estimates can improve from actual outcomes.
+- **Explainable recommendations** — Shows the headroom, task fit, data quality, and alternatives behind each Run / Wait / Switch recommendation.
+- **Full Reset policy** — Lets users balance resets, preserve the last banked reset, or prefer a reset before switching.
+- **Private trends and forecast** — Adds a seven-day local headroom chart and an active-pace estimate for time to limit.
+- **Provider health** — Adds connection state, last success, response time, consecutive failures, recovery, and recheck controls to Settings.
+
+---
+
 # v0.11.0
 
 ## Decide Before You Run
