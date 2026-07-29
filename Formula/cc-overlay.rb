@@ -1,8 +1,8 @@
 class CcOverlay < Formula
   desc "Claude Code & Codex CLI usage overlay for macOS menu bar"
   homepage "https://github.com/jadru/homebrew-cc-overlay"
-  url "https://github.com/jadru/homebrew-cc-overlay/releases/download/v0.11.0/CC-Overlay-v0.11.0-macos.zip"
-  sha256 "a83d2616f3a4b1be246c22b59928ffca388cb067b7358d92e1daef700b13f972"
+  url "https://github.com/jadru/homebrew-cc-overlay/releases/download/v0.12.0/CC-Overlay-v0.12.0-macos.zip"
+  sha256 "9cb42697c7e8802c0c22137df06e0cc9d5241cebc022f1401e4ec6eea73f67ad"
   license "MIT"
 
   depends_on :macos => :sequoia
