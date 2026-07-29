@@ -14,6 +14,8 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 - **Codex 우선 라우팅** — 계획한 작업이 안전하게 들어가면 Codex를 우선하고, 부족할 때 Claude Code로 자동 폴백
 - **인증된 프로바이더만 표시** — 설정되지 않은 프로바이더를 setup/사용량 지표로 잘못 노출하지 않음
 - **실시간 rate-limit 윈도우** — Claude Code와 Codex OAuth의 5시간·7일 한도 표시
+- **무제한 Codex 계정 프로필** — 격리된 `CODEX_HOME` 프로필을 개수 제한 없이 추가하고 수동 전환 및 잔여량 비교
+- **Codex 토큰 활동량** — 토큰 한도로 오인되지 않도록 오늘과 최근 7일의 정확한 활동량을 별도 표시
 - **명확한 로컬 폴백** — Claude JSONL 추정값에는 `~`와 "local estimate"를 표시
 - **플로팅 Liquid Glass 오버레이** — 화면 경계를 넘지 않고 호버 시 확장되는 상태 surface
 - **페이스 신호** — 5H·7D 타임라인에서 빠른 소진, 정상 페이스, 여유 상태를 구분
@@ -103,14 +105,14 @@ VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./s
 |------|-----------|----------|
 | **Anthropic OAuth** | Claude Code | Claude Code Keychain 인증 정보 — 실시간 5시간·7일 버킷 |
 | **Codex OAuth** | Codex CLI | Codex가 `~/.codex/auth.json`에 저장한 ChatGPT 로그인 |
-| **Codex app-server** | Codex / ChatGPT 앱 | 지원되는 경우 Full Reset 개수에 공식 `expiresAt` 상세를 보강 |
+| **Codex app-server** | Codex / ChatGPT 앱 | 프로필별 rate limit, 토큰 활동량, 지원되는 Full Reset `expiresAt` 상세를 조회 |
 | **로컬 JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` 폴백 — 로그 기반 추정값임을 명시 |
 
 ## 개인정보 및 프로바이더 접근
 
 CC-Overlay는 개발자가 운영하는 backend를 두지 않으며, 사용량 기록이나 OAuth credential을 프로젝트 유지보수자에게 업로드하지 않습니다. 사용량 메타데이터에 필요한 provider 소유 서비스와, 업데이트 확인을 켠 경우 GitHub Releases에만 통신합니다.
 
-- Codex 사용량은 로컬 인증 파일을 읽고 usage endpoint에 직접 요청합니다. 최신 Codex app-server가 있으면 이를 로컬에서 실행해 Full Reset 만료 메타데이터만 읽으며 대화는 만들지 않습니다.
+- 각 Codex 계정 프로필은 로컬의 독립된 `CODEX_HOME`을 사용합니다. CC-Overlay는 해당 디렉터리로 최신 Codex app-server를 로컬 실행해 rate limit, 토큰 활동량, Full Reset 만료 메타데이터를 읽습니다. 대화는 만들지 않으며 프로필을 제거해도 디렉터리는 삭제하지 않습니다.
 - Claude transcript 추정은 최근 로컬 JSONL 파일을 읽습니다. Claude OAuth rate limit 접근은 기본적으로 꺼져 있으며 Settings에서 명시적으로 켤 때만 시도합니다.
 - 사용량 기록, 설정, diagnostic log는 로컬 Mac에 저장됩니다.
 
@@ -120,7 +122,8 @@ provider token은 민감한 정보입니다. provider를 활성화하기 전에 
 
 드롭다운은 선택한 프로바이더의 사용량 타임라인을 보여줍니다. 두 프로바이더
 모두 사용량이 있을 때만 상단에 compact selector가 표시됩니다. 각 윈도우에는
-사용량·잔여량·리셋 시각·현재 페이스가 함께 표시됩니다.
+사용량·잔여량·리셋 시각·현재 페이스가 함께 표시됩니다. Codex 계정 카드에서는
+프로필 수동 전환, 계정별 잔여량, 명확히 구분된 토큰 활동량도 확인할 수 있습니다.
 
 ### 플로팅 필
 

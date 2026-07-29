@@ -15,9 +15,9 @@ enum CodexDetector {
         var isAvailable: Bool { binaryPath != nil && chatgptAuth != nil }
     }
 
-    static func detect() -> Detection {
+    static func detect(codexHome: String = AppConstants.codexConfigPath) -> Detection {
         let binaryPath = findBinary()
-        let chatgptAuth = readChatGPTAuth()
+        let chatgptAuth = readChatGPTAuth(codexHome: codexHome)
         let detection = Detection(binaryPath: binaryPath, chatgptAuth: chatgptAuth)
 
         DebugFlowLogger.shared.log(
@@ -61,8 +61,8 @@ enum CodexDetector {
         return CLIBinaryFinder.resolveFromPATH("codex")
     }
 
-    private static func readChatGPTAuth() -> ChatGPTAuth? {
-        let authPath = "\(AppConstants.codexConfigPath)/auth.json"
+    static func readChatGPTAuth(codexHome: String = AppConstants.codexConfigPath) -> ChatGPTAuth? {
+        let authPath = "\(codexHome)/auth.json"
         guard let data = FileManager.default.contents(atPath: authPath),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tokens = json["tokens"] as? [String: Any],

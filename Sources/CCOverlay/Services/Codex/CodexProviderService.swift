@@ -7,9 +7,15 @@ final class CodexProviderService: BaseProviderService {
     private var oauthService: CodexOAuthService?
     private var oauthSnapshot: CodexOAuthService.UsageSnapshot?
     private let appServerService = CodexAppServerService()
+    private let codexHomeProvider: @MainActor () -> String?
     private var codexBinaryPath: String?
+    private var codexHome: String?
 
-    init() {
+    init(
+        codexHomeProvider: @escaping @MainActor () -> String? = { AppConstants.codexConfigPath }
+    ) {
+        self.codexHomeProvider = codexHomeProvider
+        self.codexHome = AppConstants.codexConfigPath
         super.init(provider: .codex)
     }
 
@@ -17,7 +23,21 @@ final class CodexProviderService: BaseProviderService {
 
     /// Codex rate limits are available only through the Codex CLI's ChatGPT login.
     func detect() async -> Bool {
-        let detection = CodexDetector.detect()
+        let nextCodexHome = codexHomeProvider()
+        if nextCodexHome != codexHome {
+            codexHome = nextCodexHome
+            oauthService = nil
+            oauthSnapshot = nil
+        }
+        guard let codexHome else {
+            setDetected(false)
+            setAuthenticated(false)
+            codexBinaryPath = nil
+            oauthService = nil
+            oauthSnapshot = nil
+            return false
+        }
+        let detection = CodexDetector.detect(codexHome: codexHome)
         setDetected(detection.binaryPath != nil)
         codexBinaryPath = detection.binaryPath
 
@@ -45,7 +65,7 @@ final class CodexProviderService: BaseProviderService {
 
     override func fetchUsage() async {
         // Codex owns token refresh. This process only re-reads and uses its current auth file.
-        guard await detect(), let oauthService else {
+        guard await detect(), let oauthService, let codexHome else {
             setError("Codex CLI authentication is unavailable. Run 'codex --login'.")
             return
         }
@@ -59,6 +79,7 @@ final class CodexProviderService: BaseProviderService {
                let codexBinaryPath,
                let details = try? await appServerService.fetchResetCredits(
                    binaryPath: codexBinaryPath,
+                   codexHome: codexHome,
                    expectedCount: resetCredits.availableCount
                ) {
                 snapshot = Self.enrich(snapshot, with: details)

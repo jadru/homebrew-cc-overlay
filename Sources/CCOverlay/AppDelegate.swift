@@ -48,11 +48,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func showSettings(settings: AppSettings, multiService: MultiProviderUsageService, updateService: UpdateService) {
+    func showSettings(
+        settings: AppSettings,
+        multiService: MultiProviderUsageService,
+        codexProfileStore: CodexAccountProfileStore,
+        codexAccountMonitor: CodexAccountMonitor,
+        updateService: UpdateService
+    ) {
         DebugFlowLogger.shared.log(stage: .display, message: "settings.opened")
         windowCoordinator.showSettings(
             settings: settings,
             multiService: multiService,
+            codexProfileStore: codexProfileStore,
+            codexAccountMonitor: codexAccountMonitor,
             updateService: updateService
         )
     }

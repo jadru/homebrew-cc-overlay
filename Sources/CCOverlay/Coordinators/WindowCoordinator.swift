@@ -15,6 +15,8 @@ final class WindowCoordinator {
     func showSettings(
         settings: AppSettings,
         multiService: MultiProviderUsageService,
+        codexProfileStore: CodexAccountProfileStore,
+        codexAccountMonitor: CodexAccountMonitor,
         updateService: UpdateService
     ) {
         if let window = settingsWindow {
@@ -26,6 +28,8 @@ final class WindowCoordinator {
         let settingsView = SettingsView(
             settings: settings,
             multiService: multiService,
+            codexProfileStore: codexProfileStore,
+            codexAccountMonitor: codexAccountMonitor,
             updateService: updateService,
             onShowOnboarding: { [weak self] in
                 self?.showOnboarding(
