@@ -24,13 +24,16 @@ final class MultiProviderUsageService {
     private let decisionHistory: DecisionHistoryStore
     @ObservationIgnored
     private let decisionStabilizer = UsageDecisionStabilizer()
+    private(set) var pendingRun: PendingRun?
 
     init(
         serviceFactory: ProviderServiceFactory? = nil,
         decisionHistory: DecisionHistoryStore? = nil
     ) {
         self.serviceFactory = serviceFactory ?? Self.defaultServiceFactory
-        self.decisionHistory = decisionHistory ?? DecisionHistoryStore()
+        let history = decisionHistory ?? DecisionHistoryStore()
+        self.decisionHistory = history
+        self.pendingRun = history.pendingRun
     }
 
     /// Bind settings for reading provider enable/disable and API keys.
@@ -67,6 +70,7 @@ final class MultiProviderUsageService {
             currentProvider: recentlyActiveProviders.first,
             plannedTaskSize: taskSize,
             fitEvidence: evidence,
+            fullResetPolicy: settings?.fullResetPolicy ?? .balanced,
             staleAfter: staleThreshold
         )
         return decisionStabilizer.resolve(candidate: candidate, snapshotVersion: lastRefresh)
@@ -87,8 +91,70 @@ final class MultiProviderUsageService {
         decisionStabilizer.reset()
     }
 
+    func updateFullResetPolicy(_ policy: FullResetPolicy) {
+        settings?.fullResetPolicy = policy
+        decisionStabilizer.reset()
+    }
+
+    func beginRun(decision: UsageDecision, projectName: String?) {
+        pendingRun = decisionHistory.beginRun(
+            decision: decision,
+            taskSize: settings?.plannedTaskSize ?? .medium,
+            projectName: projectName
+        )
+    }
+
+    func completePendingRun(outcome: RunOutcome) {
+        guard let run = pendingRun else { return }
+        let endingHeadroom = UsageDecisionEngine.headroom(for: usageData(for: run.provider))
+        decisionHistory.completePendingRun(
+            outcome: outcome,
+            endingHeadroom: endingHeadroom
+        )
+        pendingRun = nil
+        decisionStabilizer.reset()
+    }
+
     var decisionFeedbackSummary: DecisionHistoryStore.FeedbackSummary {
         decisionHistory.feedbackSummary
+    }
+
+    var runOutcomeSummary: DecisionHistoryStore.OutcomeSummary {
+        decisionHistory.outcomeSummary
+    }
+
+    func usageHistory(for provider: CLIProvider, days: Int = 7) -> [UsageHistoryPoint] {
+        decisionHistory.history(for: provider, days: days)
+    }
+
+    func headroomForecast(for provider: CLIProvider) -> ProviderHeadroomForecast {
+        decisionHistory.forecast(for: usageData(for: provider))
+    }
+
+    func activationStatus(for provider: CLIProvider) -> ProviderActivationStatus {
+        let data = usageData(for: provider)
+        let binaryPath = provider == .codex
+            ? CodexDetector.findBinary()
+            : CLIBinaryFinder.find("claude")
+        return ActivationDoctor.assess(
+            provider: provider,
+            data: data,
+            isActive: activeProviders.contains(provider),
+            isChecking: isDetectingProviders || data.isLoading,
+            isStale: isStale(lastRefresh: data.lastRefresh),
+            binaryPath: binaryPath
+        )
+    }
+
+    func providerHealth(for provider: CLIProvider) -> ProviderHealthSnapshot {
+        let service = services[provider]
+        return ProviderHealthSnapshot(
+            provider: provider,
+            activation: activationStatus(for: provider),
+            lastSuccess: service?.lastRefresh,
+            responseTime: service?.lastRefreshDuration,
+            consecutiveFailures: service?.consecutiveNetworkFailures ?? 0
+        )
     }
 
     /// Cached snapshot of the last non-empty recently-active list.

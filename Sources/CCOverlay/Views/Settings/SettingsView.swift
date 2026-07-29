@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var launchAtLoginStatus: SMAppService.Status = .notRegistered
     @State private var launchAtLoginError: String?
     @State private var diagnosticsCopied = false
+    @State private var providerRecoveryError: String?
 
     private let weightedLimitFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -54,6 +55,33 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                if let providerRecoveryError {
+                    Label(providerRecoveryError, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            Section("Decision workflow") {
+                Picker("Run in", selection: $settings.preferredTerminal) {
+                    ForEach(PreferredTerminal.allCases) { terminal in
+                        Text(terminal.label).tag(terminal)
+                    }
+                }
+
+                Picker("Full Reset policy", selection: $settings.fullResetPolicy) {
+                    ForEach(FullResetPolicy.allCases) { policy in
+                        Text(policy.label).tag(policy)
+                    }
+                }
+                .onChange(of: settings.fullResetPolicy) { _, policy in
+                    multiService.updateFullResetPolicy(policy)
+                }
+
+                Text(settings.fullResetPolicy.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("App") {
@@ -216,15 +244,72 @@ struct SettingsView: View {
     }
 
     private func providerStatusRow(for provider: CLIProvider) -> some View {
-        let data = multiService.usageData(for: provider)
+        let health = multiService.providerHealth(for: provider)
 
-        return LabeledContent {
-            providerConnectionStatus(data)
-        } label: {
-            HStack(spacing: 6) {
-                ProviderIconView(provider: provider, size: 13)
-                Text(provider.rawValue)
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                HStack(spacing: 6) {
+                    ProviderIconView(provider: provider, size: 13)
+                    Text(provider.rawValue)
+                }
+
+                Spacer()
+
+                Label(health.activation.title, systemImage: health.isHealthy ? "checkmark.circle.fill" : "wrench.and.screwdriver")
+                    .foregroundStyle(health.isHealthy ? Color.secondary : Color.orange)
+                    .lineLimit(1)
             }
+
+            Text(health.activation.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+
+            HStack(spacing: 10) {
+                if let lastSuccess = health.lastSuccess {
+                    Text("Success \(lastSuccess, style: .relative) ago")
+                }
+                if let responseTime = health.responseTime {
+                    Text("\(Int((responseTime * 1_000).rounded())) ms")
+                }
+                if health.consecutiveFailures > 0 {
+                    Text("\(health.consecutiveFailures) failures")
+                        .foregroundStyle(.orange)
+                }
+
+                Spacer()
+
+                if let command = health.activation.recoveryCommand {
+                    Button(health.activation.kind == .cliMissing ? "Install" : "Repair") {
+                        runRecovery(command)
+                    }
+                    .controlSize(.small)
+                }
+
+                Button("Recheck") {
+                    multiService.refresh()
+                }
+                .controlSize(.small)
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func runRecovery(_ command: String) {
+        do {
+            try TerminalLauncher.launch(
+                command: command,
+                workingDirectory: FileManager.default.homeDirectoryForCurrentUser,
+                terminal: settings.preferredTerminal
+            )
+            providerRecoveryError = nil
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                multiService.refresh()
+            }
+        } catch {
+            providerRecoveryError = error.localizedDescription
         }
     }
 

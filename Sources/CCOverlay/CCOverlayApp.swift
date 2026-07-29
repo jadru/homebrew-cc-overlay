@@ -8,6 +8,7 @@ struct CCOverlayApp: App {
     @State private var settings = AppSettings()
     @State private var costAlertManager = CostAlertManager()
     @State private var updateService = UpdateService()
+    @State private var sessionMonitor = SessionMonitor(autoStart: false)
     @State private var hasInitialized = false
     private let launchAtLoginService = LaunchAtLoginService()
 
@@ -45,6 +46,7 @@ struct CCOverlayApp: App {
                 settings: settings,
                 updateService: updateService,
                 costAlertManager: costAlertManager,
+                sessionMonitor: sessionMonitor,
                 onOpenSettings: {
                     appDelegate.showSettings(settings: settings, multiService: multiService, updateService: updateService)
                 }
@@ -110,10 +112,12 @@ struct CCOverlayApp: App {
         DebugFlowLogger.shared.configure(enabled: settings.debugFlowLogging)
         appDelegate.setTerminationHandler {
             multiService.stopMonitoring()
+            sessionMonitor.stopMonitoring()
             updateService.stopMonitoring()
         }
         multiService.configure(settings: settings)
         multiService.startMonitoring(interval: settings.refreshInterval)
+        sessionMonitor.startMonitoring()
 
         updateService.configure(settings: settings)
         updateService.startMonitoring()

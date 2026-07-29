@@ -18,8 +18,12 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 - **Pacing signals** — 5H and 7D timelines distinguish fast burn, on-pace, and plenty-left states
 - **Actionable recommendation** — Combines connected providers into a confidence-rated Run, Wait, Switch, or Refresh signal
 - **Task-fit learning** — Learns local consumption bursts and estimates whether a small, medium, or large run is likely to fit
-- **Decision actions** — Copy the recommended CLI command, schedule a reset reminder, and rate recommendation quality in place
+- **Guided Run / Switch** — Launch the recommended CLI in Terminal or iTerm2 at the active project, with a safe copy fallback
+- **Explainable recommendations** — Inspect the headroom, task-fit, data-quality, and alternative signals behind each decision
+- **Outcome learning** — Record finished, limit-hit, switch, reset, or cancelled outcomes locally to improve future task-fit estimates
 - **Codex Full Resets** — Shows banked rate-limit resets and opens Codex Usage when one can be applied
+- **Private history and forecast** — Review seven-day local headroom trends and an active-pace estimate to the next limit
+- **Activation and provider health** — Diagnose install, sign-in, stale-data, response-change, latency, and repeated-failure states
 - **Provider switcher** — A compact selector appears only when both providers have usable data
 - **Cost threshold alerts** — macOS notifications at 70% and 90% usage
 - **Global hotkey** — Toggle overlay with `Cmd+Shift+A`
@@ -135,6 +139,8 @@ All settings persist via `UserDefaults` and are accessible from the Settings win
 | Plan tier | Pro | For local JSONL mode (Pro/Max/Enterprise/Custom) |
 | Claude OAuth rate limits | Off | Read Claude Keychain credentials only after explicit opt-in |
 | Refresh interval | 1 min | How often usage data is refreshed |
+| Run in | Terminal | Terminal or iTerm2 for guided Run / Switch actions |
+| Full Reset policy | Balanced | Balance reset use, save the last reset, or prefer reset before switching |
 | Launch at login | Off | Start with macOS |
 
 ### Model pricing

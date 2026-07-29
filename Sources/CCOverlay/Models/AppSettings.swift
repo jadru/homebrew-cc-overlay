@@ -27,6 +27,8 @@ final class AppSettings {
         static let firstLaunchAt = "firstLaunchAt"
         static let firstUsageAt = "firstUsageAt"
         static let plannedTaskSize = "plannedTaskSize"
+        static let preferredTerminal = "preferredTerminal"
+        static let fullResetPolicy = "fullResetPolicy"
     }
 
     // MARK: - General
@@ -237,6 +239,32 @@ final class AppSettings {
         }
     }
 
+    var preferredTerminal: PreferredTerminal {
+        get {
+            access(keyPath: \.preferredTerminal)
+            let rawValue = UserDefaults.standard.string(forKey: Key.preferredTerminal)
+            return PreferredTerminal(rawValue: rawValue ?? "") ?? .terminal
+        }
+        set {
+            withMutation(keyPath: \.preferredTerminal) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.preferredTerminal)
+            }
+        }
+    }
+
+    var fullResetPolicy: FullResetPolicy {
+        get {
+            access(keyPath: \.fullResetPolicy)
+            let rawValue = UserDefaults.standard.string(forKey: Key.fullResetPolicy)
+            return FullResetPolicy(rawValue: rawValue ?? "") ?? .balanced
+        }
+        set {
+            withMutation(keyPath: \.fullResetPolicy) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.fullResetPolicy)
+            }
+        }
+    }
+
     init() {
         let defaults = UserDefaults.standard
         let isExistingInstall = defaults.object(forKey: Key.showOverlay) != nil
@@ -263,6 +291,8 @@ final class AppSettings {
             Key.autoUpdateEnabled: true,
             Key.hasCompletedOnboarding: false,
             Key.plannedTaskSize: PlannedTaskSize.medium.rawValue,
+            Key.preferredTerminal: PreferredTerminal.terminal.rawValue,
+            Key.fullResetPolicy: FullResetPolicy.balanced.rawValue,
         ])
     }
 }

@@ -76,6 +76,8 @@ struct UsageDecision: Equatable, Sendable {
     let confidence: Confidence
     let dataQuality: DataQuality
     let taskFit: TaskFitAssessment?
+    let recommendedHeadroom: Double?
+    let reasons: [String]
 
     init(
         kind: Kind,
@@ -85,7 +87,9 @@ struct UsageDecision: Equatable, Sendable {
         resetAt: Date?,
         confidence: Confidence = .medium,
         dataQuality: DataQuality = .live,
-        taskFit: TaskFitAssessment? = nil
+        taskFit: TaskFitAssessment? = nil,
+        recommendedHeadroom: Double? = nil,
+        reasons: [String] = []
     ) {
         self.kind = kind
         self.title = title
@@ -95,6 +99,8 @@ struct UsageDecision: Equatable, Sendable {
         self.confidence = confidence
         self.dataQuality = dataQuality
         self.taskFit = taskFit
+        self.recommendedHeadroom = recommendedHeadroom
+        self.reasons = reasons
     }
 }
 
@@ -104,6 +110,7 @@ enum UsageDecisionEngine {
         currentProvider: CLIProvider? = nil,
         plannedTaskSize: PlannedTaskSize = .medium,
         fitEvidence: [CLIProvider: TaskFitEvidence] = [:],
+        fullResetPolicy: FullResetPolicy = .balanced,
         staleAfter: TimeInterval = 180,
         now: Date = Date()
     ) -> UsageDecision {
@@ -116,7 +123,8 @@ enum UsageDecisionEngine {
                 recommendedProvider: nil,
                 resetAt: nil,
                 confidence: .low,
-                dataQuality: .stale
+                dataQuality: .stale,
+                reasons: ["No connected provider returned usable usage data."]
             )
         }
 
@@ -133,7 +141,8 @@ enum UsageDecisionEngine {
                 recommendedProvider: currentProvider,
                 resetAt: nil,
                 confidence: .low,
-                dataQuality: .stale
+                dataQuality: .stale,
+                reasons: ["Every connected snapshot is stale or contains a refresh error."]
             )
         }
 
@@ -150,6 +159,58 @@ enum UsageDecisionEngine {
         )
         let quality = dataQuality(fresh: fresh, availableCount: available.count)
         let baseConfidence = confidence(quality: quality, taskFit: taskFit)
+        let applicableResetProvider = fresh.first {
+            ($0.creditsInfo?.resetCreditsApplicable ?? 0) > 0
+        }
+
+        func reasons(
+            for data: ProviderUsageData,
+            headroom: Double,
+            fit: TaskFitAssessment
+        ) -> [String] {
+            var values = [
+                "\(data.provider.rawValue) has \(Int(headroom.rounded()))% active-window headroom.",
+                "\(fit.taskSize.label) task fit: \(fit.label).",
+                "Data quality: \(quality.label).",
+            ]
+            if let alternative = ranked.first(where: { $0.provider != data.provider }) {
+                values.append(
+                    "\(alternative.provider.rawValue) has \(Int(Self.headroom(for: alternative).rounded()))% headroom."
+                )
+            }
+            return values
+        }
+
+        func fullResetDecision(for data: ProviderUsageData) -> UsageDecision {
+            let count = data.creditsInfo?.resetCreditsApplicable ?? 0
+            let resetTaskFit = taskFitAssessment(
+                evidence: fitEvidence[data.provider],
+                taskSize: plannedTaskSize,
+                availableHeadroom: 100
+            )
+            return UsageDecision(
+                kind: .useReset,
+                title: "Use a Codex full reset",
+                detail: "\(count) banked reset\(count == 1 ? " is" : "s are") ready to restore the Codex rate limit.",
+                recommendedProvider: data.provider,
+                resetAt: nil,
+                confidence: confidence(quality: quality, taskFit: resetTaskFit),
+                dataQuality: quality,
+                taskFit: resetTaskFit,
+                recommendedHeadroom: 100,
+                reasons: [
+                    "Codex reports \(count) Full Reset\(count == 1 ? "" : "s") ready now.",
+                    "A reset restores the active rate-limit window before this run.",
+                    "Reset policy: \(fullResetPolicy.label).",
+                ]
+            )
+        }
+
+        if fullResetPolicy == .preferReset,
+           let resetProvider = applicableResetProvider,
+           headroom(for: resetProvider) <= 10 {
+            return fullResetDecision(for: resetProvider)
+        }
 
         if ranked.count > 1,
            currentProvider == mostConstrained.provider,
@@ -165,30 +226,18 @@ enum UsageDecisionEngine {
                 resetAt: best.resetsAt,
                 confidence: baseConfidence,
                 dataQuality: quality,
-                taskFit: taskFit
+                taskFit: taskFit,
+                recommendedHeadroom: bestHeadroom,
+                reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
             )
         }
 
         if taskFit.outcome == .unlikely || bestHeadroom <= 10 || (bestHeadroom <= 20 && bestPace == .burningFast) {
-            if let resetProvider = fresh.first(where: {
-                ($0.creditsInfo?.resetCreditsApplicable ?? 0) > 0
-            }) {
-                let count = resetProvider.creditsInfo?.resetCreditsApplicable ?? 0
-                let resetTaskFit = taskFitAssessment(
-                    evidence: fitEvidence[resetProvider.provider],
-                    taskSize: plannedTaskSize,
-                    availableHeadroom: 100
-                )
-                return UsageDecision(
-                    kind: .useReset,
-                    title: "Use a Codex full reset",
-                    detail: "\(count) banked reset\(count == 1 ? " is" : "s are") ready to restore the Codex rate limit.",
-                    recommendedProvider: resetProvider.provider,
-                    resetAt: nil,
-                    confidence: confidence(quality: quality, taskFit: resetTaskFit),
-                    dataQuality: quality,
-                    taskFit: resetTaskFit
-                )
+            if let resetProvider = applicableResetProvider {
+                let available = resetProvider.creditsInfo?.resetCreditsAvailable ?? 0
+                if fullResetPolicy != .conserveLast || available > 1 {
+                    return fullResetDecision(for: resetProvider)
+                }
             }
 
             let reset = earliestFutureReset(in: fresh, now: now)
@@ -205,7 +254,12 @@ enum UsageDecisionEngine {
                 resetAt: reset,
                 confidence: baseConfidence,
                 dataQuality: quality,
-                taskFit: taskFit
+                taskFit: taskFit,
+                recommendedHeadroom: bestHeadroom,
+                reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
+                    + (applicableResetProvider == nil
+                        ? []
+                        : ["The final Full Reset is being preserved by your policy."])
             )
         }
 
@@ -229,7 +283,9 @@ enum UsageDecisionEngine {
             resetAt: best.resetsAt,
             confidence: taskFit.outcome == .risky ? .low : baseConfidence,
             dataQuality: quality,
-            taskFit: taskFit
+            taskFit: taskFit,
+            recommendedHeadroom: bestHeadroom,
+            reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
         )
     }
 

@@ -15,6 +15,7 @@ enum SupportDiagnosticsService {
             DurationFormatting.compactReset($0)
         } ?? "not recorded"
         let feedback = multiService.decisionFeedbackSummary
+        let outcomes = multiService.runOutcomeSummary
 
         var lines = [
             "## CC-Overlay diagnostics",
@@ -26,16 +27,20 @@ enum SupportDiagnosticsService {
             "- Time to first usable data: \(activationText)",
             "- Recommendation: \(multiService.usageDecision.title)",
             "- Planned task size: \(settings.plannedTaskSize.label)",
+            "- Preferred terminal: \(settings.preferredTerminal.label)",
+            "- Full Reset policy: \(settings.fullResetPolicy.label)",
             "- Recommendation feedback: \(feedback.helpful) helpful / \(feedback.unhelpful) not helpful",
+            "- Run outcomes: \(outcomes.completed) completed / \(outcomes.hitLimit) hit limit / \(outcomes.switched) switched / \(outcomes.usedReset) reset / \(outcomes.cancelled) cancelled",
             "",
             "### Providers",
         ]
 
         for provider in CLIProvider.allCases {
             let data = multiService.usageData(for: provider)
+            let health = multiService.providerHealth(for: provider)
             let refresh = data.lastRefresh.map { formatter.string(from: $0) } ?? "never"
             lines.append(
-                "- \(provider.rawValue): detected=\(multiService.activeProviders.contains(provider)), available=\(data.isAvailable), estimated=\(data.isEstimated), refreshed=\(refresh)"
+                "- \(provider.rawValue): state=\(health.activation.kind.rawValue), available=\(data.isAvailable), estimated=\(data.isEstimated), refreshed=\(refresh), failures=\(health.consecutiveFailures)"
             )
             if data.error != nil {
                 lines.append("  - Error present: yes (details intentionally excluded)")

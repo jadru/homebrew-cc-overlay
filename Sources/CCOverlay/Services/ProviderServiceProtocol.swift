@@ -9,6 +9,8 @@ protocol ProviderServiceProtocol: AnyObject {
     var isLoading: Bool { get }
     var error: String? { get }
     var lastRefresh: Date? { get }
+    var lastRefreshDuration: TimeInterval? { get }
+    var consecutiveNetworkFailures: Int { get }
     var lastActivityAt: Date? { get }
     var usageData: ProviderUsageData { get }
 

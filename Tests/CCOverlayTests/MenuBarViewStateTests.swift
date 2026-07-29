@@ -98,6 +98,25 @@ final class MenuBarViewStateTests: XCTestCase {
         )
     }
 
+    func testWorkflowContentExpandsTheReadyPanelWithoutExceedingMaximum() {
+        XCTAssertEqual(
+            MenuBarView.workflowPanelMinHeight(
+                baseHeight: DesignTokens.Layout.menuBarPanelCompactMinHeight,
+                historyCount: 12,
+                hasPendingRun: false
+            ),
+            515
+        )
+        XCTAssertEqual(
+            MenuBarView.workflowPanelMinHeight(
+                baseHeight: DesignTokens.Layout.menuBarPanelMinHeight,
+                historyCount: 12,
+                hasPendingRun: true
+            ),
+            DesignTokens.Layout.menuBarPanelMaxHeight
+        )
+    }
+
     func testEmptyPanelRendersMessageAndRecoveryActions() {
         let view = MenuBarView(
             multiService: MultiProviderUsageService(),
@@ -183,6 +202,43 @@ final class MenuBarViewStateTests: XCTestCase {
         XCTAssertLessThan(hostingView.fittingSize.height, 420)
     }
 
+    func testHistoryAndRunOutcomeComponentsRender() {
+        let now = Date()
+        let history = NSHostingView(
+            rootView: UsageHistoryChartView(
+                points: [
+                    UsageHistoryPoint(timestamp: now.addingTimeInterval(-600), remainingPercentage: 80),
+                    UsageHistoryPoint(timestamp: now, remainingPercentage: 60),
+                ],
+                forecast: ProviderHeadroomForecast(
+                    exhaustionAt: now.addingTimeInterval(3_600),
+                    consumptionPerHour: 20,
+                    sampleCount: 2,
+                    resetsBeforeExhaustion: false
+                )
+            )
+            .frame(width: 320)
+        )
+        XCTAssertGreaterThan(history.fittingSize.height, 60)
+
+        let outcome = NSHostingView(
+            rootView: RunOutcomeView(
+                run: PendingRun(
+                    id: UUID(),
+                    startedAt: now.addingTimeInterval(-600),
+                    provider: .codex,
+                    taskSize: .medium,
+                    startingHeadroom: 70,
+                    projectName: "Project"
+                ),
+                onOutcome: { _ in }
+            )
+            .frame(width: 320)
+        )
+        XCTAssertGreaterThan(outcome.fittingSize.height, 30)
+        XCTAssertLessThan(outcome.fittingSize.height, 90)
+    }
+
     func testOnboardingFitsItsWindow() {
         let view = OnboardingView(
             settings: AppSettings(),
@@ -193,7 +249,7 @@ final class MenuBarViewStateTests: XCTestCase {
         let size = hostingView.fittingSize
 
         XCTAssertEqual(size.width, 520, accuracy: 1)
-        XCTAssertEqual(size.height, 460, accuracy: 1)
+        XCTAssertEqual(size.height, 520, accuracy: 1)
     }
 
     private func meanAlpha(
