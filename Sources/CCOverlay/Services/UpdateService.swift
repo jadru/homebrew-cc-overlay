@@ -22,6 +22,18 @@ final class UpdateService {
     private var timer: Timer?
     private var initialCheckTask: Task<Void, Never>?
 
+    private struct CommandResult {
+        let terminationStatus: Int32
+        let standardOutput: String
+        let standardError: String
+
+        var combinedOutput: String {
+            [standardOutput, standardError]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        }
+    }
+
     nonisolated static func resolvedCurrentVersion(bundleVersion: String?, fallbackVersion: String) -> String {
         guard let bundleVersion = bundleVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
               !bundleVersion.isEmpty
@@ -38,6 +50,22 @@ final class UpdateService {
     ) -> Bool {
         guard processSucceeded, let installedVersion else { return false }
         return compareVersions(installedVersion, targetVersion) != .orderedAscending
+    }
+
+    nonisolated static func homebrewCandidatePaths(home: String) -> [String] {
+        [
+            "/opt/homebrew/bin/brew",
+            "/usr/local/bin/brew",
+            "\(home)/.linuxbrew/bin/brew",
+            "/home/linuxbrew/.linuxbrew/bin/brew",
+        ]
+    }
+
+    nonisolated static func firstExecutablePath(
+        in candidates: [String],
+        isExecutable: (String) -> Bool
+    ) -> String? {
+        candidates.first(where: isExecutable)
     }
 
     static var currentAppVersion: String {
@@ -99,31 +127,42 @@ final class UpdateService {
         await performCheck(presentsErrors: true)
     }
 
-    /// Install update via brew.
+    /// Install update via Homebrew without depending on a GUI app's inherited PATH.
     func installUpdate() {
         guard case .updateAvailable(let version) = updateState else { return }
         updateState = .installing
 
         Task.detached { [weak self] in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = [
-                "-l",
-                "-c",
-                "brew tap \(AppConstants.homebrewTap) && brew update && brew upgrade \(AppConstants.homebrewFormula)"
-            ]
-
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-
             do {
-                try process.run()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
+                guard let homebrewPath = Self.homebrewExecutablePath() else {
+                    await MainActor.run { [weak self] in
+                        self?.updateState = .error(
+                            message: "Homebrew was not found. Download v\(version) from GitHub Releases or install Homebrew, then retry."
+                        )
+                    }
+                    return
+                }
 
-                let status = process.terminationStatus
-                let installedVersion = status == 0 ? Self.installedAppMetadata().version : nil
+                let steps = [
+                    ["tap", AppConstants.homebrewTap],
+                    ["update"],
+                    ["upgrade", AppConstants.homebrewFormula],
+                ]
+                var output = ""
+                var status: Int32 = 0
+
+                for arguments in steps {
+                    let result = try Self.runCommand(executablePath: homebrewPath, arguments: arguments)
+                    if !result.combinedOutput.isEmpty {
+                        output += result.combinedOutput + "\n"
+                    }
+                    status = result.terminationStatus
+                    if status != 0 { break }
+                }
+
+                let installedVersion = status == 0
+                    ? Self.installedAppMetadata(homebrewExecutablePath: homebrewPath).version
+                    : nil
                 await MainActor.run { [weak self] in
                     if Self.installedVersionSatisfiesTarget(
                         processSucceeded: status == 0,
@@ -132,10 +171,10 @@ final class UpdateService {
                     ) {
                         self?.updateState = .readyToRestart(version: version)
                     } else {
-                        let output = String(data: data, encoding: .utf8) ?? "Unknown error"
                         let installed = installedVersion.map { " Installed version: \($0)." } ?? ""
+                        let detail = Self.conciseCommandOutput(output)
                         self?.updateState = .error(
-                            message: "Update did not install v\(version).\(installed) \(output)"
+                            message: "Update did not install v\(version).\(installed) \(detail)"
                         )
                     }
                 }
@@ -218,26 +257,28 @@ final class UpdateService {
     }
 
     /// Resolves Homebrew's stable opt prefix after an upgrade, then opens that bundle.
-    nonisolated private static func installedAppMetadata() -> (url: URL?, version: String?) {
-        let prefixProcess = Process()
-        prefixProcess.executableURL = URL(fileURLWithPath: "/bin/bash")
-        prefixProcess.arguments = ["-l", "-c", "brew --prefix \(AppConstants.homebrewFormula)"]
-
-        let prefixPipe = Pipe()
-        prefixProcess.standardOutput = prefixPipe
-        prefixProcess.standardError = Pipe()
-
+    nonisolated private static func installedAppMetadata(
+        homebrewExecutablePath brewPath: String? = nil
+    ) -> (url: URL?, version: String?) {
+        guard let homebrewExecutablePath = brewPath ?? homebrewExecutablePath() else {
+            return (nil, nil)
+        }
         do {
-            try prefixProcess.run()
-            let data = prefixPipe.fileHandleForReading.readDataToEndOfFile()
-            prefixProcess.waitUntilExit()
-
-            guard prefixProcess.terminationStatus == 0 else {
+            let result = try runCommand(
+                executablePath: homebrewExecutablePath,
+                arguments: ["--prefix", AppConstants.homebrewFormula]
+            )
+            guard result.terminationStatus == 0 else {
                 return (nil, nil)
             }
 
-            let prefix = String(decoding: data, as: UTF8.self)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let prefix = result.standardOutput
+                .split(whereSeparator: \.isNewline)
+                .map(String.init)
+                .first(where: { $0.hasPrefix("/") })
+            else {
+                return (nil, nil)
+            }
             let appURL = URL(fileURLWithPath: prefix, isDirectory: true)
                 .appendingPathComponent("CC-Overlay.app", isDirectory: true)
             guard FileManager.default.fileExists(atPath: appURL.path) else {
@@ -257,6 +298,55 @@ final class UpdateService {
         } catch {
             return (nil, nil)
         }
+    }
+
+    nonisolated private static func homebrewExecutablePath() -> String? {
+        firstExecutablePath(
+            in: homebrewCandidatePaths(home: FileManager.default.homeDirectoryForCurrentUser.path),
+            isExecutable: FileManager.default.isExecutableFile(atPath:)
+        )
+    }
+
+    nonisolated private static func runCommand(
+        executablePath: String,
+        arguments: [String]
+    ) throws -> CommandResult {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        process.environment = commandEnvironment(executablePath: executablePath)
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
+
+        try process.run()
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        return CommandResult(
+            terminationStatus: process.terminationStatus,
+            standardOutput: String(decoding: outputData, as: UTF8.self),
+            standardError: ""
+        )
+    }
+
+    nonisolated private static func commandEnvironment(executablePath: String) -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        let homebrewBin = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
+        let inheritedPaths = environment["PATH"]?.split(separator: ":").map(String.init) ?? []
+        let paths = [homebrewBin, "/usr/bin", "/bin", "/usr/sbin", "/sbin"] + inheritedPaths
+        environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        environment["PATH"] = paths.reduce(into: [String]()) { result, path in
+            if !result.contains(path) { result.append(path) }
+        }.joined(separator: ":")
+        return environment
+    }
+
+    nonisolated private static func conciseCommandOutput(_ output: String) -> String {
+        let normalized = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "Homebrew returned no error details." }
+        return String(normalized.suffix(600))
     }
 
     nonisolated private static func launchInstalledApp(expectedVersion: String) -> String? {

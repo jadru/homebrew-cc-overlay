@@ -77,4 +77,29 @@ final class UpdateServiceTests: XCTestCase {
             )
         )
     }
+
+    func testHomebrewCandidatesCoverAppleSiliconAndIntelDefaults() {
+        let candidates = UpdateService.homebrewCandidatePaths(home: "/Users/tester")
+
+        XCTAssertTrue(candidates.contains("/opt/homebrew/bin/brew"))
+        XCTAssertTrue(candidates.contains("/usr/local/bin/brew"))
+    }
+
+    func testHomebrewResolutionDoesNotDependOnShellPATH() {
+        let candidates = UpdateService.homebrewCandidatePaths(home: "/Users/tester")
+        let resolved = UpdateService.firstExecutablePath(in: candidates) { path in
+            path == "/opt/homebrew/bin/brew"
+        }
+
+        XCTAssertEqual(resolved, "/opt/homebrew/bin/brew")
+    }
+
+    func testHomebrewResolutionReturnsNilWhenNoCandidateIsExecutable() {
+        let resolved = UpdateService.firstExecutablePath(
+            in: UpdateService.homebrewCandidatePaths(home: "/Users/tester"),
+            isExecutable: { _ in false }
+        )
+
+        XCTAssertNil(resolved)
+    }
 }

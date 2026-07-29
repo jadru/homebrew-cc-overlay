@@ -1,3 +1,18 @@
+# v0.12.1
+
+## Reliable In-App Updates
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **PATH-independent Homebrew discovery** — Finds the standard Apple Silicon and Intel Homebrew executables even when a menu bar app inherits no terminal PATH.
+- **Shell-free update commands** — Runs the resolved Homebrew executable directly instead of routing update commands through `/bin/bash`.
+- **Consistent verification and restart** — Uses the same resolved executable to confirm the installed app version before offering a restart.
+- **Actionable failures** — Keeps Homebrew output concise and explains how to recover when Homebrew is not installed.
+
+---
+
 # v0.12.0
 
 ## Guided Runs and Provider Health
