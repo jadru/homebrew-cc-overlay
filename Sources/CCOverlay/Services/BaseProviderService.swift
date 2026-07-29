@@ -13,13 +13,14 @@ class BaseProviderService: ProviderServiceProtocol {
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var lastRefresh: Date?
+    private(set) var lastRefreshDuration: TimeInterval?
     private(set) var lastActivityAt: Date?
 
     private var lastKnownUsedPct: Double = -1
     private var refreshTimer: Timer?
     private var refreshTask: Task<Void, Never>?
     private var refreshInterval: TimeInterval = AppConstants.defaultRefreshInterval
-    private var consecutiveNetworkFailures = 0
+    private(set) var consecutiveNetworkFailures = 0
     private var nextNetworkAttemptAt: Date?
     private var lastNetworkRequestAt: Date?
     private var forceNextNetworkRefresh = false
@@ -67,7 +68,9 @@ class BaseProviderService: ProviderServiceProtocol {
         isLoading = true
         refreshTask = Task { [weak self] in
             guard let self else { return }
+            let startedAt = Date()
             await fetchUsage()
+            lastRefreshDuration = Date().timeIntervalSince(startedAt)
             guard !Task.isCancelled else { return }
             isLoading = false
             refreshTask = nil

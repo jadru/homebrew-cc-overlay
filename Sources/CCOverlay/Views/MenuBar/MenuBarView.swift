@@ -14,10 +14,12 @@ struct MenuBarView: View {
     @Bindable var settings: AppSettings
     let updateService: UpdateService
     var costAlertManager: CostAlertManager? = nil
+    var sessionMonitor: SessionMonitor? = nil
     var onOpenSettings: (() -> Void)?
 
     @State private var selectedProvider: CLIProvider?
     @State private var keyMonitor: Any?
+    @State private var actionError: String?
 
     private var availableProviders: [CLIProvider] {
         multiService.availableProviders
@@ -89,7 +91,12 @@ struct MenuBarView: View {
         guard panelState == .ready, let provider = displayedProvider else {
             return DesignTokens.Layout.menuBarPanelEmptyMinHeight
         }
-        return Self.readyPanelMinHeight(for: multiService.usageData(for: provider))
+        let baseHeight = Self.readyPanelMinHeight(for: multiService.usageData(for: provider))
+        return Self.workflowPanelMinHeight(
+            baseHeight: baseHeight,
+            historyCount: multiService.usageHistory(for: provider).count,
+            hasPendingRun: multiService.pendingRun != nil
+        )
     }
 
     // MARK: - Content Area
@@ -127,7 +134,23 @@ struct MenuBarView: View {
                     onPrimaryAction: { performPrimaryAction(decision) },
                     onFeedback: { multiService.recordDecisionFeedback(helpful: $0, decision: decision) }
                 )
+                if let run = multiService.pendingRun {
+                    RunOutcomeView(run: run) {
+                        multiService.completePendingRun(outcome: $0)
+                    }
+                }
+                if let actionError {
+                    ErrorBannerView(
+                        error: .unknown(message: actionError),
+                        onDismiss: { self.actionError = nil },
+                        compact: true
+                    )
+                }
                 ProviderSectionView(data: multiService.usageData(for: provider))
+                UsageHistoryChartView(
+                    points: multiService.usageHistory(for: provider),
+                    forecast: multiService.headroomForecast(for: provider)
+                )
             }
         case .loading, .failed, .noProviders, .noUsage:
             unavailableContent
@@ -162,8 +185,9 @@ struct MenuBarView: View {
     private func performPrimaryAction(_ decision: UsageDecision) {
         switch decision.kind {
         case .run, .switchProvider:
-            guard let provider = decision.recommendedProvider else { return }
-            UsageExportService.copyToClipboard(provider.launchCommand)
+            Task {
+                await launchRecommendedProvider(decision)
+            }
         case .useReset:
             NSWorkspace.shared.open(AppConstants.codexUsageDashboardURL)
         case .wait:
@@ -176,6 +200,42 @@ struct MenuBarView: View {
             multiService.refresh()
         case .setup:
             onOpenSettings?()
+        }
+    }
+
+    private func launchRecommendedProvider(_ decision: UsageDecision) async {
+        guard let provider = decision.recommendedProvider else { return }
+
+        let activeProject = sessionMonitor?.activeSessions
+            .first(where: { $0.projectPath != nil })
+        let directory: URL
+        if let path = activeProject?.projectPath {
+            directory = URL(fileURLWithPath: path, isDirectory: true)
+        } else if let selected = await TerminalLauncher.chooseWorkingDirectory() {
+            directory = selected
+        } else {
+            return
+        }
+
+        do {
+            try TerminalLauncher.launch(
+                provider: provider,
+                workingDirectory: directory,
+                terminal: settings.preferredTerminal
+            )
+            actionError = nil
+            multiService.beginRun(
+                decision: decision,
+                projectName: directory.lastPathComponent
+            )
+        } catch {
+            actionError = error.localizedDescription
+            UsageExportService.copyToClipboard(
+                TerminalLauncher.shellCommand(
+                    command: provider.launchCommand,
+                    workingDirectory: directory
+                )
+            )
         }
     }
 
@@ -457,6 +517,19 @@ struct MenuBarView: View {
             return DesignTokens.Layout.menuBarPanelCompactMinHeight
         }
         return DesignTokens.Layout.menuBarPanelMinHeight
+    }
+
+    nonisolated static func workflowPanelMinHeight(
+        baseHeight: CGFloat,
+        historyCount: Int,
+        hasPendingRun: Bool
+    ) -> CGFloat {
+        let historyAndFooterHeight: CGFloat = historyCount >= 2 ? 145 : 95
+        let outcomeHeight: CGFloat = hasPendingRun ? 55 : 0
+        return min(
+            baseHeight + historyAndFooterHeight + outcomeHeight,
+            DesignTokens.Layout.menuBarPanelMaxHeight
+        )
     }
 
     private func installKeyMonitorIfNeeded() {

@@ -6,6 +6,7 @@ struct OnboardingView: View {
     let onComplete: () -> Void
 
     @State private var step = 0
+    @State private var recoveryError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,15 +23,18 @@ struct OnboardingView: View {
 
             Divider()
 
-            Group {
-                switch step {
-                case 0: welcomeStep
-                case 1: providersStep
-                default: overlayStep
+            ScrollView {
+                Group {
+                    switch step {
+                    case 0: welcomeStep
+                    case 1: providersStep
+                    default: overlayStep
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(30)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(30)
+            .scrollIndicators(.never)
 
             Divider()
 
@@ -54,7 +58,7 @@ struct OnboardingView: View {
             }
             .padding(18)
         }
-        .frame(width: 520, height: 460)
+        .frame(width: 520, height: 520)
     }
 
     private var welcomeStep: some View {
@@ -94,10 +98,17 @@ struct OnboardingView: View {
                 Text("Signed-in providers are detected locally. Unconfigured tools stay hidden from the overlay.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             ForEach(CLIProvider.allCases) { provider in
                 providerRow(provider)
+            }
+
+            if let recoveryError {
+                Label(recoveryError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
 
             Toggle("Read Claude OAuth rate limits", isOn: $settings.claudeOAuthEnabled)
@@ -127,6 +138,11 @@ struct OnboardingView: View {
             Toggle("Start overlay expanded", isOn: $settings.pillAlwaysExpanded)
                 .disabled(!settings.showOverlay)
             Toggle("Usage threshold alerts", isOn: $settings.costAlertEnabled)
+            Picker("Terminal for Run actions", selection: $settings.preferredTerminal) {
+                ForEach(PreferredTerminal.allCases) { terminal in
+                    Text(terminal.label).tag(terminal)
+                }
+            }
             HStack(spacing: 10) {
                 Image(systemName: "command")
                 Text("Toggle the overlay any time with Command-Shift-A.")
@@ -142,8 +158,7 @@ struct OnboardingView: View {
     }
 
     private func providerRow(_ provider: CLIProvider) -> some View {
-        let data = multiService.usageData(for: provider)
-        let isDetected = multiService.activeProviders.contains(provider)
+        let status = multiService.activationStatus(for: provider)
 
         return HStack(spacing: 12) {
             ProviderIconView(provider: provider, size: 22)
@@ -152,19 +167,56 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(provider.rawValue)
                     .font(.system(size: 13, weight: .semibold))
-                Text(data.error ?? (data.isAvailable ? "Live usage ready" : isDetected ? "Detected - waiting for usage" : "Not detected"))
+                Text(status.title)
                     .font(.system(size: 10))
-                    .foregroundStyle(data.error == nil ? Color.secondary : Color.orange)
+                    .foregroundStyle(status.kind == .failed ? Color.orange : Color.secondary)
                     .lineLimit(1)
+                Text(status.detail)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
             }
 
             Spacer()
 
-            Image(systemName: data.isAvailable ? "checkmark.circle.fill" : isDetected ? "clock.fill" : "minus.circle")
-                .foregroundStyle(data.isAvailable ? .mint : .secondary)
+            if status.kind == .ready {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.mint)
+            } else if let command = status.recoveryCommand {
+                Button(status.kind == .cliMissing ? "Install" : "Sign in") {
+                    runRecovery(command)
+                }
+                .controlSize(.small)
+            }
+
+            Button {
+                multiService.refresh()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Recheck provider")
+            .accessibilityLabel("Recheck \(provider.rawValue)")
         }
         .padding(12)
         .compatGlassRoundedRect(cornerRadius: 11, interactive: false, tint: Color.secondary.opacity(0.04))
+    }
+
+    private func runRecovery(_ command: String) {
+        do {
+            try TerminalLauncher.launch(
+                command: command,
+                workingDirectory: FileManager.default.homeDirectoryForCurrentUser,
+                terminal: settings.preferredTerminal
+            )
+            recoveryError = nil
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                multiService.refresh()
+            }
+        } catch {
+            recoveryError = error.localizedDescription
+        }
     }
 
     private func privacyRow(icon: String, title: String, detail: String) -> some View {

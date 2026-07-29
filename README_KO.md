@@ -18,8 +18,12 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 - **페이스 신호** — 5H·7D 타임라인에서 빠른 소진, 정상 페이스, 여유 상태를 구분
 - **실행 가능한 추천** — 연결된 프로바이더를 종합해 신뢰도가 표시된 Run, Wait, Switch, Refresh 상태를 제안
 - **작업 적합도 학습** — 로컬 사용 변화에서 Small, Medium, Large 작업이 현재 한도에 들어갈 가능성을 계산
-- **의사결정 액션** — 추천 CLI 명령 복사, 리셋 알림 예약, 추천 품질 평가를 카드에서 바로 실행
+- **가이드 Run / Switch** — 활성 프로젝트 위치에서 추천 CLI를 Terminal 또는 iTerm2로 실행하고 실패 시 전체 명령을 안전하게 복사
+- **설명 가능한 추천** — 각 결정에 사용한 잔여량, 작업 적합도, 데이터 품질, 대안 신호 확인
+- **실행 결과 학습** — 완료, 한도 도달, 전환, 리셋, 취소 결과를 로컬에 기록해 이후 작업 적합도 개선
 - **Codex Full Reset** — 보유한 rate-limit reset을 표시하고 사용 가능할 때 Codex Usage로 바로 이동
+- **로컬 히스토리와 예측** — 7일 잔여량 변화와 현재 페이스 기준 한도 도달 예상 시간 표시
+- **활성화 및 프로바이더 상태** — 설치, 로그인, stale, 응답 변경, 지연, 반복 실패 상태 진단
 - **조건부 프로바이더 전환** — 두 프로바이더 모두 사용량이 있을 때만 compact selector 표시
 - **비용 임계값 알림** — 70%, 90% 사용 시 macOS 알림
 - **글로벌 단축키** — `Cmd+Shift+A`로 오버레이 토글
@@ -135,6 +139,8 @@ provider token은 민감한 정보입니다. provider를 활성화하기 전에 
 | Plan tier | Pro | 로컬 JSONL 모드용 (Pro/Max/Enterprise/Custom) |
 | Claude OAuth rate limits | Off | 명시적으로 켠 경우에만 Claude Keychain credential 읽기 |
 | Refresh interval | 1분 | 사용량 데이터 갱신 주기 |
+| Run in | Terminal | 가이드 Run / Switch 액션에 사용할 Terminal 또는 iTerm2 |
+| Full Reset policy | Balanced | reset 균형 사용, 마지막 reset 보존, 전환보다 reset 우선 설정 |
 | Launch at login | Off | macOS 시작 시 자동 실행 |
 
 ### 모델별 가격

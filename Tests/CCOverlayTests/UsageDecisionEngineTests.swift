@@ -71,6 +71,48 @@ final class UsageDecisionEngineTests: XCTestCase {
         XCTAssertTrue(decision.detail.contains("1 banked reset"))
     }
 
+    func testConservePolicyPreservesFinalBankedReset() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(
+                    .codex,
+                    remaining: 0,
+                    refreshedAt: now,
+                    resetCreditsAvailable: 1,
+                    resetCreditsApplicable: 1
+                ),
+            ],
+            fullResetPolicy: .conserveLast,
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .wait)
+        XCTAssertTrue(decision.reasons.contains { $0.contains("preserved") })
+    }
+
+    func testPreferResetPolicyUsesResetBeforeHealthyAlternative() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [
+                data(.claudeCode, remaining: 80, refreshedAt: now),
+                data(
+                    .codex,
+                    remaining: 0,
+                    refreshedAt: now,
+                    resetCreditsAvailable: 2,
+                    resetCreditsApplicable: 1
+                ),
+            ],
+            fullResetPolicy: .preferReset,
+            now: now
+        )
+
+        XCTAssertEqual(decision.kind, .useReset)
+        XCTAssertEqual(decision.recommendedHeadroom, 100)
+        XCTAssertFalse(decision.reasons.isEmpty)
+    }
+
     func testRequiresRefreshWhenAllProviderDataIsStale() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let decision = UsageDecisionEngine.recommend(
