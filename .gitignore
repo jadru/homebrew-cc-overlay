@@ -17,3 +17,6 @@ dist/
 
 # Context (workspace-specific)
 .context/
+
+# Codex local workspace state
+.codex/
