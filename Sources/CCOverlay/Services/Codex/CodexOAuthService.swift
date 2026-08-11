@@ -11,6 +11,7 @@ actor CodexOAuthService {
 
     private var accessToken: String
     private var accountId: String?
+    private let urlSession: URLSession
 
     // MARK: - Response Types
 
@@ -68,9 +69,10 @@ actor CodexOAuthService {
 
     // MARK: - Init
 
-    init(auth: CodexDetector.ChatGPTAuth) {
+    init(auth: CodexDetector.ChatGPTAuth, urlSession: URLSession = .shared) {
         self.accessToken = auth.accessToken
         self.accountId = auth.accountId
+        self.urlSession = urlSession
     }
 
     func updateAuth(_ auth: CodexDetector.ChatGPTAuth) {
@@ -95,7 +97,7 @@ actor CodexOAuthService {
         }
         request.timeoutInterval = AppConstants.oauthTimeoutInterval
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OAuthError.invalidResponse

@@ -145,7 +145,7 @@ enum TokenCostWeight {
 // MARK: - App Constants
 
 enum AppConstants {
-    static let version = "0.13.0"
+    static let version = "0.13.1"
     static let githubRepo = "jadru/homebrew-cc-overlay"
     static let codexUsageDashboardURL = URL(string: "https://chatgpt.com/codex/settings/usage")!
     static let homebrewTap = "jadru/cc-overlay"
@@ -181,6 +181,12 @@ enum AppConstants {
     // Network
     static let apiTimeoutInterval: TimeInterval = 10
     static let oauthTimeoutInterval: TimeInterval = 15
+    static let updateCheckTimeoutInterval: TimeInterval = 10
+    static let updateCheckRetryCount = 2
+    static let updateCheckRetryDelay: Duration = .seconds(1)
+    static let homebrewCommandTimeoutInterval: TimeInterval = 5 * 60
+    static let homebrewMetadataTimeoutInterval: TimeInterval = 15
+    static let updateLaunchHandoffTimeoutInterval: TimeInterval = 15
     static let minimumNetworkRetryInterval: TimeInterval = 15
     static let maximumNetworkRetryInterval: TimeInterval = 5 * 60
     static let idleNetworkRefreshInterval: TimeInterval = 2 * 60
