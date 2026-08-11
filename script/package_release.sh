@@ -3,7 +3,7 @@ set -euo pipefail
 
 VERSION="${VERSION:?VERSION is required, for example 0.10.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-$VERSION}"
-SIGN_IDENTITY="${SIGN_IDENTITY:?SIGN_IDENTITY must name a Developer ID Application certificate}"
+SIGN_IDENTITY="${SIGN_IDENTITY:?SIGN_IDENTITY must name a Developer ID Application certificate or SHA-1 identity hash}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 NOTARIZE="${NOTARIZE:-1}"
 ARCHS="${ARCHS:-arm64 x86_64}"
@@ -28,6 +28,32 @@ fi
 if [[ "$NOTARIZE" == "1" && -z "$NOTARY_PROFILE" ]]; then
   echo "NOTARY_PROFILE is required when NOTARIZE=1" >&2
   exit 2
+fi
+
+# `codesign` cannot distinguish two certificates with the same display name.
+# Resolve a unique friendly name once so local releases and CI behave identically;
+# callers can always provide the SHA-1 identity hash directly.
+if [[ "$SIGN_IDENTITY" != "-" && ! "$SIGN_IDENTITY" =~ ^[A-Fa-f0-9]{40}$ ]]; then
+  matching_identity_hashes="$(
+    security find-identity -v -p codesigning 2>/dev/null \
+      | awk -F '"' -v wanted="$SIGN_IDENTITY" '$2 == wanted { print $1 }' \
+      | sed -E 's/.*\) ([A-Fa-f0-9]{40}) .*/\1/'
+  )"
+  matching_identity_count=0
+  resolved_identity=""
+  while IFS= read -r identity_hash; do
+    [[ -z "$identity_hash" ]] && continue
+    matching_identity_count=$((matching_identity_count + 1))
+    resolved_identity="$identity_hash"
+  done <<< "$matching_identity_hashes"
+
+  if [[ "$matching_identity_count" -ne 1 ]]; then
+    echo "SIGN_IDENTITY must resolve to exactly one signing identity; found $matching_identity_count matches for: $SIGN_IDENTITY" >&2
+    echo "Set SIGN_IDENTITY to the SHA-1 hash from: security find-identity -v -p codesigning" >&2
+    exit 2
+  fi
+
+  SIGN_IDENTITY="$resolved_identity"
 fi
 
 export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-$ROOT_DIR/.build/module-cache}"

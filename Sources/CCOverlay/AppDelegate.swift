@@ -16,7 +16,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyManager?.unregister()
         overlayManager?.closeOverlay()
-        windowCoordinator.closeSettings()
         windowCoordinator.closeOnboarding()
         terminationHandler?()
         terminationHandler = nil
@@ -26,7 +25,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         terminationHandler = handler
     }
 
-    func setupOverlay(settings: AppSettings, multiService: MultiProviderUsageService) {
+    func setupOverlay(
+        settings: AppSettings,
+        multiService: MultiProviderUsageService,
+        patchProgress: PatchProgressStore
+    ) {
         AppLogger.ui.debug("setupOverlay called, overlayManager exists: \(self.overlayManager != nil)")
         DebugFlowLogger.shared.log(
             stage: .display,
@@ -37,7 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let manager = OverlayManager(
             settings: settings,
-            multiService: multiService
+            multiService: multiService,
+            patchProgress: patchProgress
         )
 
         self.overlayManager = manager
@@ -48,31 +52,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func showSettings(
-        settings: AppSettings,
-        multiService: MultiProviderUsageService,
-        codexProfileStore: CodexAccountProfileStore,
-        codexAccountMonitor: CodexAccountMonitor,
-        updateService: UpdateService
-    ) {
-        DebugFlowLogger.shared.log(stage: .display, message: "settings.opened")
-        windowCoordinator.showSettings(
-            settings: settings,
-            multiService: multiService,
-            codexProfileStore: codexProfileStore,
-            codexAccountMonitor: codexAccountMonitor,
-            updateService: updateService
-        )
-    }
-
     func showOnboarding(
         settings: AppSettings,
         multiService: MultiProviderUsageService,
+        patchProgress: PatchProgressStore,
         onComplete: @escaping () -> Void
     ) {
         windowCoordinator.showOnboarding(
             settings: settings,
             multiService: multiService,
+            patchProgress: patchProgress,
             onComplete: onComplete
         )
     }

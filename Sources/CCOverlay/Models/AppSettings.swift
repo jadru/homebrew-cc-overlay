@@ -21,6 +21,10 @@ final class AppSettings {
         static let globalHotkeyEnabled = "globalHotkeyEnabled"
         static let pillAlwaysExpanded = "pillAlwaysExpanded"
         static let pillClickThrough = "pillClickThrough"
+        static let overlayPresentation = "overlayPresentation"
+        static let overlayPresentationMigration = "overlayPresentationMigration"
+        static let gardenBackground = "gardenBackground"
+        static let companionBackground = "companionBackground"
         static let autoUpdateEnabled = "autoUpdateEnabled"
         static let lastUpdateCheck = "lastUpdateCheck"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
@@ -149,7 +153,20 @@ final class AppSettings {
         set { withMutation(keyPath: \.globalHotkeyEnabled) { UserDefaults.standard.set(newValue, forKey: Key.globalHotkeyEnabled) } }
     }
 
-    // MARK: - Overlay (Pill) Settings
+    // MARK: - Overlay Settings
+
+    var overlayPresentation: OverlayPresentation {
+        get {
+            access(keyPath: \.overlayPresentation)
+            let rawValue = UserDefaults.standard.string(forKey: Key.overlayPresentation)
+            return OverlayPresentation.fromStoredValue(rawValue)
+        }
+        set {
+            withMutation(keyPath: \.overlayPresentation) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.overlayPresentation)
+            }
+        }
+    }
 
     var pillAlwaysExpanded: Bool {
         get { access(keyPath: \.pillAlwaysExpanded); return UserDefaults.standard.bool(forKey: Key.pillAlwaysExpanded) }
@@ -159,6 +176,20 @@ final class AppSettings {
     var pillClickThrough: Bool {
         get { access(keyPath: \.pillClickThrough); return UserDefaults.standard.bool(forKey: Key.pillClickThrough) }
         set { withMutation(keyPath: \.pillClickThrough) { UserDefaults.standard.set(newValue, forKey: Key.pillClickThrough) } }
+    }
+
+    var companionBackground: CompanionBackground {
+        get {
+            access(keyPath: \.companionBackground)
+            let rawValue = UserDefaults.standard.string(forKey: Key.companionBackground)
+                ?? UserDefaults.standard.string(forKey: Key.gardenBackground)
+            return CompanionBackground(rawValue: rawValue ?? "") ?? .transparent
+        }
+        set {
+            withMutation(keyPath: \.companionBackground) {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.companionBackground)
+            }
+        }
     }
 
     /// Weighted cost limit for the current plan.
@@ -290,6 +321,12 @@ final class AppSettings {
         if defaults.object(forKey: Key.firstLaunchAt) == nil {
             defaults.set(Date(), forKey: Key.firstLaunchAt)
         }
+        if defaults.string(forKey: Key.overlayPresentationMigration) != "patchCompanionV2" {
+            // Patch replaces the previous companion for every existing install;
+            // the classic pill remains selectable in Settings.
+            defaults.set(OverlayPresentation.companion.rawValue, forKey: Key.overlayPresentation)
+            defaults.set("patchCompanionV2", forKey: Key.overlayPresentationMigration)
+        }
 
         UserDefaults.standard.register(defaults: [
             Key.showOverlay: true,
@@ -302,6 +339,8 @@ final class AppSettings {
             Key.globalHotkeyEnabled: true,
             Key.pillAlwaysExpanded: false,
             Key.pillClickThrough: false,
+            Key.overlayPresentation: OverlayPresentation.companion.rawValue,
+            Key.companionBackground: CompanionBackground.transparent.rawValue,
             Key.autoUpdateEnabled: true,
             Key.hasCompletedOnboarding: false,
             Key.plannedTaskSize: PlannedTaskSize.medium.rawValue,

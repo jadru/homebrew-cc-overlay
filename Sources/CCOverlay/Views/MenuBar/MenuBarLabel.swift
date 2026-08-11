@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarLabel: View {
     let multiService: MultiProviderUsageService
     let updateService: UpdateService
+    let settings: AppSettings
 
     private var visibleProviders: [CLIProvider] {
         Self.visibleProviders(
@@ -28,6 +29,12 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            if settings.overlayPresentation == .companion {
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .accessibilityHidden(true)
+            }
+
             if visibleProviders.isEmpty {
                 Image(systemName: "circle.dashed")
                     .font(.system(size: 12, weight: .medium))

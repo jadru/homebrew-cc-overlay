@@ -4,43 +4,97 @@ import SwiftUI
 @MainActor
 private final class MovableOverlayPanel: NSPanel {
     private let interactionState: OverlayInteractionState
+    private let allowsContentDrag: Bool
+    private var dragStartScreenPoint: NSPoint?
+    private var dragStartFrame: NSRect?
 
     init(
         contentRect: NSRect,
         styleMask: NSWindow.StyleMask,
         backing: NSWindow.BackingStoreType,
         defer flag: Bool,
-        interactionState: OverlayInteractionState
+        interactionState: OverlayInteractionState,
+        allowsContentDrag: Bool = false
     ) {
         self.interactionState = interactionState
+        self.allowsContentDrag = allowsContentDrag
         super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
     }
 
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown, !interactionState.isExpanded {
-            interactionState.isPointerDown = true
-        }
+        switch event.type {
+        case .leftMouseDown:
+            interactionState.beginPointerSequence()
+            if allowsContentDrag {
+                dragStartScreenPoint = convertPoint(toScreen: event.locationInWindow)
+                dragStartFrame = frame
+            }
+            super.sendEvent(event)
 
-        super.sendEvent(event)
+        case .leftMouseDragged where allowsContentDrag:
+            guard let dragStartScreenPoint, let dragStartFrame else {
+                super.sendEvent(event)
+                return
+            }
 
-        if event.type == .leftMouseUp {
-            interactionState.isPointerDown = false
+            let currentScreenPoint = convertPoint(toScreen: event.locationInWindow)
+            let deltaX = currentScreenPoint.x - dragStartScreenPoint.x
+            let deltaY = currentScreenPoint.y - dragStartScreenPoint.y
+            guard abs(deltaX) > 1 || abs(deltaY) > 1 else { return }
+
+            interactionState.beginWindowDrag()
+            var nextFrame = dragStartFrame.offsetBy(dx: deltaX, dy: deltaY)
+            nextFrame.origin = boundedOrigin(for: nextFrame)
+            setFrame(nextFrame, display: true)
+
+        case .leftMouseUp:
+            super.sendEvent(event)
+            interactionState.endPointerSequence()
+            dragStartScreenPoint = nil
+            dragStartFrame = nil
+
+        default:
+            super.sendEvent(event)
         }
+    }
+
+    /// The companion remains recoverable even when it is dragged to a screen
+    /// edge: at least a 52-point grab area is always visible.
+    private func boundedOrigin(for frame: NSRect) -> NSPoint {
+        let visibleFrame = screen?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let visibleGrabArea: CGFloat = 52
+        let minX = visibleFrame.minX - frame.width + visibleGrabArea
+        let maxX = visibleFrame.maxX - visibleGrabArea
+        let minY = visibleFrame.minY - frame.height + visibleGrabArea
+        let maxY = visibleFrame.maxY - visibleGrabArea
+
+        return NSPoint(
+            x: min(max(frame.origin.x, minX), maxX),
+            y: min(max(frame.origin.y, minY), maxY)
+        )
     }
 }
 
-/// Manages the floating pill overlay window.
+/// Manages the floating usage pill or interactive Patch companion window.
 @MainActor
 final class OverlayManager {
     private var window: NSPanel?
     private var hostingView: NSHostingView<AnyView>?
     private let settings: AppSettings
     private let multiService: MultiProviderUsageService
+    private let patchProgress: PatchProgressStore
     private var focusObserver: Any?
 
-    init(settings: AppSettings, multiService: MultiProviderUsageService) {
+    init(
+        settings: AppSettings,
+        multiService: MultiProviderUsageService,
+        patchProgress: PatchProgressStore
+    ) {
         self.settings = settings
         self.multiService = multiService
+        self.patchProgress = patchProgress
     }
 
     // MARK: - Public API
@@ -112,6 +166,15 @@ final class OverlayManager {
     // MARK: - Window Creation
 
     private func createWindow() {
+        switch settings.overlayPresentation {
+        case .companion:
+            createCompanionWindow()
+        case .usagePill:
+            createUsagePillWindow()
+        }
+    }
+
+    private func createUsagePillWindow() {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let initialSize = CGSize(width: 120, height: 30)
         let originX = screen.maxX - initialSize.width
@@ -182,14 +245,66 @@ final class OverlayManager {
         DebugFlowLogger.shared.log(
             stage: .display,
             message: "overlay.window.created",
-            details: ["size": "\(initialSize.width)x\(initialSize.height)"]
+            details: ["presentation": "usagePill", "size": "\(initialSize.width)x\(initialSize.height)"]
+        )
+    }
+
+    private func createCompanionWindow() {
+        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let initialSize = PatchInteraction.overlaySize
+        let margin: CGFloat = 24
+        let originX = screen.maxX - initialSize.width - margin
+        let originY = screen.minY + margin
+
+        let interactionState = OverlayInteractionState()
+        let panel = MovableOverlayPanel(
+            contentRect: NSRect(x: originX, y: originY, width: initialSize.width, height: initialSize.height),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false,
+            interactionState: interactionState,
+            allowsContentDrag: true
+        )
+
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.hidesOnDeactivate = false
+        panel.isMovableByWindowBackground = false
+        panel.ignoresMouseEvents = false
+
+        let hosting = NSHostingView(
+            rootView: AnyView(
+                PatchOverlayView(
+                    multiService: multiService,
+                    settings: settings,
+                    progress: patchProgress,
+                    interactionState: interactionState
+                )
+            )
+        )
+        hosting.sizingOptions = []
+        panel.contentView = hosting
+
+        panel.orderFront(nil)
+        self.window = panel
+        self.hostingView = hosting
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "overlay.window.created",
+            details: ["presentation": "patchCompanion", "size": "\(initialSize.width)x\(initialSize.height)"]
         )
     }
 
     // MARK: - Settings Observation
 
     func updateFromSettings() {
-        window?.ignoresMouseEvents = settings.pillClickThrough
+        window?.ignoresMouseEvents = settings.overlayPresentation == .usagePill && settings.pillClickThrough
     }
 
     // MARK: - Focus Monitoring
