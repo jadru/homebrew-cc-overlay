@@ -1,3 +1,18 @@
+# v0.13.1
+
+## Reliable In-App Updates
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **PATH-independent Homebrew updates** — Finds the standard Apple Silicon and Intel Homebrew executables even when a menu bar app inherits no terminal PATH.
+- **Safer update recovery** — Refuses to update manually installed copies, times out stalled Homebrew commands, and keeps failure details concise.
+- **Verified app handoff** — Keeps the current app running until the upgraded app finishes initializing successfully.
+- **More resilient update checks** — Retries transient GitHub release-check failures and applies a request timeout.
+
+---
+
 # v0.13.0
 
 ## Unlimited Codex CLI Profiles and Token Activity

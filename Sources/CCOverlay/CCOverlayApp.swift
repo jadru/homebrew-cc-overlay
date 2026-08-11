@@ -168,6 +168,8 @@ struct CCOverlayApp: App {
                 onComplete: {}
             )
         }
+
+        UpdateLaunchHandoff.acknowledgeLaunchIfRequested()
     }
 
     private func recordActivationIfNeeded() {

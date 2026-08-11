@@ -21,17 +21,28 @@ final class UpdateService {
     private var settings: AppSettings?
     private var timer: Timer?
     private var initialCheckTask: Task<Void, Never>?
+    private let urlSession: URLSession
+    private let retryDelay: Duration
 
-    private struct CommandResult {
+    struct CommandResult {
         let terminationStatus: Int32
-        let standardOutput: String
-        let standardError: String
+        let output: String
+    }
 
-        var combinedOutput: String {
-            [standardOutput, standardError]
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n")
+    private enum UpdateCommandError: LocalizedError {
+        case timedOut
+
+        var errorDescription: String? {
+            "Homebrew update timed out. Please try again."
         }
+    }
+
+    init(
+        urlSession: URLSession = .shared,
+        retryDelay: Duration = AppConstants.updateCheckRetryDelay
+    ) {
+        self.urlSession = urlSession
+        self.retryDelay = retryDelay
     }
 
     nonisolated static func resolvedCurrentVersion(bundleVersion: String?, fallbackVersion: String) -> String {
@@ -52,6 +63,7 @@ final class UpdateService {
         return compareVersions(installedVersion, targetVersion) != .orderedAscending
     }
 
+    /// Standard locations that work even when an app launched by macOS has no shell PATH.
     nonisolated static func homebrewCandidatePaths(home: String) -> [String] {
         [
             "/opt/homebrew/bin/brew",
@@ -68,6 +80,13 @@ final class UpdateService {
         candidates.first(where: isExecutable)
     }
 
+    nonisolated static func isHomebrewManagedInstallation(
+        bundleURL: URL,
+        homebrewAppURL: URL
+    ) -> Bool {
+        bundleURL.standardizedFileURL.resolvingSymlinksInPath().path
+            == homebrewAppURL.standardizedFileURL.resolvingSymlinksInPath().path
+    }
     static var currentAppVersion: String {
         resolvedCurrentVersion(
             bundleVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
@@ -127,7 +146,7 @@ final class UpdateService {
         await performCheck(presentsErrors: true)
     }
 
-    /// Install update via Homebrew without depending on a GUI app's inherited PATH.
+    /// Install an update without depending on the PATH inherited by the menu bar app.
     func installUpdate() {
         guard case .updateAvailable(let version) = updateState else { return }
         updateState = .installing
@@ -143,6 +162,20 @@ final class UpdateService {
                     return
                 }
 
+                let currentInstallation = Self.installedAppMetadata(homebrewExecutablePath: homebrewPath)
+                guard let homebrewAppURL = currentInstallation.url,
+                      Self.isHomebrewManagedInstallation(
+                        bundleURL: Bundle.main.bundleURL,
+                        homebrewAppURL: homebrewAppURL
+                      )
+                else {
+                    await MainActor.run { [weak self] in
+                        self?.updateState = .error(
+                            message: "This copy was not installed by Homebrew. Download the latest release from GitHub instead."
+                        )
+                    }
+                    return
+                }
                 let steps = [
                     ["tap", AppConstants.homebrewTap],
                     ["update"],
@@ -152,9 +185,13 @@ final class UpdateService {
                 var status: Int32 = 0
 
                 for arguments in steps {
-                    let result = try Self.runCommand(executablePath: homebrewPath, arguments: arguments)
-                    if !result.combinedOutput.isEmpty {
-                        output += result.combinedOutput + "\n"
+                    let result = try Self.runCommand(
+                        executablePath: homebrewPath,
+                        arguments: arguments,
+                        timeout: AppConstants.homebrewCommandTimeoutInterval
+                    )
+                    if !result.output.isEmpty {
+                        output += result.output + "\n"
                     }
                     status = result.terminationStatus
                     if status != 0 { break }
@@ -231,19 +268,7 @@ final class UpdateService {
         }
 
         do {
-            var request = URLRequest(url: url)
-            request.setValue("text/html", forHTTPHeaderField: "Accept")
-
-            let (_, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200,
-                  let remoteVersion = Self.versionFromReleaseURL(httpResponse.url)
-            else {
-                updateState = Self.checkFailureState(presentsErrors: presentsErrors)
-                return
-            }
-
+            let remoteVersion = try await latestReleaseVersion(at: url)
             settings?.lastUpdateCheck = Date()
 
             if Self.isNewerVersion(remoteVersion, than: Self.currentAppVersion) {
@@ -256,6 +281,64 @@ final class UpdateService {
         }
     }
 
+    private func latestReleaseVersion(at url: URL) async throws -> String {
+        for attempt in 0..<AppConstants.updateCheckRetryCount {
+            do {
+                let (_, response) = try await urlSession.data(for: Self.releaseCheckRequest(url: url))
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw UpdateCheckError.invalidResponse
+                }
+                guard httpResponse.statusCode == 200 else {
+                    throw UpdateCheckError.httpError(httpResponse.statusCode)
+                }
+                guard let remoteVersion = Self.versionFromReleaseURL(httpResponse.url) else {
+                    throw UpdateCheckError.invalidResponse
+                }
+                return remoteVersion
+            } catch {
+                guard attempt + 1 < AppConstants.updateCheckRetryCount,
+                      Self.isRetryableUpdateCheckError(error)
+                else {
+                    throw error
+                }
+                try await Task.sleep(for: retryDelay)
+            }
+        }
+
+        throw UpdateCheckError.invalidResponse
+    }
+
+    nonisolated static func releaseCheckRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("text/html", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = AppConstants.updateCheckTimeoutInterval
+        return request
+    }
+
+    nonisolated private static func isRetryableUpdateCheckError(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut, .cannotConnectToHost, .cannotFindHost,
+                    .networkConnectionLost, .notConnectedToInternet,
+                    .dnsLookupFailed, .resourceUnavailable:
+                return true
+            default:
+                return false
+            }
+        }
+
+        if case let UpdateCheckError.httpError(statusCode) = error {
+            return statusCode == 408 || statusCode == 429 || (500...599).contains(statusCode)
+        }
+        return false
+    }
+
+    private enum UpdateCheckError: Error {
+        case invalidResponse
+        case httpError(Int)
+    }
+
     /// Resolves Homebrew's stable opt prefix after an upgrade, then opens that bundle.
     nonisolated private static func installedAppMetadata(
         homebrewExecutablePath brewPath: String? = nil
@@ -266,13 +349,14 @@ final class UpdateService {
         do {
             let result = try runCommand(
                 executablePath: homebrewExecutablePath,
-                arguments: ["--prefix", AppConstants.homebrewFormula]
+                arguments: ["--prefix", AppConstants.homebrewFormula],
+                timeout: AppConstants.homebrewMetadataTimeoutInterval
             )
             guard result.terminationStatus == 0 else {
                 return (nil, nil)
             }
 
-            guard let prefix = result.standardOutput
+            guard let prefix = result.output
                 .split(whereSeparator: \.isNewline)
                 .map(String.init)
                 .first(where: { $0.hasPrefix("/") })
@@ -307,27 +391,50 @@ final class UpdateService {
         )
     }
 
-    nonisolated private static func runCommand(
+    nonisolated static func runCommand(
         executablePath: String,
-        arguments: [String]
+        arguments: [String],
+        timeout: TimeInterval
     ) throws -> CommandResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
         process.environment = commandEnvironment(executablePath: executablePath)
 
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = outputPipe
+        let fileManager = FileManager.default
+        let outputURL = fileManager.temporaryDirectory
+            .appendingPathComponent("cc-overlay-update-\(UUID().uuidString).log")
+        guard fileManager.createFile(atPath: outputURL.path, contents: nil),
+              let outputFile = try? FileHandle(forWritingTo: outputURL)
+        else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        defer {
+            try? outputFile.close()
+            try? fileManager.removeItem(at: outputURL)
+        }
+
+        process.standardOutput = outputFile
+        process.standardError = outputFile
+
+        let termination = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            termination.signal()
+        }
 
         try process.run()
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
+        guard termination.wait(timeout: .now() + timeout) == .success else {
+            process.terminate()
+            _ = termination.wait(timeout: .now() + 5)
+            throw UpdateCommandError.timedOut
+        }
+
+        try outputFile.close()
+        let outputData = try Data(contentsOf: outputURL)
 
         return CommandResult(
             terminationStatus: process.terminationStatus,
-            standardOutput: String(decoding: outputData, as: UTF8.self),
-            standardError: ""
+            output: String(decoding: outputData, as: UTF8.self)
         )
     }
 
@@ -363,12 +470,24 @@ final class UpdateService {
         }
 
         do {
+            let handoffToken = try UpdateLaunchHandoff.begin()
+            defer { UpdateLaunchHandoff.finish(token: handoffToken) }
+
             let openProcess = Process()
             openProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            openProcess.arguments = ["-n", appURL.path]
+            openProcess.arguments = ["-n", appURL.path, "--args", "--update-handoff", handoffToken]
             try openProcess.run()
             openProcess.waitUntilExit()
-            return openProcess.terminationStatus == 0 ? nil : "Could not launch the updated app."
+            guard openProcess.terminationStatus == 0 else {
+                return "Could not launch the updated app."
+            }
+            guard UpdateLaunchHandoff.waitForAcknowledgement(
+                token: handoffToken,
+                timeout: AppConstants.updateLaunchHandoffTimeoutInterval
+            ) else {
+                return "Updated app did not finish launching. Your current app is still running."
+            }
+            return nil
         } catch {
             return error.localizedDescription
         }
