@@ -98,22 +98,20 @@ final class MenuBarViewStateTests: XCTestCase {
         )
     }
 
-    func testWorkflowContentExpandsTheReadyPanelWithoutExceedingMaximum() {
+    func testUsageHistoryExpandsTheReadyPanelWithoutExceedingMaximum() {
         XCTAssertEqual(
             MenuBarView.workflowPanelMinHeight(
                 baseHeight: DesignTokens.Layout.menuBarPanelCompactMinHeight,
-                historyCount: 12,
-                hasPendingRun: false
+                historyCount: 12
             ),
             515
         )
         XCTAssertEqual(
             MenuBarView.workflowPanelMinHeight(
                 baseHeight: DesignTokens.Layout.menuBarPanelMinHeight,
-                historyCount: 12,
-                hasPendingRun: true
+                historyCount: 12
             ),
-            DesignTokens.Layout.menuBarPanelMaxHeight
+            615
         )
     }
 
@@ -124,6 +122,7 @@ final class MenuBarViewStateTests: XCTestCase {
             codexProfileStore: accountContext.store,
             codexAccountMonitor: accountContext.monitor,
             settings: AppSettings(),
+            patchProgress: PatchProgressStore(),
             updateService: UpdateService()
         )
         let hostingView = NSHostingView(rootView: view)
@@ -160,35 +159,6 @@ final class MenuBarViewStateTests: XCTestCase {
         )
     }
 
-    func testUsageDecisionCardRendersAtCompactAndStandardSizes() {
-        let decision = UsageDecision(
-            kind: .switchProvider,
-            title: "Switch to CX",
-            detail: "82% headroom there versus 14% on CC.",
-            recommendedProvider: .codex,
-            resetAt: nil
-        )
-
-        let compactView = NSHostingView(
-            rootView: UsageDecisionView(decision: decision, compact: true)
-        )
-        XCTAssertGreaterThan(compactView.fittingSize.width, 80)
-        XCTAssertGreaterThan(compactView.fittingSize.height, 20)
-        XCTAssertLessThan(compactView.fittingSize.height, 70)
-
-        let standardView = NSHostingView(
-            rootView: UsageDecisionView(
-                decision: decision,
-                onTaskSizeChange: { _ in },
-                onPrimaryAction: {},
-                onFeedback: { _ in }
-            )
-        )
-        XCTAssertGreaterThan(standardView.fittingSize.width, 180)
-        XCTAssertGreaterThan(standardView.fittingSize.height, 50)
-        XCTAssertLessThan(standardView.fittingSize.height, 130)
-    }
-
     func testCodexTimelineRendersBankedFullResetRow() {
         let data = ProviderUsageData(
             provider: .codex,
@@ -219,7 +189,7 @@ final class MenuBarViewStateTests: XCTestCase {
         XCTAssertLessThan(hostingView.fittingSize.height, 420)
     }
 
-    func testHistoryAndRunOutcomeComponentsRender() {
+    func testHistoryComponentRenders() {
         let now = Date()
         let history = NSHostingView(
             rootView: UsageHistoryChartView(
@@ -237,29 +207,13 @@ final class MenuBarViewStateTests: XCTestCase {
             .frame(width: 320)
         )
         XCTAssertGreaterThan(history.fittingSize.height, 60)
-
-        let outcome = NSHostingView(
-            rootView: RunOutcomeView(
-                run: PendingRun(
-                    id: UUID(),
-                    startedAt: now.addingTimeInterval(-600),
-                    provider: .codex,
-                    taskSize: .medium,
-                    startingHeadroom: 70,
-                    projectName: "Project"
-                ),
-                onOutcome: { _ in }
-            )
-            .frame(width: 320)
-        )
-        XCTAssertGreaterThan(outcome.fittingSize.height, 30)
-        XCTAssertLessThan(outcome.fittingSize.height, 90)
     }
 
     func testOnboardingFitsItsWindow() {
         let view = OnboardingView(
             settings: AppSettings(),
             multiService: MultiProviderUsageService(),
+            patchProgress: PatchProgressStore(),
             onComplete: {}
         )
         let hostingView = NSHostingView(rootView: view)

@@ -31,4 +31,19 @@ final class OverlayInteractionTests: XCTestCase {
             )
         )
     }
+
+    @MainActor
+    func testWindowDragSuppressesOnlyTheCurrentPrimaryAction() {
+        let state = OverlayInteractionState()
+
+        state.beginPointerSequence()
+        state.beginWindowDrag()
+        state.endPointerSequence()
+
+        XCTAssertTrue(state.consumeSuppressedPrimaryAction())
+        XCTAssertFalse(state.consumeSuppressedPrimaryAction())
+
+        state.beginPointerSequence()
+        XCTAssertFalse(state.consumeSuppressedPrimaryAction())
+    }
 }

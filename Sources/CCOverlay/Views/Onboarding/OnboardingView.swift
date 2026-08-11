@@ -3,6 +3,7 @@ import SwiftUI
 struct OnboardingView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
+    let patchProgress: PatchProgressStore
     let onComplete: () -> Void
 
     @State private var step = 0
@@ -129,20 +130,42 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Make it yours")
                     .font(.system(size: 25, weight: .bold, design: .rounded))
-                Text("These defaults keep the recommendation visible without interrupting your work.")
+                Text("Your desktop companion follows live headroom. Finish setup now; the first duplicate-free ticket unlocks from developer tokens observed while CC-Overlay is open.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
 
-            Toggle("Show floating overlay", isOn: $settings.showOverlay)
-            Toggle("Start overlay expanded", isOn: $settings.pillAlwaysExpanded)
-                .disabled(!settings.showOverlay)
-            Toggle("Usage threshold alerts", isOn: $settings.costAlertEnabled)
-            Picker("Terminal for Run actions", selection: $settings.preferredTerminal) {
-                ForEach(PreferredTerminal.allCases) { terminal in
-                    Text(terminal.label).tag(terminal)
+            Picker("Floating overlay", selection: $settings.overlayPresentation) {
+                ForEach(OverlayPresentation.allCases) { presentation in
+                    Text(presentation.label).tag(presentation)
                 }
             }
+            Toggle(
+                settings.overlayPresentation == .companion ? "Show companion" : "Show usage pill",
+                isOn: $settings.showOverlay
+            )
+            if settings.overlayPresentation == .usagePill {
+                Toggle("Start overlay expanded", isOn: $settings.pillAlwaysExpanded)
+                    .disabled(!settings.showOverlay)
+            } else {
+                Picker("Companion background", selection: $settings.companionBackground) {
+                    ForEach(CompanionBackground.allCases) { background in
+                        Text(background.label).tag(background)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Label("Move over your companion to get a reaction; click to collect a treat once one joins you.", systemImage: "pawprint.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            CompanionAdoptionProgressView(progress: patchProgress)
+
+            Text("You can choose a companion from the Collection after a ticket is ready. Alerts, terminal behavior, and other preferences stay in Settings so setup remains focused.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             HStack(spacing: 10) {
                 Image(systemName: "command")
                 Text("Toggle the overlay any time with Command-Shift-A.")

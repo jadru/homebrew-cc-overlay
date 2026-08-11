@@ -8,6 +8,7 @@ struct CCOverlayApp: App {
     @State private var codexAccountMonitor: CodexAccountMonitor
     @State private var multiService: MultiProviderUsageService
     @State private var settings = AppSettings()
+    @State private var patchProgress = PatchProgressStore()
     @State private var costAlertManager = CostAlertManager()
     @State private var updateService = UpdateService()
     @State private var sessionMonitor = SessionMonitor(autoStart: false)
@@ -63,24 +64,14 @@ struct CCOverlayApp: App {
                 codexProfileStore: codexProfileStore,
                 codexAccountMonitor: codexAccountMonitor,
                 settings: settings,
-                updateService: updateService,
-                costAlertManager: costAlertManager,
-                sessionMonitor: sessionMonitor,
-                onOpenSettings: {
-                    appDelegate.showSettings(
-                        settings: settings,
-                        multiService: multiService,
-                        codexProfileStore: codexProfileStore,
-                        codexAccountMonitor: codexAccountMonitor,
-                        updateService: updateService
-                    )
-                }
+                patchProgress: patchProgress,
+                updateService: updateService
             )
             .onAppear {
                 initializeApp()
             }
         } label: {
-            MenuBarLabel(multiService: multiService, updateService: updateService)
+            MenuBarLabel(multiService: multiService, updateService: updateService, settings: settings)
                 .task {
                     initializeApp()
                 }
@@ -104,6 +95,29 @@ struct CCOverlayApp: App {
                 }
                 .onChange(of: multiService.lastRefresh) { _, _ in
                     multiService.recordCurrentSamples()
+                    let tokenObservations = multiService.availableProviders.compactMap { provider -> CompanionTokenObservation? in
+                        guard let usage = multiService.usageData(for: provider).tokenBreakdown?.usage else {
+                            return nil
+                        }
+                        return CompanionTokenObservation(
+                            sourceID: "provider-\(provider.rawValue.lowercased())",
+                            cumulativeTokens: usage.rawTokens
+                        )
+                    }
+                    _ = patchProgress.recordTokenUsage(observations: tokenObservations)
+                }
+                .onChange(of: codexAccountMonitor.selectedSnapshot) { _, snapshot in
+                    guard let snapshot,
+                          let lifetimeTokens = snapshot.tokenActivity.lifetimeTokens
+                    else { return }
+                    _ = patchProgress.recordTokenUsage(
+                        observations: [
+                            CompanionTokenObservation(
+                                sourceID: "codex-account-\(snapshot.profileID.uuidString)",
+                                cumulativeTokens: lifetimeTokens
+                            ),
+                        ]
+                    )
                 }
                 .onChange(of: codexProfileStore.selectedProfileID) { _, profileID in
                     multiService.refresh()
@@ -113,6 +127,9 @@ struct CCOverlayApp: App {
                 }
                 .onChange(of: settings.pillClickThrough) { _, _ in
                     appDelegate.overlayManager?.updateFromSettings()
+                }
+                .onChange(of: settings.overlayPresentation) { _, _ in
+                    appDelegate.overlayManager?.refreshOverlay()
                 }
                 .onChange(of: settings.debugFlowLogging) { _, enabled in
                     DebugFlowLogger.shared.configure(enabled: enabled)
@@ -155,7 +172,11 @@ struct CCOverlayApp: App {
         updateService.configure(settings: settings)
         updateService.startMonitoring()
 
-        appDelegate.setupOverlay(settings: settings, multiService: multiService)
+        appDelegate.setupOverlay(
+            settings: settings,
+            multiService: multiService,
+            patchProgress: patchProgress
+        )
 
         appDelegate.setupHotkey(settings: settings) {
             toggleOverlay()
@@ -165,6 +186,7 @@ struct CCOverlayApp: App {
             appDelegate.showOnboarding(
                 settings: settings,
                 multiService: multiService,
+                patchProgress: patchProgress,
                 onComplete: {}
             )
         }

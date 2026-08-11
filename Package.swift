@@ -15,7 +15,11 @@ let package = Package(
             name: "CCOverlay",
             path: "Sources/CCOverlay",
             exclude: ["Info.plist", "cc-overlay.entitlements"],
-            resources: [.copy("Resources/ProviderIcons")],
+            resources: [
+                .copy("Resources/ProviderIcons"),
+                .copy("Resources/PatchAssets"),
+                .copy("Resources/CompanionAssets"),
+            ],
             linkerSettings: [
                 .unsafeFlags([
                     "-Xlinker", "-sectcreate",

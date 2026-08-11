@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct MenuBarView: View {
@@ -10,19 +9,24 @@ struct MenuBarView: View {
         case noUsage
     }
 
+    private enum DetailSheet: String, Identifiable {
+        case usage
+        case collection
+        case settings
+
+        var id: String { rawValue }
+    }
+
     let multiService: MultiProviderUsageService
     let codexProfileStore: CodexAccountProfileStore
     let codexAccountMonitor: CodexAccountMonitor
     @Bindable var settings: AppSettings
+    let patchProgress: PatchProgressStore
     let updateService: UpdateService
-    var costAlertManager: CostAlertManager? = nil
-    var sessionMonitor: SessionMonitor? = nil
-    var onOpenSettings: (() -> Void)?
 
     @State private var selectedProvider: CLIProvider?
+    @State private var activeSheet: DetailSheet?
     @State private var keyMonitor: Any?
-    @State private var actionError: String?
-
     private var availableProviders: [CLIProvider] {
         multiService.availableProviders
     }
@@ -90,15 +94,11 @@ struct MenuBarView: View {
     }
 
     private var panelMinHeight: CGFloat {
-        guard panelState == .ready, let provider = displayedProvider else {
+        guard panelState == .ready else {
             return DesignTokens.Layout.menuBarPanelEmptyMinHeight
         }
-        let baseHeight = Self.readyPanelMinHeight(for: multiService.usageData(for: provider))
-        return Self.workflowPanelMinHeight(
-            baseHeight: baseHeight,
-            historyCount: multiService.usageHistory(for: provider).count,
-            hasPendingRun: multiService.pendingRun != nil
-        )
+
+        return DesignTokens.Layout.menuBarPanelCompactMinHeight
     }
 
     // MARK: - Content Area
@@ -115,7 +115,8 @@ struct MenuBarView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(16)
+        .padding(14)
+        .sheet(item: $activeSheet, content: detailSheet)
     }
 
     // MARK: - Header
@@ -125,44 +126,104 @@ struct MenuBarView: View {
         switch panelState {
         case .ready:
             if let provider = displayedProvider {
-                commandHeader(for: provider)
-                if availableProviders.count > 1 {
-                    providerRail
-                }
-                if provider == .codex {
-                    CodexAccountsMenuView(
-                        profileStore: codexProfileStore,
-                        monitor: codexAccountMonitor,
-                        onSelect: selectCodexProfile
-                    )
-                }
-                let decision = multiService.usageDecision
-                UsageDecisionView(
-                    decision: decision,
-                    onTaskSizeChange: { multiService.updatePlannedTaskSize($0) },
-                    onPrimaryAction: { performPrimaryAction(decision) },
-                    onFeedback: { multiService.recordDecisionFeedback(helpful: $0, decision: decision) }
-                )
-                if let run = multiService.pendingRun {
-                    RunOutcomeView(run: run) {
-                        multiService.completePendingRun(outcome: $0)
-                    }
-                }
-                if let actionError {
-                    ErrorBannerView(
-                        error: .unknown(message: actionError),
-                        onDismiss: { self.actionError = nil },
-                        compact: true
-                    )
-                }
-                ProviderSectionView(data: multiService.usageData(for: provider))
-                UsageHistoryChartView(
-                    points: multiService.usageHistory(for: provider),
-                    forecast: multiService.headroomForecast(for: provider)
+                menuHeader
+                CompanionMenuHomeView(
+                    presentation: patchPresentation(for: provider),
+                    provider: multiService.usageData(for: provider),
+                    progress: patchProgress,
+                    onOpenUsage: { activeSheet = .usage },
+                    onOpenCollection: { activeSheet = .collection },
+                    onRefreshUsage: refreshData,
+                    usageFreshness: usageFreshness(for: multiService.usageData(for: provider))
                 )
             }
         case .loading, .failed, .noProviders, .noUsage:
             unavailableContent
+        }
+    }
+
+    private var menuHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("CC Overlay")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+
+            Spacer()
+
+            Button(action: { activeSheet = .settings }) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(0.07))
+                    .frame(width: 30, height: 30)
+            }
+            .accessibilityLabel("Open settings")
+            .help("Settings")
+        }
+    }
+
+    @ViewBuilder
+    private func usageSheetContent(for provider: CLIProvider) -> some View {
+        commandHeader(for: provider)
+
+        if availableProviders.count > 1 {
+            providerRail
+        }
+
+        if provider == .codex {
+            CodexAccountsMenuView(
+                profileStore: codexProfileStore,
+                monitor: codexAccountMonitor,
+                onSelect: selectCodexProfile
+            )
+        }
+
+        CompanionAdoptionProgressView(
+            progress: patchProgress,
+            onOpenCollection: { activeSheet = .collection }
+        )
+
+        ProviderSectionView(data: multiService.usageData(for: provider))
+        UsageHistoryChartView(
+            points: multiService.usageHistory(for: provider),
+            forecast: multiService.headroomForecast(for: provider)
+        )
+    }
+
+    @ViewBuilder
+    private func detailSheet(for destination: DetailSheet) -> some View {
+        switch destination {
+        case .usage:
+            if let provider = displayedProvider {
+                MenuDetailSheet(title: "Usage") {
+                    usageSheetContent(for: provider)
+                }
+            } else {
+                MenuDetailSheet(title: "Usage") {
+                    ContentUnavailableView("Usage unavailable", systemImage: "chart.bar")
+                }
+            }
+        case .collection:
+            MenuDetailSheet(title: "Collection") {
+                CompanionCollectionCard(progress: patchProgress)
+                Divider().padding(.vertical, 2)
+                CompanionMenuBagView(progress: patchProgress)
+            }
+        case .settings:
+            MenuDetailSheet(title: "Settings") {
+                SettingsView(
+                    settings: settings,
+                    multiService: multiService,
+                    codexProfileStore: codexProfileStore,
+                    codexAccountMonitor: codexAccountMonitor,
+                    updateService: updateService
+                )
+            }
         }
     }
 
@@ -195,77 +256,26 @@ struct MenuBarView: View {
         }
     }
 
-    private func performPrimaryAction(_ decision: UsageDecision) {
-        switch decision.kind {
-        case .run, .switchProvider:
-            Task {
-                await launchRecommendedProvider(decision)
-            }
-        case .useReset:
-            NSWorkspace.shared.open(AppConstants.codexUsageDashboardURL)
-        case .wait:
-            guard let resetAt = decision.resetAt else { return }
-            costAlertManager?.scheduleResetNotification(
-                at: resetAt,
-                provider: decision.recommendedProvider
-            )
-        case .refresh:
-            multiService.refresh()
-        case .setup:
-            onOpenSettings?()
-        }
+    private func patchPresentation(for provider: CLIProvider) -> PatchPresentation {
+        PatchPresentation.assess(
+            providerData: [multiService.usageData(for: provider)],
+            staleAfter: multiService.staleThreshold
+        )
     }
 
-    private func launchRecommendedProvider(_ decision: UsageDecision) async {
-        guard let provider = decision.recommendedProvider else { return }
-        let launchCommand: String
-        if provider == .codex, let profile = codexProfileStore.selectedProfile {
-            launchCommand = TerminalLauncher.codexLaunchCommand(codexHome: profile.codexHome)
-        } else {
-            launchCommand = TerminalLauncher.launchCommand(for: provider)
-        }
-
-        let activeProject = sessionMonitor?.activeSessions
-            .first(where: { $0.projectPath != nil })
-        let directory: URL
-        if let path = activeProject?.projectPath {
-            directory = URL(fileURLWithPath: path, isDirectory: true)
-        } else if let selected = await TerminalLauncher.chooseWorkingDirectory() {
-            directory = selected
-        } else {
-            return
-        }
-
-        do {
-            try TerminalLauncher.launch(
-                command: launchCommand,
-                workingDirectory: directory,
-                terminal: settings.preferredTerminal
-            )
-            actionError = nil
-            multiService.beginRun(
-                decision: decision,
-                projectName: directory.lastPathComponent
-            )
-        } catch {
-            actionError = error.localizedDescription
-            UsageExportService.copyToClipboard(
-                TerminalLauncher.shellCommand(
-                    command: launchCommand,
-                    workingDirectory: directory
-                )
-            )
-        }
+    private func usageFreshness(for data: ProviderUsageData) -> CompanionMenuHomeView.UsageFreshness {
+        if data.error != nil { return .failed }
+        if multiService.isStale(lastRefresh: data.lastRefresh) { return .stale }
+        return data.isEstimated ? .estimated : .live
     }
 
     private func selectCodexProfile(_ profileID: UUID) {
         do {
             try codexProfileStore.select(profileID)
-            actionError = nil
             multiService.refresh()
             Task { await codexAccountMonitor.refresh(profileID) }
         } catch {
-            actionError = error.localizedDescription
+            AppLogger.ui.error("Failed to select Codex account profile: \(error.localizedDescription)")
         }
     }
 
@@ -285,7 +295,7 @@ struct MenuBarView: View {
                 .controlSize(.small)
                 .disabled(panelState == .loading)
 
-                Button(action: { onOpenSettings?() }) {
+                Button(action: { activeSheet = .settings }) {
                     Label("Settings", systemImage: "gearshape")
                         .font(.system(size: 11, weight: .medium))
                 }
@@ -436,12 +446,6 @@ struct MenuBarView: View {
             }
             .disabled(multiService.isLoading)
 
-            Divider()
-
-            Button(action: { onOpenSettings?() }) {
-                Label("Settings", systemImage: "gearshape")
-            }
-
             Button(role: .destructive, action: { NSApplication.shared.terminate(nil) }) {
                 Label("Quit CC-Overlay", systemImage: "power")
             }
@@ -454,6 +458,8 @@ struct MenuBarView: View {
         .menuStyle(.button)
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
         .fixedSize(horizontal: true, vertical: true)
         .accessibilityLabel("More actions")
         .help("More actions")
@@ -466,11 +472,7 @@ struct MenuBarView: View {
         if !availableProviders.isEmpty {
             let status = footerStatus
 
-            VStack(spacing: 8) {
-                Rectangle()
-                    .fill(Color.dividerSubtle)
-                    .frame(height: 0.5)
-
+            VStack(spacing: 6) {
                 HStack(spacing: 5) {
                     if let lastRefresh = multiService.lastRefresh {
                         Image(systemName: "clock")
@@ -551,13 +553,11 @@ struct MenuBarView: View {
 
     nonisolated static func workflowPanelMinHeight(
         baseHeight: CGFloat,
-        historyCount: Int,
-        hasPendingRun: Bool
+        historyCount: Int
     ) -> CGFloat {
         let historyAndFooterHeight: CGFloat = historyCount >= 2 ? 145 : 95
-        let outcomeHeight: CGFloat = hasPendingRun ? 55 : 0
         return min(
-            baseHeight + historyAndFooterHeight + outcomeHeight,
+            baseHeight + historyAndFooterHeight,
             DesignTokens.Layout.menuBarPanelMaxHeight
         )
     }
@@ -604,5 +604,54 @@ struct MenuBarView: View {
             return planName
         }
         return String(planName.prefix(20)) + "…"
+    }
+}
+
+private struct MenuDetailSheet<Content: View>: View {
+    let title: String
+    private let content: Content
+
+    @Environment(\.dismiss) private var dismiss
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                .background {
+                    Circle()
+                        .fill(Color.primary.opacity(0.07))
+                        .frame(width: 28, height: 28)
+                }
+                .accessibilityLabel("Close \(title)")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    content
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+            }
+        }
+        .frame(width: 520, height: 620)
     }
 }

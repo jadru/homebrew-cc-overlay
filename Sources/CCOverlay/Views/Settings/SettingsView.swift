@@ -7,7 +7,6 @@ struct SettingsView: View {
     let codexProfileStore: CodexAccountProfileStore
     let codexAccountMonitor: CodexAccountMonitor
     let updateService: UpdateService
-    var onShowOnboarding: (() -> Void)? = nil
 
     @State private var fallbackExpanded = false
     @State private var launchAtLoginStatus: SMAppService.Status = .notRegistered
@@ -37,7 +36,7 @@ struct SettingsView: View {
             .tabItem { Label("Accounts", systemImage: "person.2") }
 
             overlayTab
-                .tabItem { Label("Overlay", systemImage: "capsule.portrait") }
+                .tabItem { Label("Overlay", systemImage: "pawprint.fill") }
 
             notificationsTab
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
@@ -73,36 +72,14 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Decision workflow") {
-                Picker("Provider priority", selection: $settings.providerPriority) {
-                    ForEach(ProviderPriority.allCases) { priority in
-                        Text(priority.label).tag(priority)
-                    }
-                }
-                .onChange(of: settings.providerPriority) { _, priority in
-                    multiService.updateProviderPriority(priority)
-                }
-
-                Text(settings.providerPriority.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Picker("Run in", selection: $settings.preferredTerminal) {
+            Section("Recovery") {
+                Picker("Open commands in", selection: $settings.preferredTerminal) {
                     ForEach(PreferredTerminal.allCases) { terminal in
                         Text(terminal.label).tag(terminal)
                     }
                 }
 
-                Picker("Full Reset policy", selection: $settings.fullResetPolicy) {
-                    ForEach(FullResetPolicy.allCases) { policy in
-                        Text(policy.label).tag(policy)
-                    }
-                }
-                .onChange(of: settings.fullResetPolicy) { _, policy in
-                    multiService.updateFullResetPolicy(policy)
-                }
-
-                Text(settings.fullResetPolicy.detail)
+                Text("Used only when CC-Overlay opens a provider sign-in or recovery command.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -121,10 +98,6 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-
-                if let onShowOnboarding {
-                    Button("Open setup guide", action: onShowOnboarding)
-                }
             }
         }
         .formStyle(.grouped)
@@ -134,11 +107,42 @@ struct SettingsView: View {
     private var overlayTab: some View {
         Form {
             Section("Floating overlay") {
-                Toggle("Show overlay", isOn: $settings.showOverlay)
-                Toggle("Start expanded", isOn: $settings.pillAlwaysExpanded)
-                    .disabled(!settings.showOverlay)
-                Toggle("Click through", isOn: $settings.pillClickThrough)
-                    .disabled(!settings.showOverlay)
+                Picker("Style", selection: $settings.overlayPresentation) {
+                    ForEach(OverlayPresentation.allCases) { presentation in
+                        Text(presentation.label).tag(presentation)
+                    }
+                }
+
+                Text(settings.overlayPresentation.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(
+                    settings.overlayPresentation == .companion ? "Show companion" : "Show usage pill",
+                    isOn: $settings.showOverlay
+                )
+
+                if settings.overlayPresentation == .companion {
+                    Picker("Companion background", selection: $settings.companionBackground) {
+                        ForEach(CompanionBackground.allCases) { background in
+                            Text(background.label).tag(background)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text(settings.companionBackground.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Label("Move over your companion to get a reaction; click to collect treats. Developer tokens earn gear and future adoption tickets.", systemImage: "pawprint.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Toggle("Start expanded", isOn: $settings.pillAlwaysExpanded)
+                        .disabled(!settings.showOverlay)
+                    Toggle("Click through", isOn: $settings.pillClickThrough)
+                        .disabled(!settings.showOverlay)
+                }
             }
 
             Section("Shortcut") {

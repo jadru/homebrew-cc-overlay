@@ -95,6 +95,11 @@ To exercise the same universal packaging checks used by CI without notarization:
 VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./script/package_release.sh
 ```
 
+For a distributable build, use `NOTARIZE=1` with the configured notary profile and
+set `SIGN_IDENTITY` to one unique `Developer ID Application` SHA-1 identity hash
+(shown by `security find-identity -v -p codesigning`). This avoids an ambiguous
+certificate display name and is required for Gatekeeper acceptance.
+
 ## Usage
 
 Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to see detailed usage or open Settings.

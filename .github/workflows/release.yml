@@ -93,6 +93,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
+          generate_release_notes: true
           files: |
             dist/release/CC-Overlay-v${{ steps.version.outputs.version }}-macos.zip
             dist/release/CC-Overlay-v${{ steps.version.outputs.version }}-macos.zip.sha256
