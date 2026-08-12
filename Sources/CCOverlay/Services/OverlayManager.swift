@@ -1,6 +1,28 @@
 import AppKit
 import SwiftUI
 
+enum OverlayVisibilityPolicy {
+    static func canPresent(
+        presentation: OverlayPresentation,
+        hasAvailableProviders: Bool,
+        companionAlwaysVisible: Bool
+    ) -> Bool {
+        hasAvailableProviders
+            || (presentation == .companion && companionAlwaysVisible)
+    }
+
+    static func shouldShowForActiveApplication(
+        presentation: OverlayPresentation,
+        companionAlwaysVisible: Bool,
+        isSelfApplication: Bool,
+        isWhitelistedDeveloperTool: Bool
+    ) -> Bool {
+        isSelfApplication
+            || isWhitelistedDeveloperTool
+            || (presentation == .companion && companionAlwaysVisible)
+    }
+}
+
 @MainActor
 private final class MovableOverlayPanel: NSPanel {
     private let interactionState: OverlayInteractionState
@@ -106,7 +128,11 @@ final class OverlayManager {
             message: "overlay.show",
             details: ["alreadyVisible": "\(window != nil)"]
         )
-        guard !multiService.availableProviders.isEmpty else {
+        guard OverlayVisibilityPolicy.canPresent(
+            presentation: settings.overlayPresentation,
+            hasAvailableProviders: !multiService.availableProviders.isEmpty,
+            companionAlwaysVisible: settings.companionAlwaysVisible
+        ) else {
             hideOverlay()
             return
         }
@@ -156,7 +182,13 @@ final class OverlayManager {
     }
 
     func updateUsageVisibility() {
-        guard settings.showOverlay, !multiService.availableProviders.isEmpty else {
+        guard settings.showOverlay,
+              OverlayVisibilityPolicy.canPresent(
+                presentation: settings.overlayPresentation,
+                hasAvailableProviders: !multiService.availableProviders.isEmpty,
+                companionAlwaysVisible: settings.companionAlwaysVisible
+              )
+        else {
             hideOverlay()
             return
         }
@@ -305,6 +337,7 @@ final class OverlayManager {
 
     func updateFromSettings() {
         window?.ignoresMouseEvents = settings.overlayPresentation == .usagePill && settings.pillClickThrough
+        updateUsageVisibility()
     }
 
     // MARK: - Focus Monitoring
@@ -338,32 +371,33 @@ final class OverlayManager {
             return
         }
 
-        // Self activation - always show
-        if pid == ProcessInfo.processInfo.processIdentifier {
+        let isSelfApplication = pid == ProcessInfo.processInfo.processIdentifier
+        let isWhitelistedDeveloperTool = bundleId.map(DevToolDetector.isWhitelisted) ?? false
+
+        if OverlayVisibilityPolicy.shouldShowForActiveApplication(
+            presentation: settings.overlayPresentation,
+            companionAlwaysVisible: settings.companionAlwaysVisible,
+            isSelfApplication: isSelfApplication,
+            isWhitelistedDeveloperTool: isWhitelistedDeveloperTool
+        ) {
             window?.orderFront(nil)
             DebugFlowLogger.shared.log(
                 stage: .display,
                 message: "overlay.appActivation",
-                details: ["pid": "\(pid)", "action": "self-app"]
+                details: [
+                    "bundle": bundleId ?? "self",
+                    "pid": "\(pid)",
+                    "action": "show",
+                ]
             )
             return
         }
 
-        // Check if whitelisted dev tool
-        if let bundleId, DevToolDetector.isWhitelisted(bundleId) {
-            window?.orderFront(nil)
-            DebugFlowLogger.shared.log(
-                stage: .display,
-                message: "overlay.appActivation",
-                details: ["bundle": bundleId, "action": "show"]
-            )
-        } else {
-            window?.orderOut(nil)
-            DebugFlowLogger.shared.log(
-                stage: .display,
-                message: "overlay.appActivation",
-                details: ["bundle": bundleId ?? "unknown", "action": "hide"]
-            )
-        }
+        window?.orderOut(nil)
+        DebugFlowLogger.shared.log(
+            stage: .display,
+            message: "overlay.appActivation",
+            details: ["bundle": bundleId ?? "unknown", "action": "hide"]
+        )
     }
 }

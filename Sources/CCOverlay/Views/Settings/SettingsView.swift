@@ -134,6 +134,12 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Toggle("Show companion in every app", isOn: $settings.companionAlwaysVisible)
+
+                    Text("Keeps the companion on screen outside recognised AI and developer apps.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Label("Move over your companion to get a reaction; click to collect treats. Developer tokens earn gear and future adoption tickets.", systemImage: "pawprint.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)

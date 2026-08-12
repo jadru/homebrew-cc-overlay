@@ -25,8 +25,8 @@ enum DesignTokens {
         static let menuBarPanelMinHeight: CGFloat = 470
         static let menuBarPanelMaxHeight: CGFloat = 620
         static let expandedPillWidth: CGFloat = 300
-        static let settingsWidth: CGFloat = 460
-        static let settingsHeight: CGFloat = 460
+        static let settingsWidth: CGFloat = 620
+        static let settingsHeight: CGFloat = 620
     }
 
     enum Animation {

@@ -25,6 +25,7 @@ final class AppSettings {
         static let overlayPresentationMigration = "overlayPresentationMigration"
         static let gardenBackground = "gardenBackground"
         static let companionBackground = "companionBackground"
+        static let companionAlwaysVisible = "companionAlwaysVisible"
         static let autoUpdateEnabled = "autoUpdateEnabled"
         static let lastUpdateCheck = "lastUpdateCheck"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
@@ -192,6 +193,20 @@ final class AppSettings {
         }
     }
 
+    /// Keeps the companion visible outside recognised developer applications.
+    /// The user can still hide the overlay with the main Show companion toggle.
+    var companionAlwaysVisible: Bool {
+        get {
+            access(keyPath: \.companionAlwaysVisible)
+            return UserDefaults.standard.bool(forKey: Key.companionAlwaysVisible)
+        }
+        set {
+            withMutation(keyPath: \.companionAlwaysVisible) {
+                UserDefaults.standard.set(newValue, forKey: Key.companionAlwaysVisible)
+            }
+        }
+    }
+
     /// Weighted cost limit for the current plan.
     var weightedCostLimit: Double {
         planTier == .custom ? customWeightedLimit : planTier.weightedCostLimit
@@ -341,6 +356,7 @@ final class AppSettings {
             Key.pillClickThrough: false,
             Key.overlayPresentation: OverlayPresentation.companion.rawValue,
             Key.companionBackground: CompanionBackground.transparent.rawValue,
+            Key.companionAlwaysVisible: false,
             Key.autoUpdateEnabled: true,
             Key.hasCompletedOnboarding: false,
             Key.plannedTaskSize: PlannedTaskSize.medium.rawValue,

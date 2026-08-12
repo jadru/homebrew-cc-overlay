@@ -137,6 +137,7 @@ provider token은 민감한 정보입니다. provider를 활성화하기 전에 
 | 설정 | 기본값 | 설명 |
 |------|--------|------|
 | Show overlay | On | 플로팅 필 표시/숨기기 |
+| Show companion in every app | Off | 인식된 AI·개발 앱이 아니어도 컴패니언을 계속 표시 |
 | Always expanded | Off | 호버 없이 항상 확장 상태 유지 |
 | Click-through | Off | 오버레이를 투과하여 뒤 콘텐츠 클릭 |
 | Global hotkey | On | `Cmd+Shift+A`로 오버레이 토글 |

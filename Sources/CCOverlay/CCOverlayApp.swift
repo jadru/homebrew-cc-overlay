@@ -128,6 +128,9 @@ struct CCOverlayApp: App {
                 .onChange(of: settings.pillClickThrough) { _, _ in
                     appDelegate.overlayManager?.updateFromSettings()
                 }
+                .onChange(of: settings.companionAlwaysVisible) { _, _ in
+                    appDelegate.overlayManager?.updateFromSettings()
+                }
                 .onChange(of: settings.overlayPresentation) { _, _ in
                     appDelegate.overlayManager?.refreshOverlay()
                 }
@@ -136,6 +139,20 @@ struct CCOverlayApp: App {
                 }
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView(
+                settings: settings,
+                multiService: multiService,
+                codexProfileStore: codexProfileStore,
+                codexAccountMonitor: codexAccountMonitor,
+                updateService: updateService
+            )
+        }
+        .defaultSize(
+            width: DesignTokens.Layout.settingsWidth,
+            height: DesignTokens.Layout.settingsHeight
+        )
     }
 
     private func toggleOverlay() {
@@ -152,6 +169,7 @@ struct CCOverlayApp: App {
     }
 
     private func initializeApp() {
+        guard appDelegate.isPrimaryInstance else { return }
         guard !hasInitialized else { return }
         hasInitialized = true
 
