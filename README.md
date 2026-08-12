@@ -142,6 +142,7 @@ All settings persist via `UserDefaults` and are accessible from the Settings win
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Show overlay | On | Toggle floating pill |
+| Show companion in every app | Off | Keep the companion visible outside recognised AI and developer apps |
 | Always expanded | Off | Keep pill expanded without hover |
 | Click-through | Off | Mouse events pass through overlay |
 | Global hotkey | On | `Cmd+Shift+A` to toggle overlay |

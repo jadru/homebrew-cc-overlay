@@ -12,7 +12,6 @@ struct MenuBarView: View {
     private enum DetailSheet: String, Identifiable {
         case usage
         case collection
-        case settings
 
         var id: String { rawValue }
     }
@@ -149,7 +148,7 @@ struct MenuBarView: View {
 
             Spacer()
 
-            Button(action: { activeSheet = .settings }) {
+            SettingsLink {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 30, height: 30)
@@ -213,16 +212,6 @@ struct MenuBarView: View {
                 CompanionCollectionCard(progress: patchProgress)
                 Divider().padding(.vertical, 2)
                 CompanionMenuBagView(progress: patchProgress)
-            }
-        case .settings:
-            MenuDetailSheet(title: "Settings") {
-                SettingsView(
-                    settings: settings,
-                    multiService: multiService,
-                    codexProfileStore: codexProfileStore,
-                    codexAccountMonitor: codexAccountMonitor,
-                    updateService: updateService
-                )
             }
         }
     }
@@ -295,7 +284,7 @@ struct MenuBarView: View {
                 .controlSize(.small)
                 .disabled(panelState == .loading)
 
-                Button(action: { activeSheet = .settings }) {
+                SettingsLink {
                     Label("Settings", systemImage: "gearshape")
                         .font(.system(size: 11, weight: .medium))
                 }

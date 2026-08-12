@@ -5,18 +5,30 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyManager: HotkeyManager?
     private let windowCoordinator = WindowCoordinator()
+    private let singleInstanceCoordinator = SingleInstanceCoordinator()
     private var terminationHandler: (@MainActor () -> Void)?
 
     private(set) var overlayManager: OverlayManager?
+    private(set) var isPrimaryInstance = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        isPrimaryInstance = singleInstanceCoordinator.claimOrActivateExisting(
+            isUpdateHandoff: UpdateLaunchHandoff.token(from: CommandLine.arguments) != nil
+        )
+
+        guard !isPrimaryInstance else { return }
+        AppLogger.ui.info("Another CC-Overlay instance is already running; terminating this launch")
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyManager?.unregister()
         overlayManager?.closeOverlay()
         windowCoordinator.closeOnboarding()
+        singleInstanceCoordinator.release()
         terminationHandler?()
         terminationHandler = nil
     }

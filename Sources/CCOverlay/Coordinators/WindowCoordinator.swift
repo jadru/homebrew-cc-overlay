@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Coordinates the first-run guide. Day-to-day settings live in the menu's
-/// contextual Settings sheet, so they do not create a second navigation tree.
+/// Coordinates the first-run guide. Day-to-day settings use SwiftUI's native
+/// Settings scene so they remain usable after the menu-bar panel closes.
 @MainActor
 final class WindowCoordinator {
     private var onboardingWindow: NSWindow?
