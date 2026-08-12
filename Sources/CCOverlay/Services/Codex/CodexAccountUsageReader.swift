@@ -93,7 +93,7 @@ enum CodexAccountUsageReader {
         let process = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
-        let collector = CodexAccountResponseCollector(responseIDs: [2, 3])
+        let collector = CodexAccountResponseCollector(responseIDs: [1, 2, 3])
 
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = ["app-server", "--listen", "stdio://"]
@@ -122,29 +122,24 @@ enum CodexAccountUsageReader {
             throw ReaderError.unavailable
         }
 
-        let messages: [[String: Any]] = [
-            [
-                "method": "initialize",
-                "id": 1,
-                "params": [
-                    "clientInfo": [
-                        "name": "cc_overlay",
-                        "title": "CC-Overlay",
-                        "version": AppConstants.version,
-                    ],
-                ],
-            ],
-            ["method": "initialized", "params": [:]],
-            ["method": "account/rateLimits/read", "id": 2, "params": [:]],
-            ["method": "account/usage/read", "id": 3, "params": [:]],
-        ]
+        let messages = appServerRequestMessages()
 
-        for message in messages {
+        func send(_ message: [String: Any]) throws {
             let encoded = try JSONSerialization.data(withJSONObject: message)
             try inputPipe.fileHandleForWriting.write(contentsOf: encoded + Data([0x0A]))
         }
 
-        guard collector.wait(timeout: timeout),
+        // Codex app-server requires its initialize response to be received
+        // before the client sends `initialized` or any account request.
+        try send(messages[0])
+        guard collector.wait(for: [1], timeout: timeout) else {
+            throw ReaderError.timedOut
+        }
+        try send(messages[1])
+        try send(messages[2])
+        try send(messages[3])
+
+        guard collector.wait(for: [2, 3], timeout: timeout),
               let rateLimits = collector.response(for: 2),
               let tokenUsage = collector.response(for: 3)
         else {
@@ -156,6 +151,27 @@ enum CodexAccountUsageReader {
             rateLimitsResponse: rateLimits,
             tokenUsageResponse: tokenUsage
         )
+    }
+
+    /// The Codex app-server schema represents these requests without a
+    /// `params` object.
+    static func appServerRequestMessages() -> [[String: Any]] {
+        [
+            [
+                "method": "initialize",
+                "id": 1,
+                "params": [
+                    "clientInfo": [
+                        "name": "cc_overlay",
+                        "title": "CC-Overlay",
+                        "version": AppConstants.version,
+                    ],
+                ],
+            ],
+            ["method": "initialized"],
+            ["method": "account/rateLimits/read", "id": 2],
+            ["method": "account/usage/read", "id": 3],
+        ]
     }
 
     nonisolated private static func responseResult(from data: Data) throws -> [String: Any] {
@@ -210,7 +226,6 @@ private final class CodexAccountResponseCollector: @unchecked Sendable {
     private let semaphore = DispatchSemaphore(value: 0)
     private var buffer = Data()
     private var responses: [Int: Data] = [:]
-    private var didSignal = false
 
     init(responseIDs: Set<Int>) {
         self.responseIDs = responseIDs
@@ -237,13 +252,14 @@ private final class CodexAccountResponseCollector: @unchecked Sendable {
             responses[id] = line
         }
 
-        if !didSignal && responseIDs.isSubset(of: Set(responses.keys)) {
-            didSignal = true
-            semaphore.signal()
-        }
+        semaphore.signal()
     }
 
-    func wait(timeout: TimeInterval) -> Bool {
-        semaphore.wait(timeout: .now() + timeout) == .success
+    func wait(for responseIDs: Set<Int>, timeout: TimeInterval) -> Bool {
+        let deadline = DispatchTime.now() + timeout
+        while !lock.withLock({ responseIDs.isSubset(of: Set(responses.keys)) }) {
+            guard semaphore.wait(timeout: deadline) == .success else { return false }
+        }
+        return true
     }
 }
