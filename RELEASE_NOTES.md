@@ -1,3 +1,18 @@
+# v0.14.2
+
+## Reliable Codex Companion Token Progress
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Local Codex token fallback** — Keeps companion progression moving from recent local Codex rollout token counters when a Codex app-server build cannot return token activity.
+- **No retroactive rewards** — Uses the first observed local total only as a launch baseline, then awards tokens only for new work while CC-Overlay is running.
+- **Protocol-compatible app-server requests** — Sends parameterless Codex app-server requests in their schema form and waits for initialization before account requests.
+- **Bounded journal scanning** — Reads recently active journals incrementally, without repeatedly scanning the full Codex archive.
+
+---
+
 # v0.13.1
 
 ## Reliable In-App Updates

@@ -166,6 +166,8 @@ enum AppConstants {
     static let fiveHourWindowSeconds: TimeInterval = 5 * 60 * 60
     static let sessionScanInterval: TimeInterval = 5
     static let claudeTranscriptLookback: TimeInterval = 24 * 60 * 60
+    static let codexTranscriptLookback: TimeInterval = 6 * 60 * 60
+    static let codexTranscriptInitialReadMaximumBytes: UInt64 = 32 * 1024 * 1024
 
     // Thresholds
     static let defaultWarningThresholdPct: Double = 70

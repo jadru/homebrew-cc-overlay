@@ -106,6 +106,7 @@ VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./s
 | **Anthropic OAuth** | Claude Code | Claude Code Keychain 인증 정보 — 실시간 5시간·7일 버킷 |
 | **Codex OAuth** | Codex CLI | Codex가 `~/.codex/auth.json`에 저장한 ChatGPT 로그인 |
 | **Codex app-server** | Codex / ChatGPT 앱 | 프로필별 rate limit, 토큰 활동량, 지원되는 Full Reset `expiresAt` 상세를 조회 |
+| **Codex 로컬 롤아웃 저널** | Codex CLI | app-server 토큰 활동량을 읽을 수 없을 때 컴패니언 진행도에만 쓰는 최근 `CODEX_HOME` 롤아웃 저널의 로컬 폴백 |
 | **로컬 JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` 폴백 — 로그 기반 추정값임을 명시 |
 
 ## 개인정보 및 프로바이더 접근
@@ -113,6 +114,7 @@ VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./s
 CC-Overlay는 개발자가 운영하는 backend를 두지 않으며, 사용량 기록이나 OAuth credential을 프로젝트 유지보수자에게 업로드하지 않습니다. 사용량 메타데이터에 필요한 provider 소유 서비스와, 업데이트 확인을 켠 경우 GitHub Releases에만 통신합니다.
 
 - 각 Codex 계정 프로필은 로컬의 독립된 `CODEX_HOME`을 사용합니다. CC-Overlay는 해당 디렉터리로 최신 Codex app-server를 로컬 실행해 rate limit, 토큰 활동량, Full Reset 만료 메타데이터를 읽습니다. 대화는 만들지 않으며 프로필을 제거해도 디렉터리는 삭제하지 않습니다.
+- Codex app-server 빌드가 토큰 활동량을 제공하지 않으면, CC-Overlay는 컴패니언 진행도에 한해 최근 로컬 롤아웃 저널의 누적 토큰 카운터만 읽습니다. 저널 내용을 업로드하지 않으며 앱을 시작할 때 과거 작업을 보상하지 않습니다.
 - Claude transcript 추정은 최근 로컬 JSONL 파일을 읽습니다. Claude OAuth rate limit 접근은 기본적으로 꺼져 있으며 Settings에서 명시적으로 켤 때만 시도합니다.
 - 사용량 기록, 설정, diagnostic log는 로컬 Mac에 저장됩니다.
 

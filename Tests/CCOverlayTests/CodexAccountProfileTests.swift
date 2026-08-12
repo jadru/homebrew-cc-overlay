@@ -111,6 +111,61 @@ final class CodexAccountProfileStoreTests: XCTestCase {
 }
 
 final class CodexAccountUsageTests: XCTestCase {
+    func testTranscriptTokenScannerUsesLocalCodexCumulativeTokenCounts() throws {
+        let codexHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cc-overlay-codex-token-scanner-\(UUID().uuidString)", isDirectory: true)
+        let archive = codexHome.appendingPathComponent("archived_sessions", isDirectory: true)
+        let transcript = archive.appendingPathComponent("rollout.jsonl")
+        try FileManager.default.createDirectory(at: archive, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: codexHome) }
+
+        try Data(tokenCountLine(total: 100).utf8).write(to: transcript)
+        let initial = try CodexTranscriptTokenScanner.scan(
+            codexHome: codexHome.path,
+            previousStates: [:]
+        )
+        XCTAssertTrue(initial.hasTokenData)
+        XCTAssertEqual(initial.cumulativeTokens, 100)
+
+        let handle = try FileHandle(forWritingTo: transcript)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(tokenCountLine(total: 175).utf8))
+        try handle.close()
+
+        let appended = try CodexTranscriptTokenScanner.scan(
+            codexHome: codexHome.path,
+            previousStates: initial.fileStates
+        )
+        XCTAssertEqual(appended.cumulativeTokens, 175)
+    }
+
+    @MainActor
+    func testAccountMonitorUsesTranscriptTokensWhenAppServerIsUnavailable() async throws {
+        let codexHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cc-overlay-codex-monitor-\(UUID().uuidString)", isDirectory: true)
+        let archive = codexHome.appendingPathComponent("archived_sessions", isDirectory: true)
+        let transcript = archive.appendingPathComponent("rollout.jsonl")
+        try FileManager.default.createDirectory(at: archive, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: codexHome) }
+        try Data(tokenCountLine(total: 321).utf8).write(to: transcript)
+
+        let suiteName = "CodexAccountUsageTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let store = CodexAccountProfileStore(
+            defaults: defaults,
+            userHome: "/Users/tester",
+            createsDefaultProfile: false
+        )
+        let profile = try store.addProfile(displayName: "Local", codexHome: codexHome.path)
+        let monitor = CodexAccountMonitor(profileStore: store, binaryPathProvider: { "/missing/codex" })
+
+        await monitor.refresh(profile.id)
+
+        XCTAssertEqual(monitor.snapshot(for: profile.id)?.tokenActivity.lifetimeTokens, 321)
+        XCTAssertNil(monitor.errors[profile.id])
+    }
+
     @MainActor
     func testProviderIsUnavailableWhenNoCodexProfileIsSelected() async {
         let service = CodexProviderService(codexHomeProvider: { nil })
@@ -164,6 +219,27 @@ final class CodexAccountUsageTests: XCTestCase {
         XCTAssertEqual(snapshot.tokenActivity.dailyBuckets.count, 2)
     }
 
+    func testAccountUsageRequestsOmitParamsForParameterlessAppServerMethods() throws {
+        let messages = CodexAccountUsageReader.appServerRequestMessages()
+
+        XCTAssertEqual(messages.count, 4)
+        XCTAssertNil(messages[1]["params"])
+        XCTAssertNil(messages[2]["params"])
+        XCTAssertNil(messages[3]["params"])
+        XCTAssertEqual(messages[2]["method"] as? String, "account/rateLimits/read")
+        XCTAssertEqual(messages[3]["method"] as? String, "account/usage/read")
+        XCTAssertNoThrow(try JSONSerialization.data(withJSONObject: messages))
+    }
+
+    func testResetCreditRequestsOmitParamsForParameterlessAppServerMethods() {
+        let messages = CodexAppServerService.resetCreditRequestMessages()
+
+        XCTAssertEqual(messages.count, 3)
+        XCTAssertNil(messages[1]["params"])
+        XCTAssertNil(messages[2]["params"])
+        XCTAssertEqual(messages[2]["method"] as? String, "account/rateLimits/read")
+    }
+
     func testTokenActivitySumsAnArbitrarySevenDayWindow() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -182,5 +258,9 @@ final class CodexAccountUsageTests: XCTestCase {
         )
 
         XCTAssertEqual(activity.tokens(inLastDays: 7, now: now, calendar: calendar), 5)
+    }
+
+    private func tokenCountLine(total: Int) -> String {
+        #"{"payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":\#(total)}}}}"# + "\n"
     }
 }

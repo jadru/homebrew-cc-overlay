@@ -113,7 +113,7 @@ actor CodexAppServerService {
         let process = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
-        let collector = CodexAppServerResponseCollector(responseID: 2)
+        let collector = CodexAppServerResponseCollector(responseIDs: [1, 2])
 
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = ["app-server", "--listen", "stdio://"]
@@ -142,7 +142,31 @@ actor CodexAppServerService {
             throw ServiceError.unavailable
         }
 
-        let messages: [[String: Any]] = [
+        let messages = resetCreditRequestMessages()
+
+        func send(_ message: [String: Any]) throws {
+            let encoded = try JSONSerialization.data(withJSONObject: message)
+            try inputPipe.fileHandleForWriting.write(contentsOf: encoded + Data([0x0A]))
+        }
+
+        try send(messages[0])
+        guard collector.wait(for: [1], timeout: timeout) else {
+            throw ServiceError.timedOut
+        }
+        try send(messages[1])
+        try send(messages[2])
+
+        guard collector.wait(for: [2], timeout: timeout),
+              let response = collector.response(for: 2)
+        else {
+            throw ServiceError.timedOut
+        }
+        return try parseRateLimitResetResponse(response)
+    }
+
+    /// Parameterless app-server requests omit the `params` object.
+    nonisolated static func resetCreditRequestMessages() -> [[String: Any]] {
+        [
             [
                 "method": "initialize",
                 "id": 1,
@@ -154,19 +178,9 @@ actor CodexAppServerService {
                     ],
                 ],
             ],
-            ["method": "initialized", "params": [:]],
-            ["method": "account/rateLimits/read", "id": 2, "params": [:]],
+            ["method": "initialized"],
+            ["method": "account/rateLimits/read", "id": 2],
         ]
-
-        for message in messages {
-            let encoded = try JSONSerialization.data(withJSONObject: message)
-            try inputPipe.fileHandleForWriting.write(contentsOf: encoded + Data([0x0A]))
-        }
-
-        guard collector.wait(timeout: timeout), let response = collector.response else {
-            throw ServiceError.timedOut
-        }
-        return try parseRateLimitResetResponse(response)
     }
 
     nonisolated private static func integerValue(_ value: Any?) -> Int? {
@@ -190,18 +204,18 @@ actor CodexAppServerService {
 }
 
 private final class CodexAppServerResponseCollector: @unchecked Sendable {
-    private let responseID: Int
+    private let responseIDs: Set<Int>
     private let lock = NSLock()
     private let semaphore = DispatchSemaphore(value: 0)
     private var buffer = Data()
-    private var storedResponse: Data?
+    private var responses: [Int: Data] = [:]
 
-    init(responseID: Int) {
-        self.responseID = responseID
+    init(responseIDs: Set<Int>) {
+        self.responseIDs = responseIDs
     }
 
-    var response: Data? {
-        lock.withLock { storedResponse }
+    func response(for id: Int) -> Data? {
+        lock.withLock { responses[id] }
     }
 
     func consume(_ data: Data) {
@@ -209,24 +223,26 @@ private final class CodexAppServerResponseCollector: @unchecked Sendable {
 
         lock.lock()
         defer { lock.unlock() }
-        guard storedResponse == nil else { return }
-
         buffer.append(data)
         while let newline = buffer.firstIndex(of: 0x0A) {
             let line = Data(buffer[..<newline])
             buffer.removeSubrange(...newline)
             guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-                  (object["id"] as? NSNumber)?.intValue == responseID
+                  let id = (object["id"] as? NSNumber)?.intValue,
+                  responseIDs.contains(id)
             else {
                 continue
             }
-            storedResponse = line
+            responses[id] = line
             semaphore.signal()
-            return
         }
     }
 
-    func wait(timeout: TimeInterval) -> Bool {
-        semaphore.wait(timeout: .now() + timeout) == .success
+    func wait(for responseIDs: Set<Int>, timeout: TimeInterval) -> Bool {
+        let deadline = DispatchTime.now() + timeout
+        while !lock.withLock({ responseIDs.isSubset(of: Set(responses.keys)) }) {
+            guard semaphore.wait(timeout: deadline) == .success else { return false }
+        }
+        return true
     }
 }

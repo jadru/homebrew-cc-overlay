@@ -111,6 +111,7 @@ Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to s
 | **Anthropic OAuth** | Claude Code | Claude Code Keychain credentials — live 5-hour and 7-day buckets |
 | **Codex OAuth** | Codex CLI | ChatGPT login stored by Codex in `~/.codex/auth.json` |
 | **Codex app-server** | Codex / ChatGPT app | Reads per-profile rate limits, token activity, and Full Reset `expiresAt` details when supported |
+| **Codex local rollout journals** | Codex CLI | Recent `CODEX_HOME` rollout journals, used only as a local fallback for companion token progression when app-server token activity is unavailable |
 | **Local JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` fallback — clearly marked token-based estimate |
 
 ## Privacy and Provider Access
@@ -118,6 +119,7 @@ Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to s
 CC-Overlay has no developer-operated backend and does not upload usage history or OAuth credentials to the project maintainer. It communicates only with provider-owned services needed for usage metadata and with GitHub Releases when update checks are enabled.
 
 - Each Codex account profile is an isolated local `CODEX_HOME`. CC-Overlay launches the current Codex app-server locally with that directory to read rate limits, token activity, and Full Reset expiration metadata; no conversation is created and removing a profile never deletes its directory.
+- When a Codex app-server build cannot provide token activity, CC-Overlay reads only cumulative token counters from recent local rollout journals for companion progression. It does not upload journal contents or award past work when the app starts.
 - Claude transcript estimates read recent local JSONL files. Claude OAuth rate-limit access is off by default and requires an explicit Settings opt-in.
 - Usage history, settings, and diagnostic logs stay on the local Mac.
 
