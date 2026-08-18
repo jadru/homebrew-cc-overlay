@@ -7,15 +7,9 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
     private var oauthService: CodexOAuthService?
     private var oauthSnapshot: CodexOAuthService.UsageSnapshot?
     private let appServerService = CodexAppServerService()
-    private let codexHomeProvider: @MainActor () -> String?
     private var codexBinaryPath: String?
-    private var codexHome: String?
 
-    init(
-        codexHomeProvider: @escaping @MainActor () -> String? = { AppConstants.codexConfigPath }
-    ) {
-        self.codexHomeProvider = codexHomeProvider
-        self.codexHome = AppConstants.codexConfigPath
+    init() {
         super.init(provider: .codex)
     }
 
@@ -23,20 +17,7 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
 
     /// Codex rate limits are available only through the Codex CLI's ChatGPT login.
     func detect() async -> Bool {
-        let nextCodexHome = codexHomeProvider()
-        if nextCodexHome != codexHome {
-            codexHome = nextCodexHome
-            oauthService = nil
-            oauthSnapshot = nil
-        }
-        guard let codexHome else {
-            setDetected(false)
-            setAuthenticated(false)
-            codexBinaryPath = nil
-            oauthService = nil
-            oauthSnapshot = nil
-            return false
-        }
+        let codexHome = AppConstants.codexConfigPath
         let detection = CodexDetector.detect(codexHome: codexHome)
         setDetected(detection.binaryPath != nil)
         codexBinaryPath = detection.binaryPath
@@ -65,10 +46,11 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
 
     func fetchUsage() async {
         // Codex owns token refresh. This process only re-reads and uses its current auth file.
-        guard await detect(), let oauthService, let codexHome else {
+        guard await detect(), let oauthService else {
             setError("Codex CLI authentication is unavailable. Run 'codex --login'.")
             return
         }
+        let codexHome = AppConstants.codexConfigPath
 
         guard canAttemptNetworkRefresh() else { return }
 

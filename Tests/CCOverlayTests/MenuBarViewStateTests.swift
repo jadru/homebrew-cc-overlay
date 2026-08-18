@@ -116,11 +116,8 @@ final class MenuBarViewStateTests: XCTestCase {
     }
 
     func testEmptyPanelRendersMessageAndRecoveryActions() {
-        let accountContext = makeCodexAccountContext()
         let view = MenuBarView(
             multiService: MultiProviderUsageService(),
-            codexProfileStore: accountContext.store,
-            codexAccountMonitor: accountContext.monitor,
             settings: AppSettings(),
             patchProgress: PatchProgressStore(),
             updateService: UpdateService()
@@ -143,20 +140,6 @@ final class MenuBarViewStateTests: XCTestCase {
         let actionCoverage = meanAlpha(in: bitmap, x: 0.02..<0.62, y: 0.66..<0.98)
         XCTAssertGreaterThan(messageCoverage, 0.003)
         XCTAssertGreaterThan(actionCoverage, 0.003)
-    }
-
-    private func makeCodexAccountContext() -> (
-        store: CodexAccountProfileStore,
-        monitor: CodexAccountMonitor
-    ) {
-        let suiteName = "MenuBarViewStateTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        let store = CodexAccountProfileStore(defaults: defaults, userHome: "/Users/tester")
-        return (
-            store,
-            CodexAccountMonitor(profileStore: store, binaryPathProvider: { nil })
-        )
     }
 
     func testCodexTimelineRendersBankedFullResetRow() {

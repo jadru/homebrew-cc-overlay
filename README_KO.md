@@ -15,16 +15,13 @@ CC-Overlay는 GitHub Releases와 Homebrew로 직접 배포하는 독립 오픈�
 - **Codex 우선 라우팅** — 계획한 작업이 안전하게 들어가면 Codex를 우선하고, 부족할 때 Claude Code로 자동 폴백
 - **인증된 프로바이더만 표시** — 설정되지 않은 프로바이더를 setup/사용량 지표로 잘못 노출하지 않음
 - **실시간 rate-limit 윈도우** — Claude Code와 Codex OAuth의 5시간·7일 한도 표시
-- **무제한 Codex 계정 프로필** — 격리된 `CODEX_HOME` 프로필을 개수 제한 없이 추가하고 수동 전환 및 잔여량 비교
-- **Codex 토큰 활동량** — 토큰 한도로 오인되지 않도록 오늘과 최근 7일의 정확한 활동량을 별도 표시
+- **Codex 컴패니언 신호** — 표준 Codex 홈에서 새로 관측한 로컬 토큰 활동으로만 펫을 성장시키며, 토큰을 한도로 표시하지 않음
 - **명확한 로컬 폴백** — Claude JSONL 추정값에는 `~`와 "local estimate"를 표시
 - **플로팅 Liquid Glass 오버레이** — 화면 경계를 넘지 않고 호버 시 확장되는 상태 surface
 - **페이스 신호** — 5H·7D 타임라인에서 빠른 소진, 정상 페이스, 여유 상태를 구분
 - **실행 가능한 추천** — 연결된 프로바이더를 종합해 신뢰도가 표시된 Run, Wait, Switch, Refresh 상태를 제안
-- **보수적인 작업 적합도 학습** — 같은 프로바이더·작업 크기로 사용자가 기록한 결과만 사용하며, 높은 신뢰도에는 12개의 기록된 결과가 필요
 - **가이드 Run / Switch** — 활성 프로젝트 위치에서 추천 CLI를 Terminal 또는 iTerm2로 실행하고 실패 시 전체 명령을 안전하게 복사
 - **설명 가능한 추천** — 각 결정에 사용한 잔여량, 작업 적합도, 데이터 품질, 대안 신호 확인
-- **실행 결과 학습** — 완료, 한도 도달, 전환, 리셋, 취소 결과를 로컬에 기록해 이후 작업 적합도 개선
 - **만료 인식 Codex Full Reset** — 확인 가능한 reset 만료까지 표시하고, 적용 가능한 reset이 소멸되기 전에 추천에 반영
 - **로컬 히스토리와 예측** — 7일 잔여량 변화와 현재 페이스 기준 한도 도달 예상 시간 표시
 - **활성화 및 프로바이더 상태** — 설치, 로그인, stale, 응답 변경, 지연, 반복 실패 상태 진단
@@ -106,16 +103,15 @@ VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./s
 |------|-----------|----------|
 | **Anthropic OAuth** | Claude Code | Claude Code Keychain 인증 정보 — 실시간 5시간·7일 버킷 |
 | **Codex OAuth** | Codex CLI | Codex가 `~/.codex/auth.json`에 저장한 ChatGPT 로그인 |
-| **Codex app-server** | Codex / ChatGPT 앱 | 프로필별 rate limit, 토큰 활동량, 지원되는 Full Reset `expiresAt` 상세를 조회 |
-| **Codex 로컬 롤아웃 저널** | Codex CLI | app-server 토큰 활동량을 읽을 수 없을 때 컴패니언 진행도에만 쓰는 최근 `CODEX_HOME` 롤아웃 저널의 로컬 폴백 |
+| **Codex app-server** | Codex / ChatGPT 앱 | 지원되는 Full Reset `expiresAt` 상세를 조회 |
+| **Codex 로컬 롤아웃 저널** | Codex CLI | 표준 `~/.codex` 홈의 최근 저널을 컴패니언 진행도에만 사용 |
 | **로컬 JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` 폴백 — 로그 기반 추정값임을 명시 |
 
 ## 개인정보 및 프로바이더 접근
 
 CC-Overlay는 개발자가 운영하는 backend를 두지 않으며, 사용량 기록이나 OAuth credential을 프로젝트 유지보수자에게 업로드하지 않습니다. 사용량 메타데이터에 필요한 provider 소유 서비스와, 업데이트 확인을 켠 경우 GitHub Releases에만 통신합니다.
 
-- 각 Codex 계정 프로필은 로컬의 독립된 `CODEX_HOME`을 사용합니다. CC-Overlay는 해당 디렉터리로 최신 Codex app-server를 로컬 실행해 rate limit, 토큰 활동량, Full Reset 만료 메타데이터를 읽습니다. 대화는 만들지 않으며 프로필을 제거해도 디렉터리는 삭제하지 않습니다.
-- Codex app-server 빌드가 토큰 활동량을 제공하지 않으면, CC-Overlay는 컴패니언 진행도에 한해 최근 로컬 롤아웃 저널의 누적 토큰 카운터만 읽습니다. 저널 내용을 업로드하지 않으며 앱을 시작할 때 과거 작업을 보상하지 않습니다.
+- CC-Overlay는 표준 `~/.codex` 홈의 최근 로컬 롤아웃 저널에서 컴패니언 진행도에 필요한 누적 토큰 카운터만 읽습니다. 저널 내용을 업로드하지 않으며 앱을 시작할 때 과거 작업을 보상하지 않습니다.
 - Claude transcript 추정은 최근 로컬 JSONL 파일을 읽습니다. Claude OAuth rate limit 접근은 기본적으로 꺼져 있으며 Settings에서 명시적으로 켤 때만 시도합니다.
 - 사용량 기록, 설정, diagnostic log는 로컬 Mac에 저장됩니다.
 
@@ -125,8 +121,7 @@ provider token은 민감한 정보입니다. provider를 활성화하기 전에 
 
 드롭다운은 선택한 프로바이더의 사용량 타임라인을 보여줍니다. 두 프로바이더
 모두 사용량이 있을 때만 상단에 compact selector가 표시됩니다. 각 윈도우에는
-사용량·잔여량·리셋 시각·현재 페이스가 함께 표시됩니다. Codex 계정 카드에서는
-프로필 수동 전환, 계정별 잔여량, 명확히 구분된 토큰 활동량도 확인할 수 있습니다.
+사용량·잔여량·리셋 시각·현재 페이스가 함께 표시됩니다.
 
 ### 플로팅 필
 

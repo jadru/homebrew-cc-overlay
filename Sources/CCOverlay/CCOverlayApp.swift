@@ -4,31 +4,15 @@ import SwiftUI
 @main
 struct CCOverlayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var codexProfileStore: CodexAccountProfileStore
-    @State private var codexAccountMonitor: CodexAccountMonitor
-    @State private var multiService: MultiProviderUsageService
+    @State private var multiService = MultiProviderUsageService()
     @State private var settings = AppSettings()
     @State private var patchProgress = PatchProgressStore()
     @State private var costAlertManager = CostAlertManager()
     @State private var updateService = UpdateService()
     @State private var sessionMonitor = SessionMonitor(autoStart: false)
     @State private var hasInitialized = false
+    @State private var codexTranscriptFileStates: [String: CodexTranscriptTokenScanner.FileState] = [:]
     private let launchAtLoginService = LaunchAtLoginService()
-
-    init() {
-        let profileStore = CodexAccountProfileStore()
-        _codexProfileStore = State(initialValue: profileStore)
-        _codexAccountMonitor = State(
-            initialValue: CodexAccountMonitor(profileStore: profileStore)
-        )
-        _multiService = State(
-            initialValue: MultiProviderUsageService(
-                codexHomeProvider: {
-                    profileStore.selectedProfile?.codexHome
-                }
-            )
-        )
-    }
 
     private let modelContainer: ModelContainer = {
         let schema = Schema([UsageSnapshot.self])
@@ -61,8 +45,6 @@ struct CCOverlayApp: App {
         MenuBarExtra {
             MenuBarView(
                 multiService: multiService,
-                codexProfileStore: codexProfileStore,
-                codexAccountMonitor: codexAccountMonitor,
                 settings: settings,
                 patchProgress: patchProgress,
                 updateService: updateService
@@ -105,25 +87,7 @@ struct CCOverlayApp: App {
                         )
                     }
                     _ = patchProgress.recordTokenUsage(observations: tokenObservations)
-                }
-                .onChange(of: codexAccountMonitor.selectedSnapshot) { _, snapshot in
-                    guard let snapshot,
-                          let lifetimeTokens = snapshot.tokenActivity.lifetimeTokens
-                    else { return }
-                    _ = patchProgress.recordTokenUsage(
-                        observations: [
-                            CompanionTokenObservation(
-                                sourceID: "codex-account-\(snapshot.profileID.uuidString)",
-                                cumulativeTokens: lifetimeTokens
-                            ),
-                        ]
-                    )
-                }
-                .onChange(of: codexProfileStore.selectedProfileID) { _, profileID in
-                    multiService.refresh()
-                    if let profileID {
-                        Task { await codexAccountMonitor.refresh(profileID) }
-                    }
+                    recordCodexTranscriptUsage()
                 }
                 .onChange(of: settings.pillClickThrough) { _, _ in
                     appDelegate.overlayManager?.updateFromSettings()
@@ -144,8 +108,6 @@ struct CCOverlayApp: App {
             SettingsView(
                 settings: settings,
                 multiService: multiService,
-                codexProfileStore: codexProfileStore,
-                codexAccountMonitor: codexAccountMonitor,
                 updateService: updateService
             )
         }
@@ -178,13 +140,11 @@ struct CCOverlayApp: App {
         DebugFlowLogger.shared.configure(enabled: settings.debugFlowLogging)
         appDelegate.setTerminationHandler {
             multiService.stopMonitoring()
-            codexAccountMonitor.stopMonitoring()
             sessionMonitor.stopMonitoring()
             updateService.stopMonitoring()
         }
         multiService.configure(settings: settings)
         multiService.startMonitoring(interval: settings.refreshInterval)
-        codexAccountMonitor.startMonitoring(selectedInterval: settings.refreshInterval)
         sessionMonitor.startMonitoring()
 
         updateService.configure(settings: settings)
@@ -216,6 +176,31 @@ struct CCOverlayApp: App {
         guard settings.firstUsageAt == nil, !multiService.availableProviders.isEmpty else { return }
         settings.firstUsageAt = Date()
         AppLogger.data.info("Recorded first usable provider activation")
+    }
+
+    private func recordCodexTranscriptUsage() {
+        let previousStates = codexTranscriptFileStates
+        Task {
+            let result = await Task.detached(priority: .utility) {
+                try? CodexTranscriptTokenScanner.scan(
+                    codexHome: AppConstants.codexConfigPath,
+                    previousStates: previousStates
+                )
+            }.value
+
+            guard let result else { return }
+            codexTranscriptFileStates = result.fileStates
+            guard result.hasTokenData else { return }
+
+            _ = patchProgress.recordTokenUsage(
+                observations: [
+                    CompanionTokenObservation(
+                        sourceID: "codex-transcript-default",
+                        cumulativeTokens: result.cumulativeTokens
+                    ),
+                ]
+            )
+        }
     }
 
     private func repairLaunchAtLoginRegistrationIfNeeded() {

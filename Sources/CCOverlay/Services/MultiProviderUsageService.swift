@@ -16,7 +16,6 @@ final class MultiProviderUsageService {
     private var settings: AppSettings?
     private var detectionTask: Task<Void, Never>?
     private let serviceFactory: ProviderServiceFactory?
-    private let codexHomeProvider: @MainActor () -> String?
     private var isMonitoring = false
     private var monitoringInterval = AppConstants.defaultRefreshInterval
     private var monitoredProviders = Set<CLIProvider>()
@@ -29,11 +28,9 @@ final class MultiProviderUsageService {
 
     init(
         serviceFactory: ProviderServiceFactory? = nil,
-        decisionHistory: DecisionHistoryStore? = nil,
-        codexHomeProvider: @escaping @MainActor () -> String? = { AppConstants.codexConfigPath }
+        decisionHistory: DecisionHistoryStore? = nil
     ) {
         self.serviceFactory = serviceFactory
-        self.codexHomeProvider = codexHomeProvider
         let history = decisionHistory ?? DecisionHistoryStore()
         self.decisionHistory = history
         self.pendingRun = history.pendingRun
@@ -346,8 +343,7 @@ final class MultiProviderUsageService {
         }
         return await Self.defaultServiceFactory(
             for: provider,
-            settings: settings,
-            codexHomeProvider: codexHomeProvider
+            settings: settings
         )
     }
 
@@ -361,8 +357,7 @@ final class MultiProviderUsageService {
 
     private static func defaultServiceFactory(
         for provider: CLIProvider,
-        settings: AppSettings?,
-        codexHomeProvider: @escaping @MainActor () -> String?
+        settings: AppSettings?
     ) async -> (any ProviderServiceProtocol)? {
         switch provider {
         case .claudeCode:
@@ -373,7 +368,7 @@ final class MultiProviderUsageService {
             }
             return service.detect() ? service : nil
         case .codex:
-            let service = CodexProviderService(codexHomeProvider: codexHomeProvider)
+            let service = CodexProviderService()
             return await service.revalidate(settings: settings) ? service : nil
         }
     }
