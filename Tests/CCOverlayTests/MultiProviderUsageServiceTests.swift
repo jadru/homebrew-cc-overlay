@@ -72,40 +72,7 @@ final class MultiProviderUsageServiceTests: XCTestCase {
 
         XCTAssertEqual(service.usageDecision.kind, .run)
         XCTAssertEqual(service.usageDecision.dataQuality, .live)
-        XCTAssertEqual(service.usageDecision.taskFit?.outcome, .learning)
-    }
-
-    func testExplicitTaskResultIsRecordedThroughTheService() async {
-        let suiteName = "MultiProviderUsageServiceTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let codex = MockProviderService(provider: .codex, remainingPercentage: 80)
-        let service = MultiProviderUsageService(
-            serviceFactory: { provider, _ in provider == .codex ? codex : nil },
-            decisionHistory: DecisionHistoryStore(defaults: defaults)
-        )
-        defer { service.stopMonitoring() }
-
-        service.startMonitoring()
-        await wait(for: service, toContain: [.codex])
-
-        service.beginRun(decision: service.usageDecision, projectName: nil)
-        XCTAssertNotNil(service.pendingRun)
-
-        codex.usageData = ProviderUsageData(
-            provider: .codex,
-            isAvailable: true,
-            usedPercentage: 30,
-            remainingPercentage: 70,
-            primaryWindowLabel: "5h",
-            rateLimitBuckets: [RateBucket(label: "5h", utilization: 30)],
-            lastRefresh: Date()
-        )
-        service.completePendingRun(outcome: .completed)
-
-        XCTAssertNil(service.pendingRun)
-        XCTAssertEqual(service.runOutcomeSummary.completed, 1)
+        XCTAssertEqual(service.usageDecision.confidence, .high)
     }
 
     private func wait(

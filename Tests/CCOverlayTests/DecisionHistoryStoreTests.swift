@@ -3,21 +3,6 @@ import XCTest
 
 @MainActor
 final class DecisionHistoryStoreTests: XCTestCase {
-    func testDoesNotTreatPassiveConsumptionBurstsAsTaskFitEvidence() {
-        let suiteName = "DecisionHistoryStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = DecisionHistoryStore(defaults: defaults)
-        let start = Date(timeIntervalSince1970: 1_700_000_000)
-        for (index, remaining) in [90.0, 85.0, 80.0, 70.0].enumerated() {
-            let timestamp = start.addingTimeInterval(Double(index) * 300)
-            store.record(data(remaining: remaining, refreshedAt: timestamp), now: timestamp)
-        }
-
-        let evidence = store.evidence(for: .codex, taskSize: .medium, now: start.addingTimeInterval(1_200))
-        XCTAssertNil(evidence)
-    }
-
     func testStoresOnlyFeedbackCountsForDiagnostics() {
         let suiteName = "DecisionHistoryStoreTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -38,74 +23,17 @@ final class DecisionHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.feedbackSummary, .init(helpful: 2, unhelpful: 1))
     }
 
-    func testCompletedRunOutcomesContributeToTaskFitEvidence() {
+    func testInitializationRemovesLegacyRunWorkflowRecords() {
         let suiteName = "DecisionHistoryStoreTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = DecisionHistoryStore(defaults: defaults)
-        let decision = UsageDecision(
-            kind: .run,
-            title: "Run",
-            detail: "Healthy",
-            recommendedProvider: .codex,
-            resetAt: nil,
-            recommendedHeadroom: 30
-        )
+        defaults.set(Data("legacy pending".utf8), forKey: "decisionHistory.pendingRun.v1")
+        defaults.set(Data("legacy outcomes".utf8), forKey: "decisionHistory.outcomes.v1")
 
-        for index in 0..<5 {
-            _ = store.beginRun(
-                decision: decision,
-                taskSize: .medium,
-                projectName: "project",
-                now: Date(timeIntervalSince1970: 1_700_000_000 + Double(index))
-            )
-            store.completePendingRun(
-                outcome: .completed,
-                endingHeadroom: 20,
-                now: Date(timeIntervalSince1970: 1_700_000_100 + Double(index))
-            )
-        }
+        _ = DecisionHistoryStore(defaults: defaults)
 
-        let evidence = store.evidence(
-            for: .codex,
-            taskSize: .medium,
-            now: Date(timeIntervalSince1970: 1_700_000_200)
-        )
-        XCTAssertEqual(evidence?.sampleCount, 5)
-        XCTAssertEqual(evidence?.requiredHeadroom ?? 0, 10, accuracy: 0.01)
-        XCTAssertEqual(store.outcomeSummary.completed, 5)
-        XCTAssertNil(store.pendingRun)
-    }
-
-    func testCalibrationCountsLimitHitsAfterLikelyFitRecommendation() {
-        let suiteName = "DecisionHistoryStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = DecisionHistoryStore(defaults: defaults)
-        let decision = UsageDecision(
-            kind: .run,
-            title: "Run",
-            detail: "Healthy",
-            recommendedProvider: .codex,
-            resetAt: nil,
-            confidence: .high,
-            taskFit: TaskFitAssessment(
-                taskSize: .medium,
-                outcome: .likely,
-                requiredHeadroom: 20,
-                sampleCount: 12
-            ),
-            recommendedHeadroom: 40
-        )
-
-        for outcome in [RunOutcome.completed, .hitLimit] {
-            _ = store.beginRun(decision: decision, taskSize: .medium, projectName: nil)
-            store.completePendingRun(outcome: outcome, endingHeadroom: outcome == .completed ? 30 : 0)
-        }
-
-        XCTAssertEqual(store.calibrationSummary.likelyFitRuns, 2)
-        XCTAssertEqual(store.calibrationSummary.likelyFitLimitHits, 1)
-        XCTAssertEqual(store.calibrationSummary.falseSafeRate, 0.5)
+        XCTAssertNil(defaults.data(forKey: "decisionHistory.pendingRun.v1"))
+        XCTAssertNil(defaults.data(forKey: "decisionHistory.outcomes.v1"))
     }
 
     func testHeadroomHistoryProducesActivePaceForecast() {

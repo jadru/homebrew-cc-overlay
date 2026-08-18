@@ -42,38 +42,76 @@ enum CompanionTreatReaction: Int, Equatable, Sendable {
     var verticalOffset: Double {
         switch self {
         case .idle: 0
-        case .crouch: 4
-        case .launch: -13
-        case .settle: -2
+        case .crouch: 7
+        // Expansion from the bottom already reads as a jump. Keeping the
+        // origin fixed prevents the sprite from crossing the panel's top edge.
+        case .launch: 0
+        case .settle: -5
         }
     }
 
     var horizontalScale: Double {
         switch self {
         case .idle: 1
-        case .crouch: 1.055
-        case .launch: 0.96
-        case .settle: 1.012
+        case .crouch: 1.13
+        case .launch: 0.9
+        case .settle: 1.045
         }
     }
 
     var verticalScale: Double {
         switch self {
         case .idle: 1
-        case .crouch: 0.945
-        case .launch: 1.075
-        case .settle: 0.992
+        case .crouch: 0.85
+        case .launch: 1.08
+        case .settle: 0.975
         }
     }
 
     var rotationDegrees: Double {
         switch self {
         case .idle: 0
-        case .crouch: -0.8
-        case .launch: 1.25
-        case .settle: 0.2
+        case .crouch: -3
+        case .launch: 4
+        case .settle: -0.7
         }
     }
+}
+
+/// The reward text is deliberately expressed as data so its full enlarged
+/// footprint can be tested against the fixed companion panel.
+enum CompanionTreatRewardMotion: Int, CaseIterable, Equatable, Sendable {
+    case appear
+    case celebrate
+    case settle
+
+    var offset: CGSize {
+        switch self {
+        case .appear: CGSize(width: 0, height: PatchInteraction.companionRewardOriginY)
+        case .celebrate: CGSize(width: 8, height: -68)
+        case .settle: CGSize(width: -5, height: -70)
+        }
+    }
+
+    var scale: CGFloat {
+        switch self {
+        case .appear: 0.35
+        case .celebrate: 1.5
+        case .settle: 1.12
+        }
+    }
+
+    var rotationDegrees: Double {
+        switch self {
+        case .appear: -12
+        case .celebrate: 10
+        case .settle: -4
+        }
+    }
+
+    /// Conservative pre-scaled axis-aligned footprint for the 25-point "+1",
+    /// including its 10-degree rotation.
+    static let maximumTextSize = CGSize(width: 44, height: 40)
 }
 
 /// A feed is the companion's signature acknowledgement: it leans in, takes a

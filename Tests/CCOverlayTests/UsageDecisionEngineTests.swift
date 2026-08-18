@@ -211,44 +211,6 @@ final class UsageDecisionEngineTests: XCTestCase {
         XCTAssertEqual(decision.dataQuality, .stale)
     }
 
-    func testUsesObservedTaskSizeToWaitForMoreHeadroom() {
-        let now = Date()
-        let decision = UsageDecisionEngine.recommend(
-            from: [data(.codex, remaining: 20, refreshedAt: now)],
-            plannedTaskSize: .large,
-            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 30, sampleCount: 6)],
-            now: now
-        )
-
-        XCTAssertEqual(decision.kind, .wait)
-        XCTAssertEqual(decision.taskFit?.outcome, .unlikely)
-        XCTAssertEqual(decision.taskFit?.taskSize, .large)
-    }
-
-    func testReportsHighConfidenceWithLiveDataAndEnoughFitEvidence() {
-        let now = Date()
-        let decision = UsageDecisionEngine.recommend(
-            from: [data(.codex, remaining: 80, refreshedAt: now)],
-            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 20, sampleCount: 12)],
-            now: now
-        )
-
-        XCTAssertEqual(decision.confidence, .high)
-        XCTAssertEqual(decision.taskFit?.outcome, .likely)
-    }
-
-    func testKeepsConfidenceMediumUntilTaskFitHasTwelveRecordedOutcomes() {
-        let now = Date()
-        let decision = UsageDecisionEngine.recommend(
-            from: [data(.codex, remaining: 80, refreshedAt: now)],
-            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 20, sampleCount: 5)],
-            now: now
-        )
-
-        XCTAssertEqual(decision.confidence, .medium)
-        XCTAssertEqual(decision.taskFit?.outcome, .likely)
-    }
-
     func testStabilizerRequiresTwoFreshSnapshotsForNonUrgentChange() {
         let stabilizer = UsageDecisionStabilizer()
         let first = UsageDecision(

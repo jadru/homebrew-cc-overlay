@@ -43,7 +43,12 @@ struct CompanionUsageHUD: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(tint.opacity(0.22), lineWidth: 1)
         }
-        .animation(reduceMotion ? nil : .timingCurve(0.22, 1, 0.36, 1, duration: 0.2), value: isHovering)
+        .animation(
+            reduceMotion
+                ? DesignTokens.Animation.reducedFeedback
+                : .timingCurve(0.22, 1, 0.36, 1, duration: 0.2),
+            value: isHovering
+        )
         .onHover { isHovering = $0 }
         .help(hoverHelp)
         .accessibilityElement(children: .contain)

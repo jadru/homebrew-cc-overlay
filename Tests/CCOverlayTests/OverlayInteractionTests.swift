@@ -32,6 +32,24 @@ final class OverlayInteractionTests: XCTestCase {
         )
     }
 
+    func testPointerJitterDoesNotStartWindowDrag() {
+        XCTAssertFalse(
+            OverlayInteractionPolicy.shouldBeginWindowDrag(deltaX: 6, deltaY: 6)
+        )
+        XCTAssertFalse(
+            OverlayInteractionPolicy.shouldBeginWindowDrag(deltaX: 9.9, deltaY: 0)
+        )
+    }
+
+    func testClearPointerMovementStartsWindowDrag() {
+        XCTAssertTrue(
+            OverlayInteractionPolicy.shouldBeginWindowDrag(deltaX: 10, deltaY: 0)
+        )
+        XCTAssertTrue(
+            OverlayInteractionPolicy.shouldBeginWindowDrag(deltaX: 8, deltaY: 6)
+        )
+    }
+
     func testAlwaysVisibleCompanionCanPresentWithoutUsageData() {
         XCTAssertTrue(
             OverlayVisibilityPolicy.canPresent(

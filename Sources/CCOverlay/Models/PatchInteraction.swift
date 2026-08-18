@@ -17,6 +17,13 @@ struct PatchInteraction: Equatable, Sendable {
     static let hudVerticalOffset: CGFloat = 70
     static let companionRewardOriginY: CGFloat = -24
     static let hudRewardTargetY: CGFloat = 70
+    /// All transient companion messages share one contained lane. Keeping the
+    /// size and shadow allowance here prevents a future toast from escaping the
+    /// fixed-size floating panel.
+    static let companionNotificationMaximumWidth: CGFloat = overlaySize.width - 16
+    static let companionNotificationMaximumHeight: CGFloat = 28
+    static let companionNotificationShadowOutset: CGFloat = 7
+    static let companionNotificationVerticalOffset: CGFloat = -84
     static let still = PatchInteraction(
         offset: .zero,
         rotationDegrees: 0,
@@ -63,6 +70,29 @@ struct PatchInteraction: Equatable, Sendable {
 
     static var center: CGPoint {
         CGPoint(x: overlaySize.width / 2, y: overlaySize.height / 2)
+    }
+
+    static func containsCenteredElement(
+        offset: CGSize,
+        contentSize: CGSize,
+        scale: CGFloat = 1,
+        shadowOutset: CGFloat = 0
+    ) -> Bool {
+        let scaledSize = CGSize(
+            width: contentSize.width * scale,
+            height: contentSize.height * scale
+        )
+        let center = CGPoint(
+            x: self.center.x + offset.width,
+            y: self.center.y + offset.height
+        )
+        let frame = CGRect(
+            x: center.x - scaledSize.width / 2 - shadowOutset,
+            y: center.y - scaledSize.height / 2 - shadowOutset,
+            width: scaledSize.width + shadowOutset * 2,
+            height: scaledSize.height + shadowOutset * 2
+        )
+        return CGRect(origin: .zero, size: overlaySize).contains(frame)
     }
 
     private static func normalizedPosition(for location: CGPoint, in size: CGSize) -> CGPoint {

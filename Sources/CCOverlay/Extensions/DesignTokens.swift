@@ -33,5 +33,9 @@ enum DesignTokens {
         static let press = SwiftUI.Animation.easeOut(duration: 0.12)
         static let selection = SwiftUI.Animation.spring(response: 0.22, dampingFraction: 1)
         static let reveal = SwiftUI.Animation.spring(response: 0.28, dampingFraction: 1)
+        static let reducedFeedback = SwiftUI.Animation.easeOut(duration: 0.12)
+        static let companionCelebration = SwiftUI.Animation.spring(response: 0.25, dampingFraction: 0.84)
+        static let companionNotification = SwiftUI.Animation.spring(response: 0.28, dampingFraction: 0.7)
+        static let companionDismiss = SwiftUI.Animation.easeOut(duration: 0.18)
     }
 }

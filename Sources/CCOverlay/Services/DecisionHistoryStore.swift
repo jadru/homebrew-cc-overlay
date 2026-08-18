@@ -7,24 +7,6 @@ final class DecisionHistoryStore {
         let unhelpful: Int
     }
 
-    struct OutcomeSummary: Equatable, Sendable {
-        let completed: Int
-        let hitLimit: Int
-        let switched: Int
-        let usedReset: Int
-        let cancelled: Int
-    }
-
-    struct CalibrationSummary: Equatable, Sendable {
-        let likelyFitRuns: Int
-        let likelyFitLimitHits: Int
-
-        var falseSafeRate: Double? {
-            guard likelyFitRuns > 0 else { return nil }
-            return Double(likelyFitLimitHits) / Double(likelyFitRuns)
-        }
-    }
-
     private struct Sample: Codable {
         let provider: String
         let timestamp: Date
@@ -38,23 +20,11 @@ final class DecisionHistoryStore {
         let helpful: Bool
     }
 
-    private struct OutcomeEvent: Codable {
-        let timestamp: Date
-        let provider: CLIProvider
-        let taskSize: PlannedTaskSize
-        let outcome: RunOutcome
-        let startingHeadroom: Double
-        let endingHeadroom: Double
-        let decisionConfidence: UsageDecision.Confidence?
-        let taskFitOutcome: TaskFitAssessment.Outcome?
-        let dataQuality: UsageDecision.DataQuality?
-    }
-
     private enum Key {
         static let samples = "decisionHistory.samples.v1"
         static let feedback = "decisionHistory.feedback.v1"
-        static let pendingRun = "decisionHistory.pendingRun.v1"
-        static let outcomes = "decisionHistory.outcomes.v1"
+        static let legacyPendingRun = "decisionHistory.pendingRun.v1"
+        static let legacyOutcomes = "decisionHistory.outcomes.v1"
     }
 
     private let defaults: UserDefaults
@@ -63,6 +33,11 @@ final class DecisionHistoryStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        // The explicit Start Medium Task workflow is gone. Removing its old
+        // records avoids silently shaping current recommendations with data
+        // the user can no longer inspect or correct.
+        defaults.removeObject(forKey: Key.legacyPendingRun)
+        defaults.removeObject(forKey: Key.legacyOutcomes)
     }
 
     func record(_ data: ProviderUsageData, now: Date = Date()) {
@@ -92,49 +67,6 @@ final class DecisionHistoryStore {
         save(samples, key: Key.samples)
     }
 
-    func evidence(
-        for provider: CLIProvider,
-        taskSize: PlannedTaskSize,
-        now: Date = Date()
-    ) -> TaskFitEvidence? {
-        let cutoff = now.addingTimeInterval(-7 * AppConstants.secondsPerDay)
-        let outcomeDeltas = loadOutcomes()
-            .filter {
-                $0.provider == provider
-                    && $0.taskSize == taskSize
-                    && $0.timestamp >= cutoff
-            }
-            .compactMap { event -> Double? in
-                switch event.outcome {
-                case .completed:
-                    let consumed = event.startingHeadroom - event.endingHeadroom
-                    return consumed >= 0.25 ? min(consumed, 90) : nil
-                case .hitLimit:
-                    return min(max(event.startingHeadroom * 1.1, 1), 90)
-                case .switchedProvider, .usedReset, .cancelled:
-                    return nil
-                }
-            }
-
-        let deltas = outcomeDeltas.sorted()
-
-        guard !deltas.isEmpty else { return nil }
-
-        let percentile: Double
-        switch taskSize {
-        case .small:
-            percentile = 0.75
-        case .medium:
-            percentile = 0.80
-        case .large:
-            percentile = 0.90
-        }
-
-        let index = min(Int((Double(deltas.count - 1) * percentile).rounded()), deltas.count - 1)
-        let required = min(max(deltas[index], 1), 90)
-        return TaskFitEvidence(requiredHeadroom: required, sampleCount: deltas.count)
-    }
-
     func recordFeedback(
         helpful: Bool,
         decision: UsageDecision,
@@ -158,81 +90,6 @@ final class DecisionHistoryStore {
         return FeedbackSummary(
             helpful: events.filter(\.helpful).count,
             unhelpful: events.filter { !$0.helpful }.count
-        )
-    }
-
-    func beginRun(
-        decision: UsageDecision,
-        taskSize: PlannedTaskSize,
-        projectName: String?,
-        now: Date = Date()
-    ) -> PendingRun? {
-        guard let provider = decision.recommendedProvider else { return nil }
-        let run = PendingRun(
-            id: UUID(),
-            startedAt: now,
-            provider: provider,
-            taskSize: taskSize,
-            startingHeadroom: decision.recommendedHeadroom ?? 0,
-            projectName: projectName,
-            decisionConfidence: decision.confidence,
-            taskFitOutcome: decision.taskFit?.outcome,
-            dataQuality: decision.dataQuality
-        )
-        save(run, key: Key.pendingRun)
-        return run
-    }
-
-    var pendingRun: PendingRun? {
-        load(PendingRun.self, key: Key.pendingRun)
-    }
-
-    func completePendingRun(
-        outcome: RunOutcome,
-        endingHeadroom: Double,
-        now: Date = Date()
-    ) {
-        guard let run = pendingRun else { return }
-        var outcomes = loadOutcomes()
-        outcomes.append(OutcomeEvent(
-            timestamp: now,
-            provider: run.provider,
-            taskSize: run.taskSize,
-            outcome: outcome,
-            startingHeadroom: run.startingHeadroom,
-            endingHeadroom: max(0, min(endingHeadroom, 100)),
-            decisionConfidence: run.decisionConfidence,
-            taskFitOutcome: run.taskFitOutcome,
-            dataQuality: run.dataQuality
-        ))
-        let cutoff = now.addingTimeInterval(-90 * AppConstants.secondsPerDay)
-        outcomes = outcomes.filter { $0.timestamp >= cutoff }
-        if outcomes.count > 500 {
-            outcomes.removeFirst(outcomes.count - 500)
-        }
-        save(outcomes, key: Key.outcomes)
-        defaults.removeObject(forKey: Key.pendingRun)
-    }
-
-    var outcomeSummary: OutcomeSummary {
-        let outcomes = loadOutcomes()
-        return OutcomeSummary(
-            completed: outcomes.filter { $0.outcome == .completed }.count,
-            hitLimit: outcomes.filter { $0.outcome == .hitLimit }.count,
-            switched: outcomes.filter { $0.outcome == .switchedProvider }.count,
-            usedReset: outcomes.filter { $0.outcome == .usedReset }.count,
-            cancelled: outcomes.filter { $0.outcome == .cancelled }.count
-        )
-    }
-
-    var calibrationSummary: CalibrationSummary {
-        let comparable = loadOutcomes().filter {
-            $0.taskFitOutcome == .likely
-                && ($0.outcome == .completed || $0.outcome == .hitLimit)
-        }
-        return CalibrationSummary(
-            likelyFitRuns: comparable.count,
-            likelyFitLimitHits: comparable.filter { $0.outcome == .hitLimit }.count
         )
     }
 
@@ -306,10 +163,6 @@ final class DecisionHistoryStore {
 
     private func loadFeedback() -> [FeedbackEvent] {
         load([FeedbackEvent].self, key: Key.feedback) ?? []
-    }
-
-    private func loadOutcomes() -> [OutcomeEvent] {
-        load([OutcomeEvent].self, key: Key.outcomes) ?? []
     }
 
     private func load<Value: Decodable>(_ type: Value.Type, key: String) -> Value? {

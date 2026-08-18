@@ -31,7 +31,6 @@ final class AppSettings {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let firstLaunchAt = "firstLaunchAt"
         static let firstUsageAt = "firstUsageAt"
-        static let plannedTaskSize = "plannedTaskSize"
         static let preferredTerminal = "preferredTerminal"
         static let providerPriority = "providerPriority"
         static let fullResetPolicy = "fullResetPolicy"
@@ -273,19 +272,6 @@ final class AppSettings {
         return max(firstUsageAt.timeIntervalSince(firstLaunchAt), 0)
     }
 
-    var plannedTaskSize: PlannedTaskSize {
-        get {
-            access(keyPath: \.plannedTaskSize)
-            let rawValue = UserDefaults.standard.string(forKey: Key.plannedTaskSize)
-            return PlannedTaskSize(rawValue: rawValue ?? "") ?? .medium
-        }
-        set {
-            withMutation(keyPath: \.plannedTaskSize) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: Key.plannedTaskSize)
-            }
-        }
-    }
-
     var preferredTerminal: PreferredTerminal {
         get {
             access(keyPath: \.preferredTerminal)
@@ -359,7 +345,6 @@ final class AppSettings {
             Key.companionAlwaysVisible: false,
             Key.autoUpdateEnabled: true,
             Key.hasCompletedOnboarding: false,
-            Key.plannedTaskSize: PlannedTaskSize.medium.rawValue,
             Key.preferredTerminal: PreferredTerminal.terminal.rawValue,
             Key.providerPriority: ProviderPriority.codexFirst.rawValue,
             Key.fullResetPolicy: FullResetPolicy.balanced.rawValue,

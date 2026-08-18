@@ -24,16 +24,13 @@ final class MultiProviderUsageService {
     private let decisionHistory: DecisionHistoryStore
     @ObservationIgnored
     private let decisionStabilizer = UsageDecisionStabilizer()
-    private(set) var pendingRun: PendingRun?
 
     init(
         serviceFactory: ProviderServiceFactory? = nil,
         decisionHistory: DecisionHistoryStore? = nil
     ) {
         self.serviceFactory = serviceFactory
-        let history = decisionHistory ?? DecisionHistoryStore()
-        self.decisionHistory = history
-        self.pendingRun = history.pendingRun
+        self.decisionHistory = decisionHistory ?? DecisionHistoryStore()
     }
 
     /// Bind settings for reading provider enable/disable and API keys.
@@ -72,15 +69,9 @@ final class MultiProviderUsageService {
 
     /// Global Run / Wait / Switch recommendation across every usable provider.
     var usageDecision: UsageDecision {
-        let taskSize = settings?.plannedTaskSize ?? .medium
-        let evidence = Dictionary(uniqueKeysWithValues: activeProviders.compactMap { provider in
-            decisionHistory.evidence(for: provider, taskSize: taskSize).map { (provider, $0) }
-        })
         let candidate = UsageDecisionEngine.recommend(
             from: activeProviders.map { usageData(for: $0) },
             currentProvider: recentlyActiveProviders.first,
-            plannedTaskSize: taskSize,
-            fitEvidence: evidence,
             providerPriority: settings?.providerPriority ?? .codexFirst,
             fullResetPolicy: settings?.fullResetPolicy ?? .balanced,
             staleAfter: staleThreshold
@@ -98,11 +89,6 @@ final class MultiProviderUsageService {
         decisionHistory.recordFeedback(helpful: helpful, decision: decision)
     }
 
-    func updatePlannedTaskSize(_ taskSize: PlannedTaskSize) {
-        settings?.plannedTaskSize = taskSize
-        decisionStabilizer.reset()
-    }
-
     func updateFullResetPolicy(_ policy: FullResetPolicy) {
         settings?.fullResetPolicy = policy
         decisionStabilizer.reset()
@@ -113,35 +99,8 @@ final class MultiProviderUsageService {
         decisionStabilizer.reset()
     }
 
-    func beginRun(decision: UsageDecision, projectName: String?) {
-        pendingRun = decisionHistory.beginRun(
-            decision: decision,
-            taskSize: settings?.plannedTaskSize ?? .medium,
-            projectName: projectName
-        )
-    }
-
-    func completePendingRun(outcome: RunOutcome) {
-        guard let run = pendingRun else { return }
-        let endingHeadroom = UsageDecisionEngine.headroom(for: usageData(for: run.provider))
-        decisionHistory.completePendingRun(
-            outcome: outcome,
-            endingHeadroom: endingHeadroom
-        )
-        pendingRun = nil
-        decisionStabilizer.reset()
-    }
-
     var decisionFeedbackSummary: DecisionHistoryStore.FeedbackSummary {
         decisionHistory.feedbackSummary
-    }
-
-    var runOutcomeSummary: DecisionHistoryStore.OutcomeSummary {
-        decisionHistory.outcomeSummary
-    }
-
-    var recommendationCalibrationSummary: DecisionHistoryStore.CalibrationSummary {
-        decisionHistory.calibrationSummary
     }
 
     func usageHistory(for provider: CLIProvider, days: Int = 7) -> [UsageHistoryPoint] {

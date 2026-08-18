@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowCoordinator = WindowCoordinator()
     private let singleInstanceCoordinator = SingleInstanceCoordinator()
     private var terminationHandler: (@MainActor () -> Void)?
+    private var patchProgress: PatchProgressStore?
 
     private(set) var overlayManager: OverlayManager?
     private(set) var isPrimaryInstance = true
@@ -25,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        patchProgress?.flushPendingTreatSave()
         hotkeyManager?.unregister()
         overlayManager?.closeOverlay()
         windowCoordinator.closeOnboarding()
@@ -49,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             details: ["hasManager": "\(overlayManager != nil)"]
         )
         guard overlayManager == nil else { return }
+        self.patchProgress = patchProgress
 
         let manager = OverlayManager(
             settings: settings,

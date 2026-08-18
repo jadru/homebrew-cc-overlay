@@ -103,15 +103,13 @@ final class PatchProgressStore {
     /// Clicking earns one treat at a time; a proper meal costs several treats
     /// so care milestones remain satisfying instead of being instant unlocks.
     static let feedTreatCost = 5
-    /// Treat collection intentionally stays a small, calm acknowledgement of
-    /// the companion rather than a rapid-click currency loop.
-    static let treatCollectionCooldown: TimeInterval = 0.8
     private static let retainedFocusDayCount = 400
 
     private let defaults: UserDefaults
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var stored: StoredProgress
+    @ObservationIgnored private var pendingTreatSaveTask: Task<Void, Never>?
 
     @ObservationIgnored private var observedTokenTotals: [String: Int] = [:]
     private var growthTokensThisLaunch = 0
@@ -209,25 +207,23 @@ final class PatchProgressStore {
     }
 
     /// Treats are optional, persistent interaction rewards. They never add
-    /// developer tokens or unlock companions. A brief cooldown makes each
-    /// interaction legible without turning the overlay into a clicker.
+    /// developer tokens or unlock companions, and every deliberate click
+    /// earns exactly one treat immediately.
     func collectTreat(now: Date = Date()) -> TreatCollectionResult? {
-        guard canCollectTreat(at: now) else { return nil }
         stored.coins += 1
         stored.totalClicks += 1
         stored.lastTreatCollectedAt = now
-        save()
+        scheduleTreatSave()
         return TreatCollectionResult(treatsAdded: 1, totalTreats: stored.coins)
     }
 
-    func canCollectTreat(at now: Date = Date()) -> Bool {
-        guard let lastCollectedAt = stored.lastTreatCollectedAt else { return true }
-        // A clock correction should never leave care controls temporarily
-        // unusable for an arbitrary amount of time.
-        guard now >= lastCollectedAt else { return true }
-        // Date arithmetic can land a fraction below an exact decimal boundary
-        // (for example 0.7999999 for a scheduled 0.8-second interval).
-        return now.timeIntervalSince(lastCollectedAt) >= Self.treatCollectionCooldown - 0.000_1
+    /// Keeps the visible count synchronous while coalescing a fast click burst
+    /// into one tiny persistence write. Callers flush this on app termination
+    /// and when the overlay disappears, so acknowledged treats are retained.
+    func flushPendingTreatSave() {
+        pendingTreatSaveTask?.cancel()
+        pendingTreatSaveTask = nil
+        save()
     }
 
     /// Treats build care with the current companion only. One care serving
@@ -322,6 +318,16 @@ final class PatchProgressStore {
     private func save() {
         guard let data = try? encoder.encode(stored) else { return }
         defaults.set(data, forKey: Key.progress)
+    }
+
+    private func scheduleTreatSave() {
+        pendingTreatSaveTask?.cancel()
+        pendingTreatSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled, let self else { return }
+            self.pendingTreatSaveTask = nil
+            self.save()
+        }
     }
 
     private static func focusDayKey(for date: Date, calendar: Calendar = .current) -> String {

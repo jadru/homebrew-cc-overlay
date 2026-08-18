@@ -100,11 +100,37 @@ final class PatchPresentationTests: XCTestCase {
     }
 
     func testTreatReactionHasAPreparationAndLaunchWithoutSpriteChanges() {
-        XCTAssertGreaterThan(CompanionTreatReaction.crouch.verticalOffset, 0)
-        XCTAssertLessThan(CompanionTreatReaction.launch.verticalOffset, 0)
-        XCTAssertLessThan(CompanionTreatReaction.crouch.verticalScale, 1)
-        XCTAssertGreaterThan(CompanionTreatReaction.launch.verticalScale, 1)
-        XCTAssertNotEqual(CompanionTreatReaction.launch.rotationDegrees, 0)
+        XCTAssertGreaterThanOrEqual(CompanionTreatReaction.crouch.verticalOffset, 7)
+        XCTAssertEqual(CompanionTreatReaction.launch.verticalOffset, 0)
+        XCTAssertLessThanOrEqual(CompanionTreatReaction.crouch.verticalScale, 0.85)
+        XCTAssertGreaterThanOrEqual(CompanionTreatReaction.launch.verticalScale, 1.08)
+        XCTAssertGreaterThanOrEqual(abs(CompanionTreatReaction.launch.rotationDegrees), 4)
+    }
+
+    func testTransientCompanionMessagesStayInsideTheFixedOverlay() {
+        XCTAssertTrue(
+            PatchInteraction.containsCenteredElement(
+                offset: CGSize(width: 0, height: PatchInteraction.companionNotificationVerticalOffset),
+                contentSize: CGSize(
+                    width: PatchInteraction.companionNotificationMaximumWidth,
+                    height: PatchInteraction.companionNotificationMaximumHeight
+                ),
+                shadowOutset: PatchInteraction.companionNotificationShadowOutset
+            )
+        )
+    }
+
+    func testTreatRewardFramesStayInsideTheFixedOverlay() {
+        for motion in CompanionTreatRewardMotion.allCases {
+            XCTAssertTrue(
+                PatchInteraction.containsCenteredElement(
+                    offset: motion.offset,
+                    contentSize: CompanionTreatRewardMotion.maximumTextSize,
+                    scale: motion.scale
+                ),
+                "\(motion) must stay inside the companion panel"
+            )
+        }
     }
 
     func testFeedReactionUsesANoticeBiteAndPleasedTransformSequence() {

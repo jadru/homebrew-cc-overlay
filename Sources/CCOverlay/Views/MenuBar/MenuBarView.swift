@@ -154,7 +154,7 @@ struct MenuBarView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 30, height: 30)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle())
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .background {
@@ -641,7 +641,7 @@ private struct MenuDetailSheet<Content: View>: View {
                         .font(.system(size: 11, weight: .bold))
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableButtonStyle())
                 .accessibilityLabel("Close \(title)")
                 .help("Close \(title)")
                 .frame(width: 44, height: 44)

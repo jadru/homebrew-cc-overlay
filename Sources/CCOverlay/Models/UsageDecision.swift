@@ -1,50 +1,5 @@
 import Foundation
 
-enum PlannedTaskSize: String, CaseIterable, Codable, Identifiable, Sendable {
-    case small
-    case medium
-    case large
-
-    var id: String { rawValue }
-
-    var label: String {
-        rawValue.capitalized
-    }
-}
-
-struct TaskFitEvidence: Equatable, Sendable {
-    /// Explicit, user-recorded outcomes are required before a task-fit estimate is shown.
-    /// Passive usage deltas remain useful for pace forecasts, but cannot establish causality.
-    static let minimumLearningSamples = 5
-    static let minimumHighConfidenceSamples = 12
-
-    let requiredHeadroom: Double
-    let sampleCount: Int
-}
-
-struct TaskFitAssessment: Equatable, Sendable {
-    enum Outcome: String, Codable, Equatable, Sendable {
-        case likely
-        case risky
-        case unlikely
-        case learning
-    }
-
-    let taskSize: PlannedTaskSize
-    let outcome: Outcome
-    let requiredHeadroom: Double?
-    let sampleCount: Int
-
-    var label: String {
-        switch outcome {
-        case .likely: return "Likely fits"
-        case .risky: return "Risky"
-        case .unlikely: return "Unlikely to fit"
-        case .learning: return "Learning your usage"
-        }
-    }
-}
-
 /// A concise, actionable recommendation derived from all usable provider windows.
 struct UsageDecision: Equatable, Sendable {
     enum Kind: String, Equatable, Hashable, Sendable {
@@ -80,7 +35,6 @@ struct UsageDecision: Equatable, Sendable {
     let resetAt: Date?
     let confidence: Confidence
     let dataQuality: DataQuality
-    let taskFit: TaskFitAssessment?
     let recommendedHeadroom: Double?
     let reasons: [String]
 
@@ -92,7 +46,6 @@ struct UsageDecision: Equatable, Sendable {
         resetAt: Date?,
         confidence: Confidence = .medium,
         dataQuality: DataQuality = .live,
-        taskFit: TaskFitAssessment? = nil,
         recommendedHeadroom: Double? = nil,
         reasons: [String] = []
     ) {
@@ -103,7 +56,6 @@ struct UsageDecision: Equatable, Sendable {
         self.resetAt = resetAt
         self.confidence = confidence
         self.dataQuality = dataQuality
-        self.taskFit = taskFit
         self.recommendedHeadroom = recommendedHeadroom
         self.reasons = reasons
     }
@@ -113,8 +65,6 @@ enum UsageDecisionEngine {
     static func recommend(
         from providerData: [ProviderUsageData],
         currentProvider: CLIProvider? = nil,
-        plannedTaskSize: PlannedTaskSize = .medium,
-        fitEvidence: [CLIProvider: TaskFitEvidence] = [:],
         providerPriority: ProviderPriority = .codexFirst,
         fullResetPolicy: FullResetPolicy = .balanced,
         staleAfter: TimeInterval = 180,
@@ -156,32 +106,22 @@ enum UsageDecisionEngine {
         let best = prioritizedProvider(
             in: fresh,
             fallback: ranked[0],
-            priority: providerPriority,
-            plannedTaskSize: plannedTaskSize,
-            fitEvidence: fitEvidence
+            priority: providerPriority
         )
         let bestHeadroom = headroom(for: best)
         let bestPace = mostUrgentPace(for: best, now: now)
-        let taskFit = taskFitAssessment(
-            evidence: fitEvidence[best.provider],
-            taskSize: plannedTaskSize,
-            availableHeadroom: bestHeadroom
-        )
         let quality = dataQuality(fresh: fresh, availableCount: available.count)
-        let baseConfidence = confidence(quality: quality, taskFit: taskFit)
+        let baseConfidence = confidence(quality: quality)
         let applicableResetProvider = fresh.first {
             $0.creditsInfo?.hasUsableResetCredit(at: now) == true
         }
 
         func reasons(
             for data: ProviderUsageData,
-            headroom: Double,
-            fit: TaskFitAssessment
+            headroom: Double
         ) -> [String] {
             var values = [
                 "\(data.provider.rawValue) has \(Int(headroom.rounded()))% active-window headroom.",
-                "\(fit.taskSize.label) task fit: \(fit.label).",
-                "Task-fit evidence: \(fit.sampleCount) recorded outcome\(fit.sampleCount == 1 ? "" : "s").",
                 "Data quality: \(quality.label).",
             ]
             if let alternative = ranked.first(where: { $0.provider != data.provider }) {
@@ -199,20 +139,14 @@ enum UsageDecisionEngine {
             let expirationDetail = expiration.map {
                 " It expires in \(DurationFormatting.compactReset($0.timeIntervalSince(now)))."
             } ?? ""
-            let resetTaskFit = taskFitAssessment(
-                evidence: fitEvidence[data.provider],
-                taskSize: plannedTaskSize,
-                availableHeadroom: 100
-            )
             return UsageDecision(
                 kind: .useReset,
                 title: "Use a Codex full reset",
                 detail: "\(count) banked reset\(count == 1 ? " is" : "s are") ready to restore the Codex rate limit.\(expirationDetail)",
                 recommendedProvider: data.provider,
                 resetAt: nil,
-                confidence: confidence(quality: quality, taskFit: resetTaskFit),
+                confidence: confidence(quality: quality),
                 dataQuality: quality,
-                taskFit: resetTaskFit,
                 recommendedHeadroom: 100,
                 reasons: [
                     "Codex reports \(count) Full Reset\(count == 1 ? "" : "s") ready now.",
@@ -252,13 +186,12 @@ enum UsageDecisionEngine {
                 resetAt: best.resetsAt,
                 confidence: baseConfidence,
                 dataQuality: quality,
-                taskFit: taskFit,
                 recommendedHeadroom: bestHeadroom,
-                reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
+                reasons: reasons(for: best, headroom: bestHeadroom)
             )
         }
 
-        if taskFit.outcome == .unlikely || bestHeadroom <= 10 || (bestHeadroom <= 20 && bestPace == .burningFast) {
+        if bestHeadroom <= 10 || (bestHeadroom <= 20 && bestPace == .burningFast) {
             if let resetProvider = applicableResetProvider {
                 let available = resetProvider.creditsInfo?.resetCreditsAvailable ?? 0
                 let expiresSoon = resetProvider.creditsInfo?.resetCreditExpiresSoon(at: now) == true
@@ -268,11 +201,9 @@ enum UsageDecisionEngine {
             }
 
             let reset = earliestFutureReset(in: fresh, now: now)
-            let detail = taskFit.outcome == .unlikely
-                ? "Your recent \(plannedTaskSize.label.lowercased()) activity needs more headroom than is currently available."
-                : reset == nil
-                    ? "Every connected provider is close to its active limit."
-                    : "The safest option is to resume after the next reset."
+            let detail = reset == nil
+                ? "Every connected provider is close to its active limit."
+                : "The safest option is to resume after the next reset."
             return UsageDecision(
                 kind: .wait,
                 title: "Wait for headroom",
@@ -281,9 +212,8 @@ enum UsageDecisionEngine {
                 resetAt: reset,
                 confidence: baseConfidence,
                 dataQuality: quality,
-                taskFit: taskFit,
                 recommendedHeadroom: bestHeadroom,
-                reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
+                reasons: reasons(for: best, headroom: bestHeadroom)
                     + (fullResetPolicy == .conserveLast && applicableResetProvider != nil
                         ? ["The final Full Reset is being preserved because it is not close to expiring."]
                         : [])
@@ -308,11 +238,10 @@ enum UsageDecisionEngine {
             detail: "\(Int(bestHeadroom.rounded()))% headroom. \(paceDetail)",
             recommendedProvider: best.provider,
             resetAt: best.resetsAt,
-            confidence: taskFit.outcome == .risky ? .low : baseConfidence,
+            confidence: baseConfidence,
             dataQuality: quality,
-            taskFit: taskFit,
             recommendedHeadroom: bestHeadroom,
-            reasons: reasons(for: best, headroom: bestHeadroom, fit: taskFit)
+            reasons: reasons(for: best, headroom: bestHeadroom)
         )
     }
 
@@ -327,9 +256,7 @@ enum UsageDecisionEngine {
     private static func prioritizedProvider(
         in fresh: [ProviderUsageData],
         fallback: ProviderUsageData,
-        priority: ProviderPriority,
-        plannedTaskSize: PlannedTaskSize,
-        fitEvidence: [CLIProvider: TaskFitEvidence]
+        priority: ProviderPriority
     ) -> ProviderUsageData {
         guard priority == .codexFirst,
               let codex = fresh.first(where: { $0.provider == .codex })
@@ -341,45 +268,8 @@ enum UsageDecisionEngine {
         }
 
         let codexHeadroom = headroom(for: codex)
-        let fit = taskFitAssessment(
-            evidence: fitEvidence[.codex],
-            taskSize: plannedTaskSize,
-            availableHeadroom: codexHeadroom
-        )
         let safelyFits = codexHeadroom >= 25
-            && (fit.outcome == .likely || fit.outcome == .learning)
         return safelyFits ? codex : fallback
-    }
-
-    private static func taskFitAssessment(
-        evidence: TaskFitEvidence?,
-        taskSize: PlannedTaskSize,
-        availableHeadroom: Double
-    ) -> TaskFitAssessment {
-        guard let evidence, evidence.sampleCount >= TaskFitEvidence.minimumLearningSamples else {
-            return TaskFitAssessment(
-                taskSize: taskSize,
-                outcome: .learning,
-                requiredHeadroom: nil,
-                sampleCount: evidence?.sampleCount ?? 0
-            )
-        }
-
-        let outcome: TaskFitAssessment.Outcome
-        if availableHeadroom >= evidence.requiredHeadroom * 1.35 {
-            outcome = .likely
-        } else if availableHeadroom >= evidence.requiredHeadroom {
-            outcome = .risky
-        } else {
-            outcome = .unlikely
-        }
-
-        return TaskFitAssessment(
-            taskSize: taskSize,
-            outcome: outcome,
-            requiredHeadroom: evidence.requiredHeadroom,
-            sampleCount: evidence.sampleCount
-        )
     }
 
     private static func dataQuality(
@@ -392,17 +282,11 @@ enum UsageDecisionEngine {
         return .live
     }
 
-    private static func confidence(
-        quality: UsageDecision.DataQuality,
-        taskFit: TaskFitAssessment
-    ) -> UsageDecision.Confidence {
-        if quality == .stale || quality == .estimated || taskFit.outcome == .risky {
+    private static func confidence(quality: UsageDecision.DataQuality) -> UsageDecision.Confidence {
+        if quality == .stale || quality == .estimated {
             return .low
         }
-        if quality == .mixed
-            || taskFit.outcome == .learning
-            || taskFit.sampleCount < TaskFitEvidence.minimumHighConfidenceSamples
-        {
+        if quality == .mixed {
             return .medium
         }
         return .high

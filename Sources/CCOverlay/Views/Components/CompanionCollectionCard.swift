@@ -183,7 +183,7 @@ struct CompanionCollectionCard: View {
     }
 
     private var celebrationAnimation: Animation? {
-        reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.84)
+        reduceMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.companionCelebration
     }
 
     private var feedbackTransition: AnyTransition {
@@ -280,7 +280,7 @@ struct CompanionCollectionCard: View {
         feedFeedbackTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.4))
             guard !Task.isCancelled, latestFeed?.totalFeeds == result.totalFeeds else { return }
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
+            withAnimation(reduceMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.companionDismiss) {
                 latestFeed = nil
             }
         }

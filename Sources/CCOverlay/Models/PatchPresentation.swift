@@ -53,16 +53,6 @@ struct PatchPresentation: Equatable, Sendable {
         }
     }
 
-    var companionOpacity: Double {
-        switch mood {
-        case .offline: 0.42
-        case .resting: 0.56
-        case .watchful: 0.72
-        case .focused: 0.88
-        case .thriving: 1
-        }
-    }
-
     var companionSaturation: Double {
         switch mood {
         case .offline: 0.2
