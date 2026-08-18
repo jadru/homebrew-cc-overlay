@@ -11,6 +11,7 @@ struct CompanionUsageHUD: View {
     var maximumWidth: CGFloat = 144
     let feedOneServing: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovering = false
 
     var body: some View {
@@ -26,7 +27,7 @@ struct CompanionUsageHUD: View {
                         .monospacedDigit()
                 }
                 .foregroundStyle(.secondary)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(resetTransition)
             }
         }
         .frame(width: maximumWidth - 14, alignment: .center)
@@ -42,7 +43,7 @@ struct CompanionUsageHUD: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(tint.opacity(0.22), lineWidth: 1)
         }
-        .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.2), value: isHovering)
+        .animation(reduceMotion ? nil : .timingCurve(0.22, 1, 0.36, 1, duration: 0.2), value: isHovering)
         .onHover { isHovering = $0 }
         .help(hoverHelp)
         .accessibilityElement(children: .contain)
@@ -62,6 +63,10 @@ struct CompanionUsageHUD: View {
     private var hoverHelp: String {
         guard let resetAt = presentation.resetAt else { return "Next reset is not reported." }
         return "Resets in \(DurationFormatting.compactReset(resetAt.timeIntervalSinceNow))"
+    }
+
+    private var resetTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
     }
 
     private var primaryRow: some View {
@@ -165,7 +170,7 @@ private struct TreatFeedControl: View {
                         .background(Color.orange.opacity(0.12), in: Capsule())
                         .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableButtonStyle())
                 .help("Feed one care serving for \(feedCost) treats")
                 .accessibilityLabel("Feed one care serving for \(feedCost) treats. \(treats) treats available")
             } else {

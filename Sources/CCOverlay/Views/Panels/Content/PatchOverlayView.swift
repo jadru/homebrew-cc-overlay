@@ -369,13 +369,16 @@ private struct PatchOverlayBackground: View {
 private struct CompanionOverlayDrawButton: View {
     let progress: PatchProgressStore
     let interactionState: OverlayInteractionState
+    @Environment(\.accessibilityReduceMotion) private var reducesMotion
     @State private var result: CompanionDrawResult?
 
     var body: some View {
         Button {
             guard !interactionState.consumeSuppressedPrimaryAction() else { return }
             guard let draw = progress.drawCompanion() else { return }
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.7)) { result = draw }
+            withAnimation(reducesMotion ? nil : .spring(response: 0.28, dampingFraction: 0.84)) {
+                result = draw
+            }
         } label: {
             VStack(spacing: 7) {
                 Image(systemName: result == nil ? "questionmark.diamond.fill" : "sparkles")

@@ -7,6 +7,7 @@ struct CompanionCollectionCard: View {
     let progress: PatchProgressStore
     var compact = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var latestDraw: CompanionDrawResult?
     @State private var latestFeed: CompanionFeedResult?
     @State private var previewPet: CompanionPet?
@@ -35,7 +36,7 @@ struct CompanionCollectionCard: View {
             }
         }
         .padding(compact ? 9 : 0)
-        .animation(.spring(response: 0.26, dampingFraction: 0.78), value: latestDraw?.pet)
+        .animation(celebrationAnimation, value: latestDraw?.pet)
         .onDisappear {
             drawTask?.cancel()
             feedFeedbackTask?.cancel()
@@ -162,7 +163,11 @@ struct CompanionCollectionCard: View {
                         isOwned: progress.ownedPets.contains(pet),
                         isUnlocked: progress.unlockedPets.contains(pet),
                         isSelected: progress.currentPet == pet,
-                        select: { progress.selectCompanion(pet) }
+                        select: {
+                            withAnimation(reduceMotion ? nil : DesignTokens.Animation.selection) {
+                                progress.selectCompanion(pet)
+                            }
+                        }
                     )
                 }
             }
@@ -174,7 +179,15 @@ struct CompanionCollectionCard: View {
         Label(text, systemImage: symbol)
             .font(.system(size: compact ? 8 : 10, weight: .medium))
             .foregroundStyle(.orange)
-            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            .transition(feedbackTransition)
+    }
+
+    private var celebrationAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.84)
+    }
+
+    private var feedbackTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.95))
     }
 
     private var displayedPet: CompanionPet? {
@@ -224,6 +237,10 @@ struct CompanionCollectionCard: View {
         latestDraw = nil
 
         drawTask?.cancel()
+        if reduceMotion {
+            finishDraw()
+            return
+        }
         drawTask = Task { @MainActor in
             for frame in 0..<10 {
                 guard !Task.isCancelled else { return }
@@ -233,21 +250,26 @@ struct CompanionCollectionCard: View {
                 try? await Task.sleep(for: .milliseconds(70))
             }
 
-            guard !Task.isCancelled, let result = progress.drawCompanion() else {
-                isDrawing = false
-                return
-            }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) {
-                previewPet = result.pet
-                latestDraw = result
-                isDrawing = false
-            }
+            guard !Task.isCancelled else { return }
+            finishDraw()
+        }
+    }
+
+    private func finishDraw() {
+        guard let result = progress.drawCompanion() else {
+            isDrawing = false
+            return
+        }
+        withAnimation(celebrationAnimation) {
+            previewPet = result.pet
+            latestDraw = result
+            isDrawing = false
         }
     }
 
     private func feedCompanion(servingCount: Int) {
         guard let result = progress.feedCurrentCompanion(servingCount: servingCount) else { return }
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
+        withAnimation(celebrationAnimation) {
             latestFeed = result
         }
         scheduleFeedFeedbackDismissal(for: result)
@@ -258,7 +280,7 @@ struct CompanionCollectionCard: View {
         feedFeedbackTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.4))
             guard !Task.isCancelled, latestFeed?.totalFeeds == result.totalFeeds else { return }
-            withAnimation(.easeOut(duration: 0.18)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                 latestFeed = nil
             }
         }
@@ -372,7 +394,7 @@ private struct CompanionRosterCell: View {
                     .stroke(isSelected ? Color.orange.opacity(0.7) : Color.primary.opacity(0.07), lineWidth: isSelected ? 1.5 : 0.5)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
         .disabled(!isOwned)
         .help(rosterHelp)
         .accessibilityLabel("\(pet.name), \(pet.species)")
