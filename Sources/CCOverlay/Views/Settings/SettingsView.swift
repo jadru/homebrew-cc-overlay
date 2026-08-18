@@ -4,8 +4,6 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
-    let codexProfileStore: CodexAccountProfileStore
-    let codexAccountMonitor: CodexAccountMonitor
     let updateService: UpdateService
 
     @State private var fallbackExpanded = false
@@ -26,14 +24,6 @@ struct SettingsView: View {
         TabView {
             generalTab
                 .tabItem { Label("General", systemImage: "gearshape") }
-
-            CodexAccountsSettingsView(
-                profileStore: codexProfileStore,
-                monitor: codexAccountMonitor,
-                settings: settings,
-                onSelectionChange: { multiService.refresh() }
-            )
-            .tabItem { Label("Accounts", systemImage: "person.2") }
 
             overlayTab
                 .tabItem { Label("Overlay", systemImage: "pawprint.fill") }
@@ -212,7 +202,6 @@ struct SettingsView: View {
                     }
                     .onChange(of: settings.refreshInterval) { _, interval in
                         multiService.updateRefreshInterval(interval)
-                        codexAccountMonitor.updateRefreshInterval(interval)
                     }
 
                     Picker("Claude fallback", selection: $settings.planTier) {

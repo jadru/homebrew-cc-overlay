@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct MenuBarView: View {
@@ -17,11 +18,11 @@ struct MenuBarView: View {
     }
 
     let multiService: MultiProviderUsageService
-    let codexProfileStore: CodexAccountProfileStore
-    let codexAccountMonitor: CodexAccountMonitor
     @Bindable var settings: AppSettings
     let patchProgress: PatchProgressStore
     let updateService: UpdateService
+
+    @Environment(\.openSettings) private var openSettings
 
     @State private var selectedProvider: CLIProvider?
     @State private var activeSheet: DetailSheet?
@@ -148,7 +149,7 @@ struct MenuBarView: View {
 
             Spacer()
 
-            SettingsLink {
+            Button(action: showSettings) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 30, height: 30)
@@ -172,14 +173,6 @@ struct MenuBarView: View {
 
         if availableProviders.count > 1 {
             providerRail
-        }
-
-        if provider == .codex {
-            CodexAccountsMenuView(
-                profileStore: codexProfileStore,
-                monitor: codexAccountMonitor,
-                onSelect: selectCodexProfile
-            )
         }
 
         CompanionAdoptionProgressView(
@@ -224,11 +217,7 @@ struct MenuBarView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(
-                        provider == .codex
-                            ? "Codex · \(codexProfileStore.selectedProfile?.displayName ?? "Default")"
-                            : provider.rawValue
-                    )
+                    Text(provider.rawValue)
                         .font(.system(size: 17, weight: .bold))
                         .lineLimit(1)
                         .layoutPriority(1)
@@ -252,20 +241,15 @@ struct MenuBarView: View {
         )
     }
 
+    private func showSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        openSettings()
+    }
+
     private func usageFreshness(for data: ProviderUsageData) -> CompanionMenuHomeView.UsageFreshness {
         if data.error != nil { return .failed }
         if multiService.isStale(lastRefresh: data.lastRefresh) { return .stale }
         return data.isEstimated ? .estimated : .live
-    }
-
-    private func selectCodexProfile(_ profileID: UUID) {
-        do {
-            try codexProfileStore.select(profileID)
-            multiService.refresh()
-            Task { await codexAccountMonitor.refresh(profileID) }
-        } catch {
-            AppLogger.ui.error("Failed to select Codex account profile: \(error.localizedDescription)")
-        }
     }
 
     // MARK: - Unavailable State
@@ -284,7 +268,7 @@ struct MenuBarView: View {
                 .controlSize(.small)
                 .disabled(panelState == .loading)
 
-                SettingsLink {
+                Button(action: showSettings) {
                     Label("Settings", systemImage: "gearshape")
                         .font(.system(size: 11, weight: .medium))
                 }
@@ -427,38 +411,6 @@ struct MenuBarView: View {
                     UsageExportService.copyToClipboard(UsageExportService.markdownSummary(data: data))
                 } label: {
                     Label("Copy summary", systemImage: "square.and.arrow.up")
-                }
-
-                if let pendingRun = multiService.pendingRun {
-                    Menu {
-                        Button("Finished") {
-                            multiService.completePendingRun(outcome: .completed)
-                        }
-                        Button("Hit provider limit") {
-                            multiService.completePendingRun(outcome: .hitLimit)
-                        }
-                        Button("Cancel task", role: .destructive) {
-                            multiService.completePendingRun(outcome: .cancelled)
-                        }
-                    } label: {
-                        Label(
-                            "Record \(pendingRun.taskSize.label) task result",
-                            systemImage: "checkmark.circle"
-                        )
-                    }
-                } else {
-                    let decision = multiService.usageDecision
-                    if decision.kind == .run || decision.kind == .switchProvider {
-                        Button {
-                            multiService.beginRun(decision: decision, projectName: nil)
-                        } label: {
-                            Label(
-                                "Start \(settings.plannedTaskSize.label) task",
-                                systemImage: "play.circle"
-                            )
-                        }
-                        .help("Track the result of the current recommendation locally")
-                    }
                 }
 
                 let exportEntries = multiService.usageExportEntries(for: provider)
