@@ -119,10 +119,10 @@ export function App() {
           <CrosshairSimple className="hero-mark hero-mark--right" weight="thin" aria-hidden="true" />
 
           <div className="hero-copy">
-            <p className="eyebrow">LIVE HEADROOM / CC-OVRLY-01</p>
-            <h1>Can I fit<br />one more run?</h1>
+            <p className="eyebrow">YOUR CODING COMPANION / CC-OVRLY-01</p>
+            <h1>Let your work<br />wake them up.</h1>
             <div className="hero-action-block">
-              <p>Codex headroom and Full Reset expiry,<br />with a safe Claude fallback.</p>
+              <p>Newly observed Codex work earns Patch progress.<br />Claude Code headroom stays a quiet guardrail.</p>
               <a
                 className="primary-button"
                 href={releaseUrl}
@@ -141,7 +141,7 @@ export function App() {
           <div className="hero-side-note" aria-hidden="true">
             <span>CC-OVERLAY</span>
             <span>//</span>
-            <span>LIVE HEADROOM</span>
+            <span>EARNED PROGRESS</span>
             <span>CURRENT / RELEASES</span>
           </div>
 
@@ -157,9 +157,9 @@ export function App() {
 
         <section className="product-proof shell" aria-labelledby="product-proof-title">
           <div className="product-proof__copy">
-            <span className="section-kicker">01 / REAL PRODUCT</span>
-            <h2 id="product-proof-title">Headroom,<br />where you work.</h2>
-            <p>This is the actual floating overlay: the tightest active limit, reset time, freshness, and pace without opening another dashboard.</p>
+          <span className="section-kicker">01 / EARNED COMPANION</span>
+          <h2 id="product-proof-title">A companion,<br />not a counter.</h2>
+          <p>This is the actual floating overlay: Patch makes newly observed work tangible while reset time, freshness, and pace stay available without becoming another dashboard.</p>
           </div>
           <figure className="product-shot">
             <img
@@ -168,27 +168,27 @@ export function App() {
               width="600"
               height="225"
             />
-            <figcaption>ACTUAL CAPTURE / CODEX 7D WINDOW / LOCAL-FIRST</figcaption>
+            <figcaption>ACTUAL CAPTURE / EARNED PROGRESS / LOCAL-FIRST</figcaption>
           </figure>
         </section>
 
         <section className="story shell" aria-labelledby="story-title">
           <div className="section-title-block">
-            <span className="section-kicker">02 / PURPOSE</span>
-            <h2 id="story-title">Why<br />it exists</h2>
+          <span className="section-kicker">02 / PURPOSE</span>
+          <h2 id="story-title">Why you<br />return</h2>
           </div>
           <div className="story-copy">
             <article>
-              <h3>You lose flow when you guess.</h3>
-              <p>CC-Overlay prefers Codex when your next task safely fits, then falls back to Claude Code when it does not.</p>
+              <h3>Your work earns it.</h3>
+              <p>Patch grows only from newly observed work. Clicks can care for a companion, but never manufacture progress.</p>
             </article>
             <article>
-              <h3>Always in view.</h3>
-              <p>A native macOS overlay floats above your work and stays out of your way until you need it.</p>
+              <h3>Always nearby.</h3>
+              <p>A native macOS companion floats above your work and stays out of the editor until you want a small check-in.</p>
             </article>
             <article>
-              <h3>Built for daily use.</h3>
-              <p>See when a banked Codex Full Reset expires, so the final credit is saved only while saving it still makes sense.</p>
+              <h3>Quiet when it matters.</h3>
+              <p>Codex and Claude Code headroom help you protect the next run, including when a banked Full Reset should be used before it expires.</p>
             </article>
           </div>
           <CrosshairSimple className="story-mark" weight="thin" aria-hidden="true" />

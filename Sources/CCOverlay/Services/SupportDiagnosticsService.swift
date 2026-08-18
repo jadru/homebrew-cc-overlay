@@ -16,6 +16,10 @@ enum SupportDiagnosticsService {
         } ?? "not recorded"
         let feedback = multiService.decisionFeedbackSummary
         let outcomes = multiService.runOutcomeSummary
+        let calibration = multiService.recommendationCalibrationSummary
+        let calibrationText = calibration.falseSafeRate.map {
+            "\(Int(($0 * 100).rounded()))% false-safe rate"
+        } ?? "learning"
 
         var lines = [
             "## CC-Overlay diagnostics",
@@ -31,6 +35,7 @@ enum SupportDiagnosticsService {
             "- Full Reset policy: \(settings.fullResetPolicy.label)",
             "- Recommendation feedback: \(feedback.helpful) helpful / \(feedback.unhelpful) not helpful",
             "- Run outcomes: \(outcomes.completed) completed / \(outcomes.hitLimit) hit limit / \(outcomes.switched) switched / \(outcomes.usedReset) reset / \(outcomes.cancelled) cancelled",
+            "- Likely-fit calibration: \(calibration.likelyFitRuns) recorded runs / \(calibration.likelyFitLimitHits) limit hits (\(calibrationText))",
             "",
             "### Providers",
         ]

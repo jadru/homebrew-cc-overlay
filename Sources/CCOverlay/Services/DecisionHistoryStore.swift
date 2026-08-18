@@ -15,6 +15,16 @@ final class DecisionHistoryStore {
         let cancelled: Int
     }
 
+    struct CalibrationSummary: Equatable, Sendable {
+        let likelyFitRuns: Int
+        let likelyFitLimitHits: Int
+
+        var falseSafeRate: Double? {
+            guard likelyFitRuns > 0 else { return nil }
+            return Double(likelyFitLimitHits) / Double(likelyFitRuns)
+        }
+    }
+
     private struct Sample: Codable {
         let provider: String
         let timestamp: Date
@@ -35,6 +45,9 @@ final class DecisionHistoryStore {
         let outcome: RunOutcome
         let startingHeadroom: Double
         let endingHeadroom: Double
+        let decisionConfidence: UsageDecision.Confidence?
+        let taskFitOutcome: TaskFitAssessment.Outcome?
+        let dataQuality: UsageDecision.DataQuality?
     }
 
     private enum Key {
@@ -85,17 +98,6 @@ final class DecisionHistoryStore {
         now: Date = Date()
     ) -> TaskFitEvidence? {
         let cutoff = now.addingTimeInterval(-7 * AppConstants.secondsPerDay)
-        let providerSamples = loadSamples()
-            .filter { $0.provider == provider.rawValue && $0.timestamp >= cutoff }
-            .sorted { $0.timestamp < $1.timestamp }
-
-        var deltas = zip(providerSamples, providerSamples.dropFirst()).compactMap { previous, current -> Double? in
-            let interval = current.timestamp.timeIntervalSince(previous.timestamp)
-            let consumed = previous.remainingPercentage - current.remainingPercentage
-            guard interval > 0, interval <= 30 * 60, consumed >= 0.25, consumed <= 50 else { return nil }
-            return consumed
-        }
-
         let outcomeDeltas = loadOutcomes()
             .filter {
                 $0.provider == provider
@@ -114,27 +116,22 @@ final class DecisionHistoryStore {
                 }
             }
 
-        deltas.append(contentsOf: outcomeDeltas)
-        deltas.sort()
+        let deltas = outcomeDeltas.sorted()
 
-        guard deltas.count >= 3 else { return nil }
+        guard !deltas.isEmpty else { return nil }
 
         let percentile: Double
-        let multiplier: Double
         switch taskSize {
         case .small:
-            percentile = 0.25
-            multiplier = 1.0
+            percentile = 0.75
         case .medium:
-            percentile = 0.50
-            multiplier = 1.5
+            percentile = 0.80
         case .large:
             percentile = 0.90
-            multiplier = 2.0
         }
 
         let index = min(Int((Double(deltas.count - 1) * percentile).rounded()), deltas.count - 1)
-        let required = min(max(deltas[index] * multiplier, 1), 90)
+        let required = min(max(deltas[index], 1), 90)
         return TaskFitEvidence(requiredHeadroom: required, sampleCount: deltas.count)
     }
 
@@ -177,7 +174,10 @@ final class DecisionHistoryStore {
             provider: provider,
             taskSize: taskSize,
             startingHeadroom: decision.recommendedHeadroom ?? 0,
-            projectName: projectName
+            projectName: projectName,
+            decisionConfidence: decision.confidence,
+            taskFitOutcome: decision.taskFit?.outcome,
+            dataQuality: decision.dataQuality
         )
         save(run, key: Key.pendingRun)
         return run
@@ -200,7 +200,10 @@ final class DecisionHistoryStore {
             taskSize: run.taskSize,
             outcome: outcome,
             startingHeadroom: run.startingHeadroom,
-            endingHeadroom: max(0, min(endingHeadroom, 100))
+            endingHeadroom: max(0, min(endingHeadroom, 100)),
+            decisionConfidence: run.decisionConfidence,
+            taskFitOutcome: run.taskFitOutcome,
+            dataQuality: run.dataQuality
         ))
         let cutoff = now.addingTimeInterval(-90 * AppConstants.secondsPerDay)
         outcomes = outcomes.filter { $0.timestamp >= cutoff }
@@ -219,6 +222,17 @@ final class DecisionHistoryStore {
             switched: outcomes.filter { $0.outcome == .switchedProvider }.count,
             usedReset: outcomes.filter { $0.outcome == .usedReset }.count,
             cancelled: outcomes.filter { $0.outcome == .cancelled }.count
+        )
+    }
+
+    var calibrationSummary: CalibrationSummary {
+        let comparable = loadOutcomes().filter {
+            $0.taskFitOutcome == .likely
+                && ($0.outcome == .completed || $0.outcome == .hitLimit)
+        }
+        return CalibrationSummary(
+            likelyFitRuns: comparable.count,
+            likelyFitLimitHits: comparable.filter { $0.outcome == .hitLimit }.count
         )
     }
 

@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-final class ClaudeCodeProviderService: BaseProviderService {
+final class ClaudeCodeProviderService: BaseProviderService, ProviderServiceProtocol {
     private let apiService = AnthropicAPIService()
     private let claudeProjectsPath: String
     private let weightedCostLimitProvider: () -> Double
@@ -13,6 +13,7 @@ final class ClaudeCodeProviderService: BaseProviderService {
     private(set) var detectedPlanIdentifier: String?
     private var fileWatcher: FileWatcher?
     private var sessionFileStates: [String: ClaudeSessionScanner.FileState] = [:]
+    private var scannedUsageEntries: [ParsedUsageEntry] = []
 
     init(
         claudeProjectsPath: String = AppConstants.claudeProjectsPath,
@@ -97,7 +98,7 @@ final class ClaudeCodeProviderService: BaseProviderService {
         }
     }
 
-    override func fetchUsage() async {
+    func fetchUsage() async {
         var localDataWasRead = false
         do {
             let projectsPath = claudeProjectsPath
@@ -109,6 +110,7 @@ final class ClaudeCodeProviderService: BaseProviderService {
                 )
             }.value
             sessionFileStates = scan.fileStates
+            scannedUsageEntries = scan.entries
             aggregatedUsage = UsageCalculator.aggregate(entries: scan.entries)
             localDataWasRead = true
         } catch {
@@ -245,6 +247,10 @@ final class ClaudeCodeProviderService: BaseProviderService {
             lastRefresh: lastRefresh,
             isLoading: isLoading
         )
+    }
+
+    override var usageExportEntries: [ParsedUsageEntry] {
+        scannedUsageEntries
     }
 
     /// Whether we're using API-backed usage data.

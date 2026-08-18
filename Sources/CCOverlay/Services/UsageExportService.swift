@@ -56,10 +56,25 @@ enum UsageExportService {
         for entry in entries.sorted(by: { $0.timestamp < $1.timestamp }) {
             let ts = formatter.string(from: entry.timestamp)
             let project = entry.projectName ?? ""
-            lines.append("\(ts),\(entry.sessionId),\(project),\(entry.model),\(entry.inputTokens),\(entry.outputTokens),\(entry.cacheCreationTokens),\(entry.cacheReadTokens)")
+            lines.append([
+                ts,
+                entry.sessionId,
+                project,
+                entry.model,
+                String(entry.inputTokens),
+                String(entry.outputTokens),
+                String(entry.cacheCreationTokens),
+                String(entry.cacheReadTokens),
+            ].map(csvField).joined(separator: ","))
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private static func csvField(_ value: String) -> String {
+        let firstNonWhitespace = value.first { !$0.isWhitespace }
+        let safeValue = firstNonWhitespace.map { "=+-@".contains($0) } == true ? "'\(value)" : value
+        return "\"\(safeValue.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 
     // MARK: - Clipboard
@@ -87,6 +102,10 @@ enum UsageExportService {
         let response = await panel.begin()
         guard response == .OK, let url = panel.url else { return }
 
-        try? csv.write(to: url, atomically: true, encoding: .utf8)
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
     }
 }

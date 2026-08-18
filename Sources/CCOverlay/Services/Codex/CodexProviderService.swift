@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-final class CodexProviderService: BaseProviderService {
+final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
     private var oauthService: CodexOAuthService?
     private var oauthSnapshot: CodexOAuthService.UsageSnapshot?
     private let appServerService = CodexAppServerService()
@@ -63,7 +63,7 @@ final class CodexProviderService: BaseProviderService {
 
     // MARK: - Fetch
 
-    override func fetchUsage() async {
+    func fetchUsage() async {
         // Codex owns token refresh. This process only re-reads and uses its current auth file.
         guard await detect(), let oauthService, let codexHome else {
             setError("Codex CLI authentication is unavailable. Run 'codex --login'.")

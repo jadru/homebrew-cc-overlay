@@ -18,6 +18,7 @@ final class MockProviderService: ProviderServiceProtocol {
     var remainingPercentage: Double
     var isAvailable: Bool
     var usageData: ProviderUsageData
+    var usageExportEntries: [ParsedUsageEntry] = []
 
     // Tracking for verification in tests
     var startMonitoringCallCount = 0

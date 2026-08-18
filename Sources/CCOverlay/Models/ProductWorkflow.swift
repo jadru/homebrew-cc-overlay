@@ -121,6 +121,10 @@ struct PendingRun: Codable, Equatable, Sendable {
     let taskSize: PlannedTaskSize
     let startingHeadroom: Double
     let projectName: String?
+    /// Optional so a pending run recorded by an earlier release remains readable.
+    let decisionConfidence: UsageDecision.Confidence?
+    let taskFitOutcome: TaskFitAssessment.Outcome?
+    let dataQuality: UsageDecision.DataQuality?
 }
 
 struct UsageHistoryPoint: Equatable, Identifiable, Sendable {

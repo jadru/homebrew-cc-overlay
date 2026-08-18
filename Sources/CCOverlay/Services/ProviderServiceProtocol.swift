@@ -13,6 +13,7 @@ protocol ProviderServiceProtocol: AnyObject {
     var consecutiveNetworkFailures: Int { get }
     var lastActivityAt: Date? { get }
     var usageData: ProviderUsageData { get }
+    var usageExportEntries: [ParsedUsageEntry] { get }
 
     func fetchUsage() async
     func revalidate(settings: AppSettings?) async -> Bool

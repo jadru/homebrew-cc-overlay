@@ -88,14 +88,14 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 @MainActor
-private final class DelayedCountingProviderService: BaseProviderService {
+private final class DelayedCountingProviderService: BaseProviderService, ProviderServiceProtocol {
     private(set) var fetchCount = 0
 
     init() {
         super.init(provider: .codex)
     }
 
-    override func fetchUsage() async {
+    func fetchUsage() async {
         fetchCount += 1
         try? await Task.sleep(for: .milliseconds(30))
         markRefreshed()
