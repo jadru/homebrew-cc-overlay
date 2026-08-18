@@ -52,19 +52,20 @@ struct CompanionMenuHomeView: View {
     var onRefreshUsage: () -> Void
     let usageFreshness: UsageFreshness
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var latestFeed: CompanionFeedResult?
     @State private var feedFeedbackTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            usageSummary
-            Divider()
             companionSummary
             Divider()
             nextStep
+            Divider()
+            usageSummary
         }
         .padding(.vertical, 4)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: latestFeed?.totalFeeds)
+        .animation(celebrationAnimation, value: latestFeed?.totalFeeds)
         .onDisappear { feedFeedbackTask?.cancel() }
     }
 
@@ -154,7 +155,7 @@ struct CompanionMenuHomeView: View {
                 Label(feedResultLabel(latestFeed, pet: pet), systemImage: "heart.fill")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.orange)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .transition(feedbackTransition)
             }
         } else {
             HStack(spacing: 10) {
@@ -256,9 +257,17 @@ struct CompanionMenuHomeView: View {
         return "Need \(PatchProgressStore.feedTreatCost) treats to feed. \(progress.treats) available."
     }
 
+    private var celebrationAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.84)
+    }
+
+    private var feedbackTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96))
+    }
+
     private func feedCompanion() {
         guard let result = progress.feedCurrentCompanion() else { return }
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
+        withAnimation(celebrationAnimation) {
             latestFeed = result
         }
         scheduleFeedFeedbackDismissal(for: result)
@@ -269,7 +278,7 @@ struct CompanionMenuHomeView: View {
         feedFeedbackTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.4))
             guard !Task.isCancelled, latestFeed?.totalFeeds == result.totalFeeds else { return }
-            withAnimation(.easeOut(duration: 0.18)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                 latestFeed = nil
             }
         }
