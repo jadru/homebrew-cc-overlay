@@ -50,6 +50,10 @@ final class MultiProviderUsageService {
         services[provider]?.usageData ?? .empty(for: provider)
     }
 
+    func usageExportEntries(for provider: CLIProvider) -> [ParsedUsageEntry] {
+        services[provider]?.usageExportEntries ?? []
+    }
+
     /// Providers with usage data ready for display.
     var availableProviders: [CLIProvider] {
         let available = activeProviders.filter { usageData(for: $0).isAvailable }
@@ -137,6 +141,10 @@ final class MultiProviderUsageService {
 
     var runOutcomeSummary: DecisionHistoryStore.OutcomeSummary {
         decisionHistory.outcomeSummary
+    }
+
+    var recommendationCalibrationSummary: DecisionHistoryStore.CalibrationSummary {
+        decisionHistory.calibrationSummary
     }
 
     func usageHistory(for provider: CLIProvider, days: Int = 7) -> [UsageHistoryPoint] {

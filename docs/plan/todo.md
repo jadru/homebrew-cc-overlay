@@ -4,16 +4,16 @@
 
 ## Quick Wins 잔여
 
-### 1) `fatalError` 제거 마무리
-- 현재 상태: `ProviderServiceProtocol`에 `fetchUsage()` 요구사항은 추가됨
-- 남은 작업: `BaseProviderService`의 기본 `fetchUsage()` 구현 자체 제거(프로토콜 요구를 서브클래스에서 강제)
-- 대상 파일:
-  - `Sources/CCOverlay/Services/BaseProviderService.swift`
-  - `Sources/CCOverlay/Services/ProviderServiceProtocol.swift`
+### 1) `fatalError` 제거 — 완료
+- `BaseProviderService`는 lifecycle/backoff만 담당하고, 구체 provider가
+  `ProviderServiceProtocol`을 명시적으로 준수해 `fetchUsage()`를 구현하도록 변경됨.
 
 ### 6) VoiceOver 접근성 전수 점검
-- 현재 상태: `MenuBarLabel`, `PillView`, refresh 버튼 접근성은 추가됨
-- 남은 작업: 카드/배지/상태 아이콘 등 시각 요소 전수 점검 후 누락 라벨/값/힌트 보강
+- 현재 상태: `MenuBarLabel`, `PillView`, refresh 버튼 외에 provider 오류 배지와
+  detail sheet 닫기 버튼의 명시적 접근성 문구를 추가함. provider 전환은 숫자키,
+  `R`, 방향키로도 가능.
+- 남은 작업: 실제 VoiceOver 사용자가 전체 카드/배지/상태 아이콘을 수동 검증하고
+  누락 라벨·값·힌트를 보강.
 - 대상 파일:
   - `Sources/CCOverlay/Views/MenuBar/*.swift`
   - `Sources/CCOverlay/Views/Panels/Content/*.swift`
@@ -41,17 +41,17 @@
 - 프로젝트별 비용 카드 추가
 
 ### 8) CSV 내보내기 UI
-- 현재 상태: Copy Summary와 CSV 생성/저장 서비스는 구현됨
-- 남은 작업: CSV export 진입점 노출
+- 완료: 로컬 Claude transcript 항목이 있을 때 menu bar overflow에
+  **Export local usage CSV**를 노출. 사용자 제스처로만 저장 패널을 엶.
 
 ## Nice to Have 미진행
 
 ### 9) Provider별 인라인 에러 표시
-- 탭 사이드바 경고 배지 추가
+- 완료: provider summary 카드에 경고 배지를 표시하고 VoiceOver 값에
+  refresh 실패 내용을 포함.
 
 ### 10) 키보드 네비게이션
-- 방향키 provider 전환
-- `R` 새로고침 단축
+- 완료: 방향키와 `1`/`2`/`3`으로 provider 전환, `R`로 새로고침.
 
 ### 11) 모델별 토큰 추적
 - 모델별 사용량 비중 분석/표시

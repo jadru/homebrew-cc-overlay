@@ -428,6 +428,52 @@ struct MenuBarView: View {
                 } label: {
                     Label("Copy summary", systemImage: "square.and.arrow.up")
                 }
+
+                if let pendingRun = multiService.pendingRun {
+                    Menu {
+                        Button("Finished") {
+                            multiService.completePendingRun(outcome: .completed)
+                        }
+                        Button("Hit provider limit") {
+                            multiService.completePendingRun(outcome: .hitLimit)
+                        }
+                        Button("Cancel task", role: .destructive) {
+                            multiService.completePendingRun(outcome: .cancelled)
+                        }
+                    } label: {
+                        Label(
+                            "Record \(pendingRun.taskSize.label) task result",
+                            systemImage: "checkmark.circle"
+                        )
+                    }
+                } else {
+                    let decision = multiService.usageDecision
+                    if decision.kind == .run || decision.kind == .switchProvider {
+                        Button {
+                            multiService.beginRun(decision: decision, projectName: nil)
+                        } label: {
+                            Label(
+                                "Start \(settings.plannedTaskSize.label) task",
+                                systemImage: "play.circle"
+                            )
+                        }
+                        .help("Track the result of the current recommendation locally")
+                    }
+                }
+
+                let exportEntries = multiService.usageExportEntries(for: provider)
+                if !exportEntries.isEmpty {
+                    Button {
+                        Task {
+                            await UsageExportService.saveCSVFile(
+                                UsageExportService.csvExport(entries: exportEntries)
+                            )
+                        }
+                    } label: {
+                        Label("Export local usage CSV", systemImage: "arrow.down.doc")
+                    }
+                    .help("Save locally read transcript usage as a CSV file")
+                }
             }
 
             Button(action: refreshData) {
@@ -567,6 +613,16 @@ struct MenuBarView: View {
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard flags.isEmpty || flags == [.shift] else { return false }
+
+        switch event.keyCode {
+        case 123, 126: // left or up arrow
+            return selectAdjacentProvider(offset: -1)
+        case 124, 125: // right or down arrow
+            return selectAdjacentProvider(offset: 1)
+        default:
+            break
+        }
+
         guard let key = event.charactersIgnoringModifiers?.lowercased() else { return false }
 
         switch key {
@@ -582,6 +638,21 @@ struct MenuBarView: View {
         default:
             return false
         }
+    }
+
+    private func selectAdjacentProvider(offset: Int) -> Bool {
+        let providers = availableProviders
+        guard !providers.isEmpty else { return false }
+        guard let current = displayedProvider,
+              let currentIndex = providers.firstIndex(of: current)
+        else {
+            selectedProvider = providers.first
+            return true
+        }
+
+        let nextIndex = (currentIndex + offset + providers.count) % providers.count
+        selectedProvider = providers[nextIndex]
+        return true
     }
 
     private func compactPlanName(_ planName: String?) -> String? {
@@ -619,6 +690,8 @@ private struct MenuDetailSheet<Content: View>: View {
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close \(title)")
+                .help("Close \(title)")
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
                 .background {

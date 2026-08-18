@@ -229,11 +229,23 @@ final class UsageDecisionEngineTests: XCTestCase {
         let now = Date()
         let decision = UsageDecisionEngine.recommend(
             from: [data(.codex, remaining: 80, refreshedAt: now)],
-            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 20, sampleCount: 5)],
+            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 20, sampleCount: 12)],
             now: now
         )
 
         XCTAssertEqual(decision.confidence, .high)
+        XCTAssertEqual(decision.taskFit?.outcome, .likely)
+    }
+
+    func testKeepsConfidenceMediumUntilTaskFitHasTwelveRecordedOutcomes() {
+        let now = Date()
+        let decision = UsageDecisionEngine.recommend(
+            from: [data(.codex, remaining: 80, refreshedAt: now)],
+            fitEvidence: [.codex: TaskFitEvidence(requiredHeadroom: 20, sampleCount: 5)],
+            now: now
+        )
+
+        XCTAssertEqual(decision.confidence, .medium)
         XCTAssertEqual(decision.taskFit?.outcome, .likely)
     }
 

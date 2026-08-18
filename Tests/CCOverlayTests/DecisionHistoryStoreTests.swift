@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class DecisionHistoryStoreTests: XCTestCase {
-    func testLearnsTaskHeadroomFromRecentConsumptionBursts() {
+    func testDoesNotTreatPassiveConsumptionBurstsAsTaskFitEvidence() {
         let suiteName = "DecisionHistoryStoreTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -15,8 +15,7 @@ final class DecisionHistoryStoreTests: XCTestCase {
         }
 
         let evidence = store.evidence(for: .codex, taskSize: .medium, now: start.addingTimeInterval(1_200))
-        XCTAssertEqual(evidence?.sampleCount, 3)
-        XCTAssertEqual(evidence?.requiredHeadroom ?? 0, 7.5, accuracy: 0.01)
+        XCTAssertNil(evidence)
     }
 
     func testStoresOnlyFeedbackCountsForDiagnostics() {
@@ -53,7 +52,7 @@ final class DecisionHistoryStoreTests: XCTestCase {
             recommendedHeadroom: 30
         )
 
-        for index in 0..<3 {
+        for index in 0..<5 {
             _ = store.beginRun(
                 decision: decision,
                 taskSize: .medium,
@@ -72,10 +71,41 @@ final class DecisionHistoryStoreTests: XCTestCase {
             taskSize: .medium,
             now: Date(timeIntervalSince1970: 1_700_000_200)
         )
-        XCTAssertEqual(evidence?.sampleCount, 3)
-        XCTAssertEqual(evidence?.requiredHeadroom ?? 0, 15, accuracy: 0.01)
-        XCTAssertEqual(store.outcomeSummary.completed, 3)
+        XCTAssertEqual(evidence?.sampleCount, 5)
+        XCTAssertEqual(evidence?.requiredHeadroom ?? 0, 10, accuracy: 0.01)
+        XCTAssertEqual(store.outcomeSummary.completed, 5)
         XCTAssertNil(store.pendingRun)
+    }
+
+    func testCalibrationCountsLimitHitsAfterLikelyFitRecommendation() {
+        let suiteName = "DecisionHistoryStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = DecisionHistoryStore(defaults: defaults)
+        let decision = UsageDecision(
+            kind: .run,
+            title: "Run",
+            detail: "Healthy",
+            recommendedProvider: .codex,
+            resetAt: nil,
+            confidence: .high,
+            taskFit: TaskFitAssessment(
+                taskSize: .medium,
+                outcome: .likely,
+                requiredHeadroom: 20,
+                sampleCount: 12
+            ),
+            recommendedHeadroom: 40
+        )
+
+        for outcome in [RunOutcome.completed, .hitLimit] {
+            _ = store.beginRun(decision: decision, taskSize: .medium, projectName: nil)
+            store.completePendingRun(outcome: outcome, endingHeadroom: outcome == .completed ? 30 : 0)
+        }
+
+        XCTAssertEqual(store.calibrationSummary.likelyFitRuns, 2)
+        XCTAssertEqual(store.calibrationSummary.likelyFitLimitHits, 1)
+        XCTAssertEqual(store.calibrationSummary.falseSafeRate, 0.5)
     }
 
     func testHeadroomHistoryProducesActivePaceForecast() {

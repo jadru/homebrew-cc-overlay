@@ -141,10 +141,19 @@ struct ProviderSummaryCardView: View {
             }
         } label: {
             VStack(spacing: size.rowSpacing) {
-                Text(provider.shortLabel)
-                    .font(size.labelFont)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 3) {
+                    Text(provider.shortLabel)
+                        .font(size.labelFont)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    if data.error != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: size == .compact ? 7 : 9, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .accessibilityHidden(true)
+                    }
+                }
 
                 if isAvailable {
                     Text(NumberFormatting.formatPercentage(data.remainingPercentage))
@@ -173,9 +182,16 @@ struct ProviderSummaryCardView: View {
         .buttonStyle(PressableButtonStyle())
         .opacity(isAvailable ? 1.0 : 0.45)
         .accessibilityLabel(provider.rawValue)
-        .accessibilityValue(isAvailable ? NumberFormatting.formatPercentage(data.remainingPercentage) : "Setup required")
+        .accessibilityValue(accessibilityValue(for: data, isAvailable: isAvailable))
         .accessibilityHint("Select provider")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func accessibilityValue(for data: ProviderUsageData, isAvailable: Bool) -> String {
+        if let error = data.error {
+            return "Refresh failed: \(error)"
+        }
+        return isAvailable ? NumberFormatting.formatPercentage(data.remainingPercentage) : "Setup required"
     }
 
     @ViewBuilder

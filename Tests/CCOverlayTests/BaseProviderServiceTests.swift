@@ -2,14 +2,14 @@ import XCTest
 @testable import CCOverlay
 
 @MainActor
-private final class CountingProviderService: BaseProviderService {
+private final class CountingProviderService: BaseProviderService, ProviderServiceProtocol {
     private(set) var fetchCount = 0
 
     init() {
         super.init(provider: .codex)
     }
 
-    override func fetchUsage() async {
+    func fetchUsage() async {
         fetchCount += 1
         markRefreshed()
     }

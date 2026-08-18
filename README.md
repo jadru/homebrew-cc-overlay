@@ -2,7 +2,7 @@
 
 > [한국어](README_KO.md) | [Release Notes](RELEASE_NOTES.md) ([한국어](RELEASE_NOTES_KO.md)) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
 
-Codex-first macOS menu bar app that turns **Codex** and **Claude Code** usage into a safe next-run decision.
+Pet-first macOS menu-bar companion for **Codex** and **Claude Code** users. Newly observed work earns durable companion progress; usage signals are quiet guardrails for the next run.
 
 **Website:** [cc-overlay.jadru.com](https://cc-overlay.jadru.com)
 
@@ -10,6 +10,7 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 
 ## Features
 
+- **Earned companion progression** — Newly observed token activity unlocks companion growth, gear, and adoption tickets; clicks never manufacture work rewards
 - **Multi-provider monitoring** — Track Claude Code and OpenAI Codex CLI usage simultaneously
 - **Codex-first routing** — Prefer Codex whenever the planned task safely fits, with Claude Code as an automatic headroom fallback
 - **Authenticated-only display** — Unconfigured providers never appear as misleading setup or usage indicators
@@ -20,7 +21,7 @@ CC-Overlay is an independent, open-source utility distributed directly through G
 - **Floating Liquid Glass overlay** — A compact, screen-bounded status surface that expands on hover
 - **Pacing signals** — 5H and 7D timelines distinguish fast burn, on-pace, and plenty-left states
 - **Actionable recommendation** — Combines connected providers into a confidence-rated Run, Wait, Switch, or Refresh signal
-- **Task-fit learning** — Learns local consumption bursts and estimates whether a small, medium, or large run is likely to fit
+- **Cautious task-fit learning** — Uses only locally recorded outcomes for the same provider and task size; high confidence requires 12 recorded outcomes
 - **Guided Run / Switch** — Launch the recommended CLI in Terminal or iTerm2 at the active project, with a safe copy fallback
 - **Explainable recommendations** — Inspect the headroom, task-fit, data-quality, and alternative signals behind each decision
 - **Outcome learning** — Record finished, limit-hit, switch, reset, or cancelled outcomes locally to improve future task-fit estimates

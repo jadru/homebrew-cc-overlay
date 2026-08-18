@@ -13,12 +13,17 @@ enum PlannedTaskSize: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 struct TaskFitEvidence: Equatable, Sendable {
+    /// Explicit, user-recorded outcomes are required before a task-fit estimate is shown.
+    /// Passive usage deltas remain useful for pace forecasts, but cannot establish causality.
+    static let minimumLearningSamples = 5
+    static let minimumHighConfidenceSamples = 12
+
     let requiredHeadroom: Double
     let sampleCount: Int
 }
 
 struct TaskFitAssessment: Equatable, Sendable {
-    enum Outcome: String, Equatable, Sendable {
+    enum Outcome: String, Codable, Equatable, Sendable {
         case likely
         case risky
         case unlikely
@@ -51,7 +56,7 @@ struct UsageDecision: Equatable, Sendable {
         case setup
     }
 
-    enum Confidence: String, Equatable, Sendable {
+    enum Confidence: String, Codable, Equatable, Sendable {
         case high
         case medium
         case low
@@ -59,7 +64,7 @@ struct UsageDecision: Equatable, Sendable {
         var label: String { rawValue.capitalized }
     }
 
-    enum DataQuality: String, Equatable, Sendable {
+    enum DataQuality: String, Codable, Equatable, Sendable {
         case live
         case estimated
         case mixed
@@ -176,6 +181,7 @@ enum UsageDecisionEngine {
             var values = [
                 "\(data.provider.rawValue) has \(Int(headroom.rounded()))% active-window headroom.",
                 "\(fit.taskSize.label) task fit: \(fit.label).",
+                "Task-fit evidence: \(fit.sampleCount) recorded outcome\(fit.sampleCount == 1 ? "" : "s").",
                 "Data quality: \(quality.label).",
             ]
             if let alternative = ranked.first(where: { $0.provider != data.provider }) {
@@ -350,7 +356,7 @@ enum UsageDecisionEngine {
         taskSize: PlannedTaskSize,
         availableHeadroom: Double
     ) -> TaskFitAssessment {
-        guard let evidence, evidence.sampleCount >= 3 else {
+        guard let evidence, evidence.sampleCount >= TaskFitEvidence.minimumLearningSamples else {
             return TaskFitAssessment(
                 taskSize: taskSize,
                 outcome: .learning,
@@ -393,7 +399,10 @@ enum UsageDecisionEngine {
         if quality == .stale || quality == .estimated || taskFit.outcome == .risky {
             return .low
         }
-        if quality == .mixed || taskFit.outcome == .learning {
+        if quality == .mixed
+            || taskFit.outcome == .learning
+            || taskFit.sampleCount < TaskFitEvidence.minimumHighConfidenceSamples
+        {
             return .medium
         }
         return .high

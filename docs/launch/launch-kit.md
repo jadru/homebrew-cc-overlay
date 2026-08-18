@@ -4,42 +4,47 @@ Use this kit only after the release artifact, onboarding, and recommendation UI 
 
 ## Positioning
 
-**Category:** local-first macOS decision overlay for AI coding limits.
+**Category:** pet-first local macOS companion for AI-assisted coding.
 
-**One line:** CC-Overlay tells you whether to run, wait, or switch before Claude Code or Codex hits a limit.
+**One line:** CC-Overlay turns newly observed coding activity into earned companion progress, with quiet Codex and Claude Code guardrails when you need them.
+
+**Initial ICP:** macOS developers who use Codex regularly, may keep Claude Code as
+a fallback, and want a small companion that makes a normal coding week feel
+more tangible without taking over their workspace.
 
 **Proof points:**
 
-- Actual always-on-top overlay, not another dashboard.
-- Live 5-hour and weekly windows for Claude Code and Codex.
+- Earned local companion progress; clicks cannot manufacture token rewards.
+- Actual always-on-top companion overlay, not another dashboard.
+- Live 5-hour and weekly guardrails for Claude Code and Codex.
 - Signed and notarized universal macOS build.
 - No CC-Overlay account or developer-operated backend.
 - Open-source provider access and clearly labeled estimates.
 
 ## Show HN Draft
 
-**Title:** Show HN: CC-Overlay – know whether to run, wait, or switch AI coding providers
+**Title:** Show HN: CC-Overlay – a local pixel companion for Codex and Claude Code work
 
-I built CC-Overlay because checking Claude Code and Codex limits kept interrupting the work I was trying to plan. It is a native macOS menu-bar app with a floating overlay that keeps the tightest limit visible.
+I built CC-Overlay because AI-assisted coding can feel invisible after a long day. It is a native macOS menu-bar companion whose progress comes only from newly observed work; the companion stays small and out of the editor until you want to check in.
 
-The latest version combines both providers and turns their windows into a small Run / Wait / Switch recommendation. It reads the provider sessions already on the Mac, has no developer backend, and is MIT licensed. Releases are signed and notarized.
+It also combines Codex and Claude Code headroom into a cautious Run / Wait / Switch guardrail. Task-fit estimates learn only from local results you record, so “high confidence” is deliberately earned. It has no developer backend, is MIT licensed, and releases are signed and notarized.
 
 Landing: https://cc-overlay.jadru.com/?utm_source=hackernews&utm_medium=launch&utm_campaign=decision-overlay
 
 Source: https://github.com/jadru/homebrew-cc-overlay
 
-I would especially value feedback on when the recommendation is wrong or too conservative.
+I would especially value feedback from people who use Codex several times a week: did the companion earn a return visit, and did the guardrail stay appropriately cautious?
 
 ## Product Hunt Copy
 
-**Tagline:** Know whether to run, wait, or switch before your AI coding limit hits.
+**Tagline:** A small companion for the AI coding work you actually finish.
 
-**Description:** CC-Overlay is a local-first macOS menu-bar app for Claude Code and Codex. It keeps live headroom visible above your workspace and turns rate-limit windows into an actionable recommendation. Free, open source, signed, and notarized.
+**Description:** CC-Overlay is a local-first macOS companion for Codex and Claude Code users. Newly observed work earns progress for a pixel companion; live headroom remains a quiet, cautious guardrail. Free, open source, signed, and notarized.
 
 ## Community Post Checklist
 
-- Share a real 10–15 second capture of collapsed → expanded → recommendation states.
+- Share a real 10–15 second capture of earned companion progress → collapsed → expanded guardrail states.
 - State that the integration is unofficial and provider APIs may change.
 - Link to the landing page with a source-specific UTM.
-- Ask one question: “What would make the Run / Wait / Switch recommendation trustworthy for you?”
+- Ask one question: “Did the companion give you a reason to return without getting in the way?”
 - Do not cross-post identical copy or manufacture social proof.

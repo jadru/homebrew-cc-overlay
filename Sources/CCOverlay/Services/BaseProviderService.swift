@@ -5,7 +5,7 @@ import Observation
 /// task tracking, and activity detection logic.
 @Observable
 @MainActor
-class BaseProviderService: ProviderServiceProtocol {
+class BaseProviderService {
     let provider: CLIProvider
 
     private(set) var isDetected = false
@@ -31,15 +31,13 @@ class BaseProviderService: ProviderServiceProtocol {
 
     // MARK: - Subclass Overrides
 
-    /// Subclasses must override this method.
-    func fetchUsage() async {
-        fatalError("Subclass must override fetchUsage()")
-    }
-
     /// Override in subclasses to build provider-specific usage data.
     var usageData: ProviderUsageData {
         .empty(for: provider, error: error, lastRefresh: lastRefresh, isLoading: isLoading)
     }
+
+    /// Providers without local transcript entries simply do not offer CSV export.
+    var usageExportEntries: [ParsedUsageEntry] { [] }
 
     // MARK: - Monitoring
 
@@ -69,12 +67,20 @@ class BaseProviderService: ProviderServiceProtocol {
         refreshTask = Task { [weak self] in
             guard let self else { return }
             let startedAt = Date()
-            await fetchUsage()
+            await invokeProviderFetch()
             lastRefreshDuration = Date().timeIntervalSince(startedAt)
             guard !Task.isCancelled else { return }
             isLoading = false
             refreshTask = nil
         }
+    }
+
+    private func invokeProviderFetch() async {
+        guard let providerService = self as? any ProviderServiceProtocol else {
+            setError("Provider service is missing its usage fetch implementation.")
+            return
+        }
+        await providerService.fetchUsage()
     }
 
     func revalidate(settings: AppSettings?) async -> Bool {
