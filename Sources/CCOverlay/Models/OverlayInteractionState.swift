@@ -1,3 +1,4 @@
+import CoreGraphics
 import Observation
 
 @Observable
@@ -36,6 +37,20 @@ final class OverlayInteractionState {
 }
 
 enum OverlayInteractionPolicy {
+    /// A click on the companion may include a little pointer jitter. Keep the
+    /// click intact until movement clearly expresses an intent to reposition
+    /// the floating window.
+    static let dragActivationDistance: CGFloat = 10
+
+    nonisolated static func shouldBeginWindowDrag(
+        deltaX: CGFloat,
+        deltaY: CGFloat,
+        threshold: CGFloat = dragActivationDistance
+    ) -> Bool {
+        let distanceSquared = deltaX * deltaX + deltaY * deltaY
+        return distanceSquared >= threshold * threshold
+    }
+
     nonisolated static func shouldExpand(
         isHovered: Bool,
         isPointerDown: Bool,

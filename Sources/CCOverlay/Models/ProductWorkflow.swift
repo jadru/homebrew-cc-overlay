@@ -94,39 +94,6 @@ struct ProviderHealthSnapshot: Equatable, Sendable {
     }
 }
 
-enum RunOutcome: String, CaseIterable, Codable, Identifiable, Sendable {
-    case completed
-    case hitLimit
-    case switchedProvider
-    case usedReset
-    case cancelled
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .completed: return "Finished"
-        case .hitLimit: return "Hit limit"
-        case .switchedProvider: return "Switched"
-        case .usedReset: return "Used reset"
-        case .cancelled: return "Cancelled"
-        }
-    }
-}
-
-struct PendingRun: Codable, Equatable, Sendable {
-    let id: UUID
-    let startedAt: Date
-    let provider: CLIProvider
-    let taskSize: PlannedTaskSize
-    let startingHeadroom: Double
-    let projectName: String?
-    /// Optional so a pending run recorded by an earlier release remains readable.
-    let decisionConfidence: UsageDecision.Confidence?
-    let taskFitOutcome: TaskFitAssessment.Outcome?
-    let dataQuality: UsageDecision.DataQuality?
-}
-
 struct UsageHistoryPoint: Equatable, Identifiable, Sendable {
     let timestamp: Date
     let remainingPercentage: Double

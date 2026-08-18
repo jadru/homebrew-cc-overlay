@@ -62,15 +62,19 @@ private final class MovableOverlayPanel: NSPanel {
             let currentScreenPoint = convertPoint(toScreen: event.locationInWindow)
             let deltaX = currentScreenPoint.x - dragStartScreenPoint.x
             let deltaY = currentScreenPoint.y - dragStartScreenPoint.y
-            guard abs(deltaX) > 1 || abs(deltaY) > 1 else { return }
+            guard OverlayInteractionPolicy.shouldBeginWindowDrag(
+                deltaX: deltaX,
+                deltaY: deltaY
+            ) else { return }
 
             interactionState.beginWindowDrag()
             var nextFrame = dragStartFrame.offsetBy(dx: deltaX, dy: deltaY)
-            nextFrame.origin = boundedOrigin(for: nextFrame)
+            nextFrame.origin = rubberBandedOrigin(for: nextFrame)
             setFrame(nextFrame, display: true)
 
         case .leftMouseUp:
             super.sendEvent(event)
+            settleFrameInsideVisibleArea()
             interactionState.endPointerSequence()
             dragStartScreenPoint = nil
             dragStartFrame = nil
@@ -82,7 +86,49 @@ private final class MovableOverlayPanel: NSPanel {
 
     /// The companion remains recoverable even when it is dragged to a screen
     /// edge: at least a 52-point grab area is always visible.
+    private func settleFrameInsideVisibleArea() {
+        var settledFrame = frame
+        let settledOrigin = boundedOrigin(for: settledFrame)
+        guard settledOrigin != settledFrame.origin else { return }
+
+        settledFrame.origin = settledOrigin
+        setFrame(
+            settledFrame,
+            display: true,
+            animate: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        )
+    }
+
+    private func rubberBandedOrigin(for frame: NSRect) -> NSPoint {
+        let bounds = dragBounds(for: frame)
+        let resistanceDistance: CGFloat = 20
+
+        return NSPoint(
+            x: rubberBanded(
+                frame.origin.x,
+                minimum: bounds.minX,
+                maximum: bounds.maxX,
+                resistanceDistance: resistanceDistance
+            ),
+            y: rubberBanded(
+                frame.origin.y,
+                minimum: bounds.minY,
+                maximum: bounds.maxY,
+                resistanceDistance: resistanceDistance
+            )
+        )
+    }
+
     private func boundedOrigin(for frame: NSRect) -> NSPoint {
+        let bounds = dragBounds(for: frame)
+
+        return NSPoint(
+            x: min(max(frame.origin.x, bounds.minX), bounds.maxX),
+            y: min(max(frame.origin.y, bounds.minY), bounds.maxY)
+        )
+    }
+
+    private func dragBounds(for frame: NSRect) -> (minX: CGFloat, maxX: CGFloat, minY: CGFloat, maxY: CGFloat) {
         let visibleFrame = screen?.visibleFrame
             ?? NSScreen.main?.visibleFrame
             ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -92,10 +138,27 @@ private final class MovableOverlayPanel: NSPanel {
         let minY = visibleFrame.minY - frame.height + visibleGrabArea
         let maxY = visibleFrame.maxY - visibleGrabArea
 
-        return NSPoint(
-            x: min(max(frame.origin.x, minX), maxX),
-            y: min(max(frame.origin.y, minY), maxY)
-        )
+        return (minX, maxX, minY, maxY)
+    }
+
+    private func rubberBanded(
+        _ value: CGFloat,
+        minimum: CGFloat,
+        maximum: CGFloat,
+        resistanceDistance: CGFloat
+    ) -> CGFloat {
+        if value < minimum {
+            return minimum - rubberBandDistance(minimum - value, dimension: resistanceDistance)
+        }
+        if value > maximum {
+            return maximum + rubberBandDistance(value - maximum, dimension: resistanceDistance)
+        }
+        return value
+    }
+
+    private func rubberBandDistance(_ overshoot: CGFloat, dimension: CGFloat) -> CGFloat {
+        let resistance: CGFloat = 0.55
+        return (overshoot * dimension * resistance) / (dimension + resistance * overshoot)
     }
 }
 

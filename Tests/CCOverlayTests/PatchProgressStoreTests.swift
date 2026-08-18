@@ -116,9 +116,7 @@ final class PatchProgressStoreTests: XCTestCase {
 
         for expectedTotal in 1...3 {
             let result = tryUnwrap(
-                store.collectTreat(
-                    now: start.addingTimeInterval(Double(expectedTotal - 1) * PatchProgressStore.treatCollectionCooldown)
-                )
+                store.collectTreat(now: start)
             )
             XCTAssertEqual(result.treatsAdded, 1)
             XCTAssertEqual(result.totalTreats, expectedTotal)
@@ -129,22 +127,44 @@ final class PatchProgressStoreTests: XCTestCase {
         XCTAssertNil(store.feedCurrentCompanion())
     }
 
-    func testTreatCollectionHasACalmCooldownInsteadOfRewardingRapidClicks() {
+    func testTreatCollectionRewardsRapidClicksImmediately() {
         let context = makeContext()
         let store = PatchProgressStore(defaults: context.defaults)
         let start = Date(timeIntervalSince1970: 1_750_100_000)
 
         XCTAssertNotNil(store.collectTreat(now: start))
-        XCTAssertNil(store.collectTreat(now: start.addingTimeInterval(0.2)))
-        XCTAssertEqual(store.treats, 1)
-        XCTAssertEqual(store.totalTreatsCollected, 1)
+        XCTAssertNotNil(store.collectTreat(now: start.addingTimeInterval(0.2)))
+        XCTAssertNotNil(store.collectTreat(now: start.addingTimeInterval(0.4)))
+        XCTAssertEqual(store.treats, 3)
+        XCTAssertEqual(store.totalTreatsCollected, 3)
+    }
 
-        XCTAssertNotNil(
-            store.collectTreat(
-                now: start.addingTimeInterval(PatchProgressStore.treatCollectionCooldown)
-            )
-        )
-        XCTAssertEqual(store.treats, 2)
+    func testRapidTreatCollectionPersistsAllAcknowledgedTreatsWhenFlushed() {
+        let context = makeContext()
+        let store = PatchProgressStore(defaults: context.defaults)
+
+        for _ in 0..<25 {
+            XCTAssertNotNil(store.collectTreat())
+        }
+        store.flushPendingTreatSave()
+
+        let reloaded = PatchProgressStore(defaults: context.defaults)
+        XCTAssertEqual(reloaded.treats, 25)
+        XCTAssertEqual(reloaded.totalTreatsCollected, 25)
+    }
+
+    func testRapidTreatCollectionPersistsWithoutWaitingForOverlayDismissal() async {
+        let context = makeContext()
+        let store = PatchProgressStore(defaults: context.defaults)
+
+        for _ in 0..<10 {
+            XCTAssertNotNil(store.collectTreat())
+        }
+        try? await Task.sleep(for: .milliseconds(160))
+
+        let reloaded = PatchProgressStore(defaults: context.defaults)
+        XCTAssertEqual(reloaded.treats, 10)
+        XCTAssertEqual(reloaded.totalTreatsCollected, 10)
     }
 
     func testTokenMilestonesAwardAdoptionTicketsAndTreatsFeedTheCurrentPet() {
@@ -332,7 +352,7 @@ final class PatchProgressStoreTests: XCTestCase {
         for index in 0..<count {
             XCTAssertNotNil(
                 store.collectTreat(
-                    now: start.addingTimeInterval(Double(index) * PatchProgressStore.treatCollectionCooldown)
+                    now: start.addingTimeInterval(Double(index) * 0.001)
                 )
             )
         }

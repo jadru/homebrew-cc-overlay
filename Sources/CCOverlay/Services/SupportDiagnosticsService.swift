@@ -15,11 +15,6 @@ enum SupportDiagnosticsService {
             DurationFormatting.compactReset($0)
         } ?? "not recorded"
         let feedback = multiService.decisionFeedbackSummary
-        let outcomes = multiService.runOutcomeSummary
-        let calibration = multiService.recommendationCalibrationSummary
-        let calibrationText = calibration.falseSafeRate.map {
-            "\(Int(($0 * 100).rounded()))% false-safe rate"
-        } ?? "learning"
 
         var lines = [
             "## CC-Overlay diagnostics",
@@ -30,12 +25,9 @@ enum SupportDiagnosticsService {
             "- Claude OAuth opt-in: \(settings.claudeOAuthEnabled ? "enabled" : "disabled")",
             "- Time to first usable data: \(activationText)",
             "- Recommendation: \(multiService.usageDecision.title)",
-            "- Planned task size: \(settings.plannedTaskSize.label)",
             "- Preferred terminal: \(settings.preferredTerminal.label)",
             "- Full Reset policy: \(settings.fullResetPolicy.label)",
             "- Recommendation feedback: \(feedback.helpful) helpful / \(feedback.unhelpful) not helpful",
-            "- Run outcomes: \(outcomes.completed) completed / \(outcomes.hitLimit) hit limit / \(outcomes.switched) switched / \(outcomes.usedReset) reset / \(outcomes.cancelled) cancelled",
-            "- Likely-fit calibration: \(calibration.likelyFitRuns) recorded runs / \(calibration.likelyFitLimitHits) limit hits (\(calibrationText))",
             "",
             "### Providers",
         ]

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Current usage affects the companion's mood. New developer tokens observed
@@ -19,12 +20,8 @@ struct PatchOverlayView: View {
     @State private var feedDismissTask: Task<Void, Never>?
     @State private var feedReaction = CompanionFeedReaction.idle
     @State private var feedReactionTask: Task<Void, Never>?
-    @State private var evolutionBurst: CompanionEvolution?
-    @State private var evolutionDismissTask: Task<Void, Never>?
-    @State private var careBurst: CompanionCare?
-    @State private var careDismissTask: Task<Void, Never>?
-    @State private var focusDayBurst = false
-    @State private var focusDayDismissTask: Task<Void, Never>?
+    @State private var activeNotification: CompanionOverlayNotification?
+    @State private var notificationDismissTask: Task<Void, Never>?
 
     private var presentation: PatchPresentation {
         PatchPresentation.assess(
@@ -67,13 +64,12 @@ struct PatchOverlayView: View {
                             careAccessory: progress.careAccessory,
                             bodyParallax: pointerResponse.bodyParallax
                         )
-                            .opacity(current.companionOpacity)
                             .saturation(current.companionSaturation)
                             .scaleEffect(
                                 current.companionScale
                                     * pointerResponse.scale
                                     * motion.scale
-                                    * (careBurst == nil ? 1 : 1.06)
+                                    * (isShowingCareNotification ? 1.06 : 1)
                             )
                             .scaleEffect(
                                 x: treatReaction.horizontalScale * feedReaction.horizontalScale,
@@ -99,6 +95,7 @@ struct PatchOverlayView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .buttonStyle(CompanionPressButtonStyle(reducesMotion: reducesMotion))
                     .help("Click for one treat · drag anywhere to move \(pet.name)")
                     .accessibilityLabel("\(pet.name), your coding companion")
                     .accessibilityHint("Click to collect one companion treat when ready. Drag anywhere to move the companion.")
@@ -120,28 +117,14 @@ struct PatchOverlayView: View {
                     )
                     // A fresh identity restarts @State phase for every click.
                     .id(treatBurst.totalTreats)
-                    .transition(.opacity)
                     .allowsHitTesting(false)
                 }
 
-                if let evolutionBurst {
-                    CompanionEvolutionBurst(evolution: evolutionBurst)
+                if let activeNotification {
+                    CompanionNotificationBurst(content: activeNotification.content)
+                        .id(activeNotification.id)
                         .transition(.opacity.combined(with: .scale(scale: 0.84)))
-                        .offset(y: -88)
-                        .allowsHitTesting(false)
-                }
-
-                if let careBurst {
-                    CompanionCareBurst(care: careBurst)
-                        .transition(.opacity.combined(with: .scale(scale: 0.84)))
-                        .offset(y: -88)
-                        .allowsHitTesting(false)
-                }
-
-                if focusDayBurst {
-                    CompanionFocusDayBurst(streak: progress.currentFocusStreak)
-                        .transition(.opacity.combined(with: .scale(scale: 0.84)))
-                        .offset(y: -112)
+                        .offset(y: PatchInteraction.companionNotificationVerticalOffset)
                         .allowsHitTesting(false)
                 }
 
@@ -190,25 +173,24 @@ struct PatchOverlayView: View {
             treatReactionTask?.cancel()
             feedDismissTask?.cancel()
             feedReactionTask?.cancel()
-            evolutionDismissTask?.cancel()
-            careDismissTask?.cancel()
-            focusDayDismissTask?.cancel()
+            notificationDismissTask?.cancel()
+            progress.flushPendingTreatSave()
         }
     }
 
     private func collectTreat() {
         guard !interactionState.consumeSuppressedPrimaryAction() else { return }
         guard let result = progress.collectTreat() else { return }
-        withAnimation(reducesMotion ? nil : .easeOut(duration: 0.12)) {
-            treatBurst = result
-        }
+        // Changing the total creates a fresh animation view immediately.
+        treatBurst = result
+        announceTreatCollection(result)
         playTreatReaction()
 
         treatDismissTask?.cancel()
         treatDismissTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(850))
             guard !Task.isCancelled else { return }
-            withAnimation(reducesMotion ? nil : .easeOut(duration: 0.18)) {
+            withAnimation(reducesMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.companionDismiss) {
                 treatBurst = nil
             }
         }
@@ -217,26 +199,37 @@ struct PatchOverlayView: View {
     private func playTreatReaction() {
         guard !reducesMotion else { return }
         treatReactionTask?.cancel()
-        withAnimation(.easeOut(duration: 0.09)) {
+        withAnimation(.easeOut(duration: 0.11)) {
             treatReaction = .crouch
         }
         treatReactionTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(90))
+            try? await Task.sleep(for: .milliseconds(110))
             guard !Task.isCancelled else { return }
-            withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.22)) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.48)) {
                 treatReaction = .launch
             }
-            try? await Task.sleep(for: .milliseconds(220))
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.72)) {
                 treatReaction = .settle
             }
-            try? await Task.sleep(for: .milliseconds(140))
+            try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.16)) {
                 treatReaction = .idle
             }
         }
+    }
+
+    private func announceTreatCollection(_ result: TreatCollectionResult) {
+        NSAccessibility.post(
+            element: NSApplication.shared,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: "One companion treat collected. \(result.totalTreats) total treats.",
+                .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            ]
+        )
     }
 
     private func feedOneTreat() {
@@ -287,46 +280,59 @@ struct PatchOverlayView: View {
     }
 
     private func showEvolution(_ evolution: CompanionEvolution) {
-        withAnimation(reducesMotion ? nil : .spring(response: 0.32, dampingFraction: 0.7)) {
-            evolutionBurst = evolution
-        }
-        evolutionDismissTask?.cancel()
-        evolutionDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.4))
-            guard !Task.isCancelled else { return }
-            withAnimation(reducesMotion ? nil : .easeOut(duration: 0.2)) {
-                evolutionBurst = nil
-            }
-        }
+        showNotification(.evolution(evolution), duration: .seconds(2.4))
     }
 
     private func showCare(_ care: CompanionCare) {
-        withAnimation(reducesMotion ? nil : .spring(response: 0.28, dampingFraction: 0.68)) {
-            careBurst = care
-        }
-        careDismissTask?.cancel()
-        careDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.8))
-            guard !Task.isCancelled else { return }
-            withAnimation(reducesMotion ? nil : .easeOut(duration: 0.18)) {
-                careBurst = nil
-            }
-        }
+        showNotification(.care(care), duration: .seconds(1.8))
     }
 
     private func showFocusDay() {
-        withAnimation(reducesMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7)) {
-            focusDayBurst = true
+        showNotification(.focusDay(progress.currentFocusStreak), duration: .seconds(2.4))
+    }
+
+    private var isShowingCareNotification: Bool {
+        guard let activeNotification else { return false }
+        if case .care = activeNotification.content { return true }
+        return false
+    }
+
+    private var notificationAnimation: Animation {
+        reducesMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.companionNotification
+    }
+
+    private var notificationDismissAnimation: Animation {
+        reducesMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.companionDismiss
+    }
+
+    private func showNotification(
+        _ content: CompanionOverlayNotification.Content,
+        duration: Duration
+    ) {
+        let notification = CompanionOverlayNotification(content: content)
+        notificationDismissTask?.cancel()
+        withAnimation(notificationAnimation) {
+            activeNotification = notification
         }
-        focusDayDismissTask?.cancel()
-        focusDayDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.4))
-            guard !Task.isCancelled else { return }
-            withAnimation(reducesMotion ? nil : .easeOut(duration: 0.2)) {
-                focusDayBurst = false
+        notificationDismissTask = Task { @MainActor in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled, activeNotification?.id == notification.id else { return }
+            withAnimation(notificationDismissAnimation) {
+                activeNotification = nil
             }
         }
     }
+}
+
+private struct CompanionOverlayNotification: Identifiable {
+    enum Content {
+        case evolution(CompanionEvolution)
+        case care(CompanionCare)
+        case focusDay(Int)
+    }
+
+    let id = UUID()
+    let content: Content
 }
 
 private struct CompanionOverlayHUD: View {
@@ -480,17 +486,11 @@ private struct CompanionEvolutionBurst: View {
     let evolution: CompanionEvolution
 
     var body: some View {
-        Label("Evolution · \(evolution.title)", systemImage: "sparkles")
-            .font(.system(size: 10, weight: .bold, design: .rounded))
-            .foregroundStyle(.orange)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.regularMaterial, in: Capsule())
-            .overlay {
-                Capsule().stroke(Color.orange.opacity(0.46), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
-            .accessibilityLabel("Companion evolved to \(evolution.title)")
+        CompanionNotificationPill(
+            text: "Evolution · \(evolution.title)",
+            systemImage: "sparkles",
+            accessibilityLabel: "Companion evolved to \(evolution.title)"
+        )
     }
 }
 
@@ -498,17 +498,11 @@ private struct CompanionCareBurst: View {
     let care: CompanionCare
 
     var body: some View {
-        Label(label, systemImage: care.equippedAccessory == nil ? "heart.fill" : "tshirt.fill")
-            .font(.system(size: 10, weight: .bold, design: .rounded))
-            .foregroundStyle(.orange)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.regularMaterial, in: Capsule())
-            .overlay {
-                Capsule().stroke(Color.orange.opacity(0.46), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
-            .accessibilityLabel(label)
+        CompanionNotificationPill(
+            text: label,
+            systemImage: care.equippedAccessory == nil ? "heart.fill" : "tshirt.fill",
+            accessibilityLabel: label
+        )
     }
 
     private var label: String {
@@ -526,17 +520,52 @@ private struct CompanionFocusDayBurst: View {
     let streak: Int
 
     var body: some View {
-        Label("Focus day complete · \(streak)-day streak", systemImage: "flame.fill")
-            .font(.system(size: 9, weight: .bold, design: .rounded))
+        CompanionNotificationPill(
+            text: "Focus day · \(streak)-day streak",
+            systemImage: "flame.fill",
+            accessibilityLabel: "Focus day complete. \(streak) day streak",
+            fontSize: 9
+        )
+    }
+}
+
+private struct CompanionNotificationBurst: View {
+    let content: CompanionOverlayNotification.Content
+
+    @ViewBuilder
+    var body: some View {
+        switch content {
+        case .evolution(let evolution):
+            CompanionEvolutionBurst(evolution: evolution)
+        case .care(let care):
+            CompanionCareBurst(care: care)
+        case .focusDay(let streak):
+            CompanionFocusDayBurst(streak: streak)
+        }
+    }
+}
+
+private struct CompanionNotificationPill: View {
+    let text: String
+    let systemImage: String
+    let accessibilityLabel: String
+    var fontSize: CGFloat = 10
+
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(.system(size: fontSize, weight: .bold, design: .rounded))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
             .foregroundStyle(.orange)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            .frame(maxWidth: PatchInteraction.companionNotificationMaximumWidth)
             .background(.regularMaterial, in: Capsule())
             .overlay {
                 Capsule().stroke(Color.orange.opacity(0.46), lineWidth: 1)
             }
             .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
-            .accessibilityLabel("Focus day complete. \(streak) day streak")
+            .accessibilityLabel(accessibilityLabel)
     }
 }
 
@@ -547,39 +576,27 @@ private struct CompanionTreatCollectionAnimation: View {
     @State private var animationTask: Task<Void, Never>?
 
     var body: some View {
-        ZStack {
-            CompanionTreatSprite()
-                .scaleEffect(treatScale)
-                .rotationEffect(.degrees(phase == 1 ? 180 : 0))
-                .offset(treatOffset)
-                .opacity(phase >= 2 ? 0 : 1)
-
-            Text("+1")
-                .font(.system(size: 16, weight: .black, design: .rounded))
-                .foregroundStyle(.yellow)
-                .shadow(color: .orange.opacity(0.85), radius: 0, x: 1, y: 1)
-                .offset(x: 2, y: phase == 0 ? -38 : -78)
-                .opacity(phase >= 2 ? 0 : 1)
-
-            if phase >= 2 {
-                CompanionTreatSprite()
-                    .scaleEffect(reducesMotion ? 1.08 : 1.35)
-                    .opacity(0.35)
-                    .offset(x: 32, y: PatchInteraction.hudRewardTargetY)
-            }
-        }
+        Text("+1")
+            .font(.system(size: 25, weight: .black, design: .rounded))
+            .foregroundStyle(.yellow)
+            .shadow(color: .orange.opacity(0.95), radius: 0, x: 2, y: 2)
+            .shadow(color: .yellow.opacity(0.55), radius: 8)
+            .scaleEffect(rewardScale)
+            .rotationEffect(.degrees(rewardRotation))
+            .offset(x: rewardHorizontalOffset, y: rewardOffset)
+            .opacity(phase >= 2 ? 0 : 1)
         .onAppear {
             animationTask = Task { @MainActor in
                 guard !reducesMotion else {
-                    phase = 2
+                    phase = 1
                     return
                 }
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.22)) {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.42)) {
                     phase = 1
                 }
-                try? await Task.sleep(for: .milliseconds(240))
+                try? await Task.sleep(for: .milliseconds(360))
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeOut(duration: 0.14)) {
+                withAnimation(.easeOut(duration: 0.2)) {
                     phase = 2
                 }
             }
@@ -589,23 +606,34 @@ private struct CompanionTreatCollectionAnimation: View {
         .accessibilityLabel("One companion treat collected. \(totalTreats) total treats")
     }
 
-    private var treatOffset: CGSize {
-        return switch phase {
-        case 0:
-            CGSize(width: 18, height: PatchInteraction.companionRewardOriginY)
-        case 1:
-            CGSize(width: 25, height: -66)
-        default:
-            CGSize(width: 32, height: PatchInteraction.hudRewardTargetY)
-        }
+    private var rewardOffset: CGFloat {
+        rewardMotion.offset.height
     }
 
-    private var treatScale: CGFloat {
-        switch phase {
-        case 0: 0.66
-        case 1: 1.06
-        default: 0.48
-        }
+    private var rewardScale: CGFloat {
+        rewardMotion.scale
+    }
+
+    private var rewardRotation: Double {
+        rewardMotion.rotationDegrees
+    }
+
+    private var rewardHorizontalOffset: CGFloat {
+        rewardMotion.offset.width
+    }
+
+    private var rewardMotion: CompanionTreatRewardMotion {
+        CompanionTreatRewardMotion(rawValue: min(phase, CompanionTreatRewardMotion.settle.rawValue)) ?? .settle
+    }
+}
+
+private struct CompanionPressButtonStyle: ButtonStyle {
+    let reducesMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reducesMotion ? 0.975 : 1)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
 

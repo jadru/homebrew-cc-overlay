@@ -8,6 +8,7 @@ struct OnboardingView: View {
 
     @State private var step = 0
     @State private var recoveryError: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,13 +26,9 @@ struct OnboardingView: View {
             Divider()
 
             ScrollView {
-                Group {
-                    switch step {
-                    case 0: welcomeStep
-                    case 1: providersStep
-                    default: overlayStep
-                    }
-                }
+                stepContent
+                    .id(step)
+                    .transition(stepTransition)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(30)
             }
@@ -41,13 +38,13 @@ struct OnboardingView: View {
 
             HStack {
                 if step > 0 {
-                    Button("Back") { step -= 1 }
+                    Button("Back") { changeStep(to: step - 1) }
                 }
 
                 Spacer()
 
                 if step < 2 {
-                    Button("Continue") { step += 1 }
+                    Button("Continue") { changeStep(to: step + 1) }
                         .buttonStyle(.borderedProminent)
                 } else {
                     Button("Finish setup") {
@@ -60,6 +57,29 @@ struct OnboardingView: View {
             .padding(18)
         }
         .frame(width: 520, height: 520)
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch step {
+        case 0: welcomeStep
+        case 1: providersStep
+        default: overlayStep
+        }
+    }
+
+    private var stepTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96))
+    }
+
+    private var stepAnimation: Animation {
+        reduceMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.reveal
+    }
+
+    private func changeStep(to nextStep: Int) {
+        withAnimation(stepAnimation) {
+            step = nextStep
+        }
     }
 
     private var welcomeStep: some View {
