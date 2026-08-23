@@ -23,4 +23,6 @@
 3. 로컬 테스트
    - `brew update`
    - `brew upgrade cc-overlay` 또는 신규 설치 `brew install cc-overlay`
-   - `brew services restart cc-overlay`
+   - 설치된 `cc-overlay` 앱을 직접 열어 실행을 확인한다. 현재 버전은 Homebrew 백그라운드 서비스를 설치하지 않으므로 `brew services restart cc-overlay`를 실행하지 않는다.
+
+> 과거 릴리스 계획 보정: Homebrew service를 통한 재시작은 v0.10.6에서 폐기됐다. 자동 실행은 앱의 **Launch at login** 설정으로 관리한다.

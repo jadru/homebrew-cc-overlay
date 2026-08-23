@@ -1,3 +1,22 @@
+# v0.15.0
+
+## Companion-first Overlay
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Companion-first desktop overlay** — Centers the floating experience on the companion while keeping usage as a compact, readable status rail.
+- **Deliberate interaction controls** — Hover for a small response, click to collect a treat, and drag the overlay without accidentally rewarding a drag. The window settles back inside the visible screen area.
+- **Reduced-motion support** — Companion feedback, onboarding transitions, and the overlay respect macOS Reduce Motion.
+- **Simpler Codex signal** — Uses the standard local Codex home for companion progression and removes the previous multi-profile `CODEX_HOME` selection flow. Existing local work is still never backfilled as a reward.
+
+### Update note
+
+Current releases do not use a Homebrew background service. Update with `brew upgrade cc-overlay`; enable **Launch at login** in the app if you want automatic startup.
+
+---
+
 # v0.14.2
 
 ## Reliable Codex Companion Token Progress
@@ -283,6 +302,8 @@
 - Added `AppConstants.version`, `AppConstants.githubRepo`, `AppConstants.updateCheckInterval` constants
 - Added `AppSettings.autoUpdateEnabled` (Bool) and `AppSettings.lastUpdateCheck` (Date?) with UserDefaults backing
 - New `UpdateService` (`@Observable @MainActor`) — GitHub API check, semantic version comparison, brew update/upgrade via `/bin/bash -l -c`, restart via `brew services restart`
+
+> Historical note: the Homebrew service path above was retired in v0.10.6. Current releases do not install or restart a Homebrew service; use the app's verified update handoff and **Launch at login** instead.
 - New `UpdateBannerView` — Follows `ErrorBannerView` glass-effect pattern with blue/green tints
 - Updated `MenuBarLabel`, `MenuBarView`, `SettingsView`, `CCOverlayApp`, `AppDelegate`, `WindowCoordinator` to wire `UpdateService` through the app lifecycle
 - Added "Inject version" step to `.github/workflows/release.yml`
