@@ -1,3 +1,22 @@
+# v0.15.0
+
+## 컴패니언 중심 오버레이
+
+> [English](RELEASE_NOTES.md)
+
+### 주요 변경
+
+- **컴패니언 중심 데스크톱 오버레이** — 플로팅 화면의 중심을 컴패니언에 두고, 사용량은 작고 읽기 쉬운 상태 레일로 유지합니다.
+- **의도에 맞는 상호작용** — 호버하면 작은 반응을 보고, 클릭하면 간식을 모으며, 드래그 중에는 보상이 잘못 발생하지 않습니다. 창은 드래그 후에도 보이는 화면 안으로 다시 정렬됩니다.
+- **동작 줄이기 지원** — 컴패니언 피드백, 온보딩 전환, 오버레이가 macOS의 동작 줄이기 설정을 따릅니다.
+- **단순해진 Codex 신호** — 표준 로컬 Codex 홈을 컴패니언 진행도에 사용하고, 이전의 다중 프로필 `CODEX_HOME` 선택 흐름을 제거했습니다. 기존 로컬 작업을 보상으로 소급 반영하지 않는 원칙은 그대로입니다.
+
+### 업데이트 안내
+
+현재 릴리즈는 Homebrew 백그라운드 서비스를 사용하지 않습니다. `brew upgrade cc-overlay`로 업데이트하고, 자동 실행이 필요하면 앱에서 **Launch at login**을 켜세요.
+
+---
+
 # v0.14.2
 
 ## 안정적인 Codex 컴패니언 토큰 진행도
@@ -283,6 +302,8 @@
 - `AppConstants.version`, `AppConstants.githubRepo`, `AppConstants.updateCheckInterval` 상수 추가
 - `AppSettings.autoUpdateEnabled` (Bool) 및 `AppSettings.lastUpdateCheck` (Date?) UserDefaults 지원 추가
 - `UpdateService` 신규 추가 (`@Observable @MainActor`) — GitHub API 체크, 시맨틱 버전 비교, `/bin/bash -l -c`로 brew 업데이트/업그레이드, `brew services restart`로 재시작
+
+> 과거 안내: 위 Homebrew service 경로는 v0.10.6에서 폐기되었습니다. 현재 릴리즈는 Homebrew 서비스를 설치하거나 재시작하지 않으며, 앱의 검증된 업데이트 전환과 **Launch at login**을 사용합니다.
 - `UpdateBannerView` 신규 추가 — `ErrorBannerView`의 glass-effect 패턴을 파란색/초록색 틴트로 적용
 - `MenuBarLabel`, `MenuBarView`, `SettingsView`, `CCOverlayApp`, `AppDelegate`, `WindowCoordinator`에 `UpdateService` 연결
 - `.github/workflows/release.yml`에 "Inject version" 스텝 추가
