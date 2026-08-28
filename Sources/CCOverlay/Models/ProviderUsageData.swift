@@ -23,6 +23,8 @@ struct ProviderUsageData: Sendable {
 
     // Token breakdown (optional)
     let tokenBreakdown: TokenBreakdownData?
+    /// A provider-level token total when a full input/output breakdown is unavailable.
+    let tokenCount: Int?
 
     // Enterprise quota (Claude-specific, nil for Codex)
     let enterpriseQuota: EnterpriseQuota?
@@ -52,6 +54,7 @@ struct ProviderUsageData: Sendable {
         planName: String? = nil,
         estimatedCost: CostSummary? = nil,
         tokenBreakdown: TokenBreakdownData? = nil,
+        tokenCount: Int? = nil,
         enterpriseQuota: EnterpriseQuota? = nil,
         creditsInfo: CreditsDisplayInfo? = nil,
         detailedRateWindows: [DetailedRateWindow]? = nil,
@@ -72,6 +75,7 @@ struct ProviderUsageData: Sendable {
         self.planName = planName
         self.estimatedCost = estimatedCost
         self.tokenBreakdown = tokenBreakdown
+        self.tokenCount = tokenCount.map { max($0, 0) }
         self.enterpriseQuota = enterpriseQuota
         self.creditsInfo = creditsInfo
         self.detailedRateWindows = detailedRateWindows

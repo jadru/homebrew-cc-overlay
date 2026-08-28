@@ -1,34 +1,22 @@
-# v0.15.0
+# v1.0.0
 
-## Companion-first Overlay
+## System Capacity Overlay
 
 > [한국어](RELEASE_NOTES_KO.md)
 
 ### Highlights
 
-- **Companion-first desktop overlay** — Centers the floating experience on the companion while keeping usage as a compact, readable status rail.
-- **Deliberate interaction controls** — Hover for a small response, click to collect a treat, and drag the overlay without accidentally rewarding a drag. The window settles back inside the visible screen area.
-- **Reduced-motion support** — Companion feedback, onboarding transitions, and the overlay respect macOS Reduce Motion.
-- **Simpler Codex signal** — Uses the standard local Codex home for companion progression and removes the previous multi-profile `CODEX_HOME` selection flow. Existing local work is still never backfilled as a reward.
+- **One capacity surface** — The floating bar now shows CPU, RAM, network, SSD free space, and the tightest available Codex or Claude Code limit. It remains useful with no configured provider.
+- **Focused details and on-demand dashboard** — Click a compact-bar metric for its details; use the trailing dashboard button for storage, battery when present, thermal state, 60-minute CPU and memory trends, and the top three accessible processes by CPU or RAM.
+- **AI headroom trend** — The on-demand dashboard plots up to seven days of locally stored Codex and Claude Code headroom history.
+- **Local-only collection** — System data refreshes every two seconds, or every five seconds in Low Power Mode, and remains only in a 60-minute in-memory buffer.
+- **Focused alerts** — Existing AI threshold alerts remain. Memory pressure and serious thermal state alert once per incident and re-arm after normal recovery.
+- **Focused presentation** — New defaults show the overlay in every app; developer-tools-only remains available in Settings. Click-through, drag bounds, full-screen behavior, and Reduce Motion support remain.
+- **Migration** — Existing provider, update, login-start, and shortcut preferences are retained. The migration removes the retired experience's local data and sets the system monitor to the new default.
 
 ### Update note
 
 Current releases do not use a Homebrew background service. Update with `brew upgrade cc-overlay`; enable **Launch at login** in the app if you want automatic startup.
-
----
-
-# v0.14.2
-
-## Reliable Codex Companion Token Progress
-
-> [한국어](RELEASE_NOTES_KO.md)
-
-### Highlights
-
-- **Local Codex token fallback** — Keeps companion progression moving from recent local Codex rollout token counters when a Codex app-server build cannot return token activity.
-- **No retroactive rewards** — Uses the first observed local total only as a launch baseline, then awards tokens only for new work while CC-Overlay is running.
-- **Protocol-compatible app-server requests** — Sends parameterless Codex app-server requests in their schema form and waits for initialization before account requests.
-- **Bounded journal scanning** — Reads recently active journals incrementally, without repeatedly scanning the full Codex archive.
 
 ---
 

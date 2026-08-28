@@ -163,6 +163,10 @@ enum AppConstants {
     }()
 
     static let defaultRefreshInterval: TimeInterval = 60
+    static let systemMetricsInterval: TimeInterval = 2
+    static let systemMetricsLowPowerInterval: TimeInterval = 5
+    static let processMetricsInterval: TimeInterval = 5
+    static let systemMetricsHistoryInterval: TimeInterval = 60 * 60
     static let fiveHourWindowSeconds: TimeInterval = 5 * 60 * 60
     static let sessionScanInterval: TimeInterval = 5
     static let claudeTranscriptLookback: TimeInterval = 24 * 60 * 60

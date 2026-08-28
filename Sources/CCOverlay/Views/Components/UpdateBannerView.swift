@@ -3,6 +3,7 @@ import SwiftUI
 struct UpdateBannerView: View {
     let updateService: UpdateService
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
 
     var body: some View {
@@ -19,6 +20,24 @@ struct UpdateBannerView: View {
             default:
                 EmptyView()
             }
+        }
+        .id(updateStateID)
+        .transition(BannerPresentationMotion.transition(reduceMotion: reduceMotion))
+        .animation(
+            BannerPresentationMotion.animation(reduceMotion: reduceMotion),
+            value: updateService.updateState
+        )
+    }
+
+    private var updateStateID: String {
+        switch updateService.updateState {
+        case .idle: "idle"
+        case .checking: "checking"
+        case .upToDate: "upToDate"
+        case .updateAvailable(let version): "updateAvailable-\(version)"
+        case .installing: "installing"
+        case .readyToRestart(let version): "readyToRestart-\(version)"
+        case .error(let message): "error-\(message)"
         }
     }
 

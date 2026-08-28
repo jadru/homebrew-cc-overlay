@@ -3,6 +3,8 @@ import Observation
 
 @Observable
 final class AppSettings {
+    @ObservationIgnored
+    private let userDefaults: UserDefaults
 
     // MARK: - UserDefaults Keys
 
@@ -19,13 +21,15 @@ final class AppSettings {
         static let launchAtLoginRegistrationVersion = "launchAtLoginRegistrationVersion"
         static let costAlertEnabled = "costAlertEnabled"
         static let globalHotkeyEnabled = "globalHotkeyEnabled"
-        static let pillAlwaysExpanded = "pillAlwaysExpanded"
+        static let legacyAlwaysExpanded = "pillAlwaysExpanded"
         static let pillClickThrough = "pillClickThrough"
         static let overlayPresentation = "overlayPresentation"
-        static let overlayPresentationMigration = "overlayPresentationMigration"
-        static let gardenBackground = "gardenBackground"
-        static let companionBackground = "companionBackground"
-        static let companionAlwaysVisible = "companionAlwaysVisible"
+        static let overlayVisibilityMode = "overlayVisibilityMode"
+        static let systemMonitorMigration = "systemMonitorMigration"
+        static let legacyOverlayPresentationMigration = "overlayPresentationMigration"
+        static let legacyGardenBackground = "gardenBackground"
+        static let legacyRetiredBackground = "companionBackground"
+        static let legacyRetiredVisibility = "companionAlwaysVisible"
         static let autoUpdateEnabled = "autoUpdateEnabled"
         static let lastUpdateCheck = "lastUpdateCheck"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
@@ -39,18 +43,18 @@ final class AppSettings {
     // MARK: - General
 
     var showOverlay: Bool {
-        get { access(keyPath: \.showOverlay); return UserDefaults.standard.bool(forKey: Key.showOverlay) }
-        set { withMutation(keyPath: \.showOverlay) { UserDefaults.standard.set(newValue, forKey: Key.showOverlay) } }
+        get { access(keyPath: \.showOverlay); return userDefaults.bool(forKey: Key.showOverlay) }
+        set { withMutation(keyPath: \.showOverlay) { userDefaults.set(newValue, forKey: Key.showOverlay) } }
     }
 
     var debugFlowLogging: Bool {
         get {
             access(keyPath: \.debugFlowLogging)
-            return UserDefaults.standard.object(forKey: Key.debugFlowLogging) as? Bool ?? false
+            return userDefaults.object(forKey: Key.debugFlowLogging) as? Bool ?? false
         }
         set {
             withMutation(keyPath: \.debugFlowLogging) {
-                UserDefaults.standard.set(newValue, forKey: Key.debugFlowLogging)
+                userDefaults.set(newValue, forKey: Key.debugFlowLogging)
             }
         }
     }
@@ -58,49 +62,49 @@ final class AppSettings {
     var refreshInterval: TimeInterval {
         get {
             access(keyPath: \.refreshInterval)
-            let val = UserDefaults.standard.double(forKey: Key.refreshInterval)
+            let val = userDefaults.double(forKey: Key.refreshInterval)
             return val == 0 ? 60.0 : val
         }
-        set { withMutation(keyPath: \.refreshInterval) { UserDefaults.standard.set(newValue, forKey: Key.refreshInterval) } }
+        set { withMutation(keyPath: \.refreshInterval) { userDefaults.set(newValue, forKey: Key.refreshInterval) } }
     }
 
     var planTier: PlanTier {
         get {
             access(keyPath: \.planTier)
-            let raw = UserDefaults.standard.string(forKey: Key.planTier) ?? PlanTier.pro.rawValue
+            let raw = userDefaults.string(forKey: Key.planTier) ?? PlanTier.pro.rawValue
             return PlanTier(rawValue: raw) ?? .pro
         }
-        set { withMutation(keyPath: \.planTier) { UserDefaults.standard.set(newValue.rawValue, forKey: Key.planTier) } }
+        set { withMutation(keyPath: \.planTier) { userDefaults.set(newValue.rawValue, forKey: Key.planTier) } }
     }
 
     var customWeightedLimit: Double {
         get {
             access(keyPath: \.customWeightedLimit)
-            let val = UserDefaults.standard.double(forKey: Key.customWeightedLimit)
+            let val = userDefaults.double(forKey: Key.customWeightedLimit)
             return val == 0 ? 5_000_000 : val
         }
-        set { withMutation(keyPath: \.customWeightedLimit) { UserDefaults.standard.set(newValue, forKey: Key.customWeightedLimit) } }
+        set { withMutation(keyPath: \.customWeightedLimit) { userDefaults.set(newValue, forKey: Key.customWeightedLimit) } }
     }
 
     /// Claude OAuth access is opt-in because its Keychain item may require user authorization.
     var claudeOAuthEnabled: Bool {
-        get { access(keyPath: \.claudeOAuthEnabled); return UserDefaults.standard.bool(forKey: Key.claudeOAuthEnabled) }
-        set { withMutation(keyPath: \.claudeOAuthEnabled) { UserDefaults.standard.set(newValue, forKey: Key.claudeOAuthEnabled) } }
+        get { access(keyPath: \.claudeOAuthEnabled); return userDefaults.bool(forKey: Key.claudeOAuthEnabled) }
+        set { withMutation(keyPath: \.claudeOAuthEnabled) { userDefaults.set(newValue, forKey: Key.claudeOAuthEnabled) } }
     }
 
     var launchAtLogin: Bool {
-        get { access(keyPath: \.launchAtLogin); return UserDefaults.standard.bool(forKey: Key.launchAtLogin) }
-        set { withMutation(keyPath: \.launchAtLogin) { UserDefaults.standard.set(newValue, forKey: Key.launchAtLogin) } }
+        get { access(keyPath: \.launchAtLogin); return userDefaults.bool(forKey: Key.launchAtLogin) }
+        set { withMutation(keyPath: \.launchAtLogin) { userDefaults.set(newValue, forKey: Key.launchAtLogin) } }
     }
 
     var launchAtLoginRegistrationVersion: String? {
         get {
             access(keyPath: \AppSettings.launchAtLoginRegistrationVersion)
-            return UserDefaults.standard.string(forKey: Key.launchAtLoginRegistrationVersion)
+            return userDefaults.string(forKey: Key.launchAtLoginRegistrationVersion)
         }
         set {
             withMutation(keyPath: \AppSettings.launchAtLoginRegistrationVersion) {
-                UserDefaults.standard.set(newValue, forKey: Key.launchAtLoginRegistrationVersion)
+                userDefaults.set(newValue, forKey: Key.launchAtLoginRegistrationVersion)
             }
         }
     }
@@ -108,22 +112,22 @@ final class AppSettings {
     // MARK: - Alert Settings
 
     var costAlertEnabled: Bool {
-        get { access(keyPath: \.costAlertEnabled); return UserDefaults.standard.bool(forKey: Key.costAlertEnabled) }
-        set { withMutation(keyPath: \.costAlertEnabled) { UserDefaults.standard.set(newValue, forKey: Key.costAlertEnabled) } }
+        get { access(keyPath: \.costAlertEnabled); return userDefaults.bool(forKey: Key.costAlertEnabled) }
+        set { withMutation(keyPath: \.costAlertEnabled) { userDefaults.set(newValue, forKey: Key.costAlertEnabled) } }
     }
 
     var alertWarningThreshold: Double {
         get {
             access(keyPath: \.alertWarningThreshold)
-            let val = UserDefaults.standard.double(forKey: Key.alertWarningThreshold)
+            let val = userDefaults.double(forKey: Key.alertWarningThreshold)
             return val == 0 ? AppConstants.defaultWarningThresholdPct : val
         }
         set {
             withMutation(keyPath: \.alertWarningThreshold) {
                 let clamped = min(max(newValue, 1), 99)
-                UserDefaults.standard.set(clamped, forKey: Key.alertWarningThreshold)
+                userDefaults.set(clamped, forKey: Key.alertWarningThreshold)
                 if clamped >= alertCriticalThreshold {
-                    UserDefaults.standard.set(min(clamped + 1, 100), forKey: Key.alertCriticalThreshold)
+                    userDefaults.set(min(clamped + 1, 100), forKey: Key.alertCriticalThreshold)
                 }
             }
         }
@@ -132,15 +136,15 @@ final class AppSettings {
     var alertCriticalThreshold: Double {
         get {
             access(keyPath: \.alertCriticalThreshold)
-            let val = UserDefaults.standard.double(forKey: Key.alertCriticalThreshold)
+            let val = userDefaults.double(forKey: Key.alertCriticalThreshold)
             return val == 0 ? AppConstants.defaultCriticalThresholdPct : val
         }
         set {
             withMutation(keyPath: \.alertCriticalThreshold) {
                 let clamped = min(max(newValue, 1), 100)
-                UserDefaults.standard.set(clamped, forKey: Key.alertCriticalThreshold)
+                userDefaults.set(clamped, forKey: Key.alertCriticalThreshold)
                 if clamped <= alertWarningThreshold {
-                    UserDefaults.standard.set(max(clamped - 1, 1), forKey: Key.alertWarningThreshold)
+                    userDefaults.set(max(clamped - 1, 1), forKey: Key.alertWarningThreshold)
                 }
             }
         }
@@ -149,8 +153,8 @@ final class AppSettings {
     // MARK: - Hotkey Settings
 
     var globalHotkeyEnabled: Bool {
-        get { access(keyPath: \.globalHotkeyEnabled); return UserDefaults.standard.bool(forKey: Key.globalHotkeyEnabled) }
-        set { withMutation(keyPath: \.globalHotkeyEnabled) { UserDefaults.standard.set(newValue, forKey: Key.globalHotkeyEnabled) } }
+        get { access(keyPath: \.globalHotkeyEnabled); return userDefaults.bool(forKey: Key.globalHotkeyEnabled) }
+        set { withMutation(keyPath: \.globalHotkeyEnabled) { userDefaults.set(newValue, forKey: Key.globalHotkeyEnabled) } }
     }
 
     // MARK: - Overlay Settings
@@ -158,52 +162,31 @@ final class AppSettings {
     var overlayPresentation: OverlayPresentation {
         get {
             access(keyPath: \.overlayPresentation)
-            let rawValue = UserDefaults.standard.string(forKey: Key.overlayPresentation)
-            return OverlayPresentation.fromStoredValue(rawValue)
+            return .systemMonitor
         }
         set {
             withMutation(keyPath: \.overlayPresentation) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: Key.overlayPresentation)
+                userDefaults.set(newValue.rawValue, forKey: Key.overlayPresentation)
             }
         }
     }
 
-    var pillAlwaysExpanded: Bool {
-        get { access(keyPath: \.pillAlwaysExpanded); return UserDefaults.standard.bool(forKey: Key.pillAlwaysExpanded) }
-        set { withMutation(keyPath: \.pillAlwaysExpanded) { UserDefaults.standard.set(newValue, forKey: Key.pillAlwaysExpanded) } }
+    var overlayVisibilityMode: OverlayVisibilityMode {
+        get {
+            access(keyPath: \.overlayVisibilityMode)
+            let rawValue = userDefaults.string(forKey: Key.overlayVisibilityMode)
+            return OverlayVisibilityMode(rawValue: rawValue ?? "") ?? .always
+        }
+        set {
+            withMutation(keyPath: \.overlayVisibilityMode) {
+                userDefaults.set(newValue.rawValue, forKey: Key.overlayVisibilityMode)
+            }
+        }
     }
 
     var pillClickThrough: Bool {
-        get { access(keyPath: \.pillClickThrough); return UserDefaults.standard.bool(forKey: Key.pillClickThrough) }
-        set { withMutation(keyPath: \.pillClickThrough) { UserDefaults.standard.set(newValue, forKey: Key.pillClickThrough) } }
-    }
-
-    var companionBackground: CompanionBackground {
-        get {
-            access(keyPath: \.companionBackground)
-            let rawValue = UserDefaults.standard.string(forKey: Key.companionBackground)
-                ?? UserDefaults.standard.string(forKey: Key.gardenBackground)
-            return CompanionBackground(rawValue: rawValue ?? "") ?? .transparent
-        }
-        set {
-            withMutation(keyPath: \.companionBackground) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: Key.companionBackground)
-            }
-        }
-    }
-
-    /// Keeps the companion visible outside recognised developer applications.
-    /// The user can still hide the overlay with the main Show companion toggle.
-    var companionAlwaysVisible: Bool {
-        get {
-            access(keyPath: \.companionAlwaysVisible)
-            return UserDefaults.standard.bool(forKey: Key.companionAlwaysVisible)
-        }
-        set {
-            withMutation(keyPath: \.companionAlwaysVisible) {
-                UserDefaults.standard.set(newValue, forKey: Key.companionAlwaysVisible)
-            }
-        }
+        get { access(keyPath: \.pillClickThrough); return userDefaults.bool(forKey: Key.pillClickThrough) }
+        set { withMutation(keyPath: \.pillClickThrough) { userDefaults.set(newValue, forKey: Key.pillClickThrough) } }
     }
 
     /// Weighted cost limit for the current plan.
@@ -216,17 +199,17 @@ final class AppSettings {
     var autoUpdateEnabled: Bool {
         get {
             access(keyPath: \.autoUpdateEnabled)
-            return UserDefaults.standard.object(forKey: Key.autoUpdateEnabled) as? Bool ?? true
+            return userDefaults.object(forKey: Key.autoUpdateEnabled) as? Bool ?? true
         }
-        set { withMutation(keyPath: \.autoUpdateEnabled) { UserDefaults.standard.set(newValue, forKey: Key.autoUpdateEnabled) } }
+        set { withMutation(keyPath: \.autoUpdateEnabled) { userDefaults.set(newValue, forKey: Key.autoUpdateEnabled) } }
     }
 
     var lastUpdateCheck: Date? {
         get {
             access(keyPath: \.lastUpdateCheck)
-            return UserDefaults.standard.object(forKey: Key.lastUpdateCheck) as? Date
+            return userDefaults.object(forKey: Key.lastUpdateCheck) as? Date
         }
-        set { withMutation(keyPath: \.lastUpdateCheck) { UserDefaults.standard.set(newValue, forKey: Key.lastUpdateCheck) } }
+        set { withMutation(keyPath: \.lastUpdateCheck) { userDefaults.set(newValue, forKey: Key.lastUpdateCheck) } }
     }
 
     // MARK: - Activation and Onboarding
@@ -234,11 +217,11 @@ final class AppSettings {
     var hasCompletedOnboarding: Bool {
         get {
             access(keyPath: \.hasCompletedOnboarding)
-            return UserDefaults.standard.bool(forKey: Key.hasCompletedOnboarding)
+            return userDefaults.bool(forKey: Key.hasCompletedOnboarding)
         }
         set {
             withMutation(keyPath: \.hasCompletedOnboarding) {
-                UserDefaults.standard.set(newValue, forKey: Key.hasCompletedOnboarding)
+                userDefaults.set(newValue, forKey: Key.hasCompletedOnboarding)
             }
         }
     }
@@ -246,11 +229,11 @@ final class AppSettings {
     var firstLaunchAt: Date? {
         get {
             access(keyPath: \.firstLaunchAt)
-            return UserDefaults.standard.object(forKey: Key.firstLaunchAt) as? Date
+            return userDefaults.object(forKey: Key.firstLaunchAt) as? Date
         }
         set {
             withMutation(keyPath: \.firstLaunchAt) {
-                UserDefaults.standard.set(newValue, forKey: Key.firstLaunchAt)
+                userDefaults.set(newValue, forKey: Key.firstLaunchAt)
             }
         }
     }
@@ -258,11 +241,11 @@ final class AppSettings {
     var firstUsageAt: Date? {
         get {
             access(keyPath: \.firstUsageAt)
-            return UserDefaults.standard.object(forKey: Key.firstUsageAt) as? Date
+            return userDefaults.object(forKey: Key.firstUsageAt) as? Date
         }
         set {
             withMutation(keyPath: \.firstUsageAt) {
-                UserDefaults.standard.set(newValue, forKey: Key.firstUsageAt)
+                userDefaults.set(newValue, forKey: Key.firstUsageAt)
             }
         }
     }
@@ -275,12 +258,12 @@ final class AppSettings {
     var preferredTerminal: PreferredTerminal {
         get {
             access(keyPath: \.preferredTerminal)
-            let rawValue = UserDefaults.standard.string(forKey: Key.preferredTerminal)
+            let rawValue = userDefaults.string(forKey: Key.preferredTerminal)
             return PreferredTerminal(rawValue: rawValue ?? "") ?? .terminal
         }
         set {
             withMutation(keyPath: \.preferredTerminal) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: Key.preferredTerminal)
+                userDefaults.set(newValue.rawValue, forKey: Key.preferredTerminal)
             }
         }
     }
@@ -288,12 +271,12 @@ final class AppSettings {
     var providerPriority: ProviderPriority {
         get {
             access(keyPath: \.providerPriority)
-            let rawValue = UserDefaults.standard.string(forKey: Key.providerPriority)
+            let rawValue = userDefaults.string(forKey: Key.providerPriority)
             return ProviderPriority(rawValue: rawValue ?? "") ?? .codexFirst
         }
         set {
             withMutation(keyPath: \.providerPriority) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: Key.providerPriority)
+                userDefaults.set(newValue.rawValue, forKey: Key.providerPriority)
             }
         }
     }
@@ -301,18 +284,18 @@ final class AppSettings {
     var fullResetPolicy: FullResetPolicy {
         get {
             access(keyPath: \.fullResetPolicy)
-            let rawValue = UserDefaults.standard.string(forKey: Key.fullResetPolicy)
+            let rawValue = userDefaults.string(forKey: Key.fullResetPolicy)
             return FullResetPolicy(rawValue: rawValue ?? "") ?? .balanced
         }
         set {
             withMutation(keyPath: \.fullResetPolicy) {
-                UserDefaults.standard.set(newValue.rawValue, forKey: Key.fullResetPolicy)
+                userDefaults.set(newValue.rawValue, forKey: Key.fullResetPolicy)
             }
         }
     }
 
-    init() {
-        let defaults = UserDefaults.standard
+    init(defaults: UserDefaults = .standard) {
+        self.userDefaults = defaults
         let isExistingInstall = defaults.object(forKey: Key.showOverlay) != nil
             || defaults.object(forKey: Key.lastUpdateCheck) != nil
 
@@ -322,14 +305,19 @@ final class AppSettings {
         if defaults.object(forKey: Key.firstLaunchAt) == nil {
             defaults.set(Date(), forKey: Key.firstLaunchAt)
         }
-        if defaults.string(forKey: Key.overlayPresentationMigration) != "patchCompanionV2" {
-            // Patch replaces the previous companion for every existing install;
-            // the classic pill remains selectable in Settings.
-            defaults.set(OverlayPresentation.companion.rawValue, forKey: Key.overlayPresentation)
-            defaults.set("patchCompanionV2", forKey: Key.overlayPresentationMigration)
+        if defaults.string(forKey: Key.systemMonitorMigration) != "systemMonitorV1" {
+            defaults.removeObject(forKey: "patchProgress.v1")
+            defaults.removeObject(forKey: Key.legacyGardenBackground)
+            defaults.removeObject(forKey: Key.legacyRetiredBackground)
+            defaults.removeObject(forKey: Key.legacyRetiredVisibility)
+            defaults.removeObject(forKey: Key.legacyOverlayPresentationMigration)
+            defaults.set(OverlayPresentation.systemMonitor.rawValue, forKey: Key.overlayPresentation)
+            defaults.set(OverlayVisibilityMode.always.rawValue, forKey: Key.overlayVisibilityMode)
+            defaults.set("systemMonitorV1", forKey: Key.systemMonitorMigration)
         }
+        defaults.removeObject(forKey: Key.legacyAlwaysExpanded)
 
-        UserDefaults.standard.register(defaults: [
+        userDefaults.register(defaults: [
             Key.showOverlay: true,
             Key.refreshInterval: 60.0,
             Key.debugFlowLogging: false,
@@ -338,11 +326,9 @@ final class AppSettings {
             Key.alertWarningThreshold: AppConstants.defaultWarningThresholdPct,
             Key.alertCriticalThreshold: AppConstants.defaultCriticalThresholdPct,
             Key.globalHotkeyEnabled: true,
-            Key.pillAlwaysExpanded: false,
             Key.pillClickThrough: false,
-            Key.overlayPresentation: OverlayPresentation.companion.rawValue,
-            Key.companionBackground: CompanionBackground.transparent.rawValue,
-            Key.companionAlwaysVisible: false,
+            Key.overlayPresentation: OverlayPresentation.systemMonitor.rawValue,
+            Key.overlayVisibilityMode: OverlayVisibilityMode.always.rawValue,
             Key.autoUpdateEnabled: true,
             Key.hasCompletedOnboarding: false,
             Key.preferredTerminal: PreferredTerminal.terminal.rawValue,

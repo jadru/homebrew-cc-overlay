@@ -22,7 +22,7 @@ struct GaugeCardView: View {
 
     enum Size {
         case compact   // For ClaudeUsagePanelView (68x68)
-        case standard  // For MenuBarView (76x76)
+        case standard  // For DashboardPanelView (76x76)
 
         var gaugeSize: CGFloat {
             switch self {

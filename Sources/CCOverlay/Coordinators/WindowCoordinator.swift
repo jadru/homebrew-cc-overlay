@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Coordinates the first-run guide. Day-to-day settings use SwiftUI's native
-/// Settings scene so they remain usable after the menu-bar panel closes.
+/// Settings scene so they remain usable after the dashboard panel closes.
 @MainActor
 final class WindowCoordinator {
     private var onboardingWindow: NSWindow?
@@ -10,7 +10,6 @@ final class WindowCoordinator {
     func showOnboarding(
         settings: AppSettings,
         multiService: MultiProviderUsageService,
-        patchProgress: PatchProgressStore,
         onComplete: @escaping () -> Void
     ) {
         if let onboardingWindow {
@@ -22,7 +21,6 @@ final class WindowCoordinator {
         let view = OnboardingView(
             settings: settings,
             multiService: multiService,
-            patchProgress: patchProgress,
             onComplete: { [weak self] in
                 self?.closeOnboarding()
                 onComplete()

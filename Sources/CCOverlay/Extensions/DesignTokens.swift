@@ -19,23 +19,29 @@ enum DesignTokens {
     enum Layout {
         static let sidebarWidth: CGFloat = 52
         static let sidebarButton: CGFloat = 40
-        static let menuBarPanelWidth: CGFloat = 420
-        static let menuBarPanelEmptyMinHeight: CGFloat = 220
-        static let menuBarPanelCompactMinHeight: CGFloat = 370
-        static let menuBarPanelMinHeight: CGFloat = 470
-        static let menuBarPanelMaxHeight: CGFloat = 620
-        static let expandedPillWidth: CGFloat = 300
+        static let dashboardPanelWidth: CGFloat = 420
         static let settingsWidth: CGFloat = 620
         static let settingsHeight: CGFloat = 620
     }
 
     enum Animation {
         static let press = SwiftUI.Animation.easeOut(duration: 0.12)
+        static let popoverContent = SwiftUI.Animation.easeOut(duration: 0.18)
         static let selection = SwiftUI.Animation.spring(response: 0.22, dampingFraction: 1)
         static let reveal = SwiftUI.Animation.spring(response: 0.28, dampingFraction: 1)
         static let reducedFeedback = SwiftUI.Animation.easeOut(duration: 0.12)
-        static let companionCelebration = SwiftUI.Animation.spring(response: 0.25, dampingFraction: 0.84)
-        static let companionNotification = SwiftUI.Animation.spring(response: 0.28, dampingFraction: 0.7)
-        static let companionDismiss = SwiftUI.Animation.easeOut(duration: 0.18)
+    }
+}
+
+enum BannerPresentationMotion {
+    static func transition(reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+    }
+
+    static func animation(reduceMotion: Bool) -> SwiftUI.Animation {
+        reduceMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.reveal
     }
 }

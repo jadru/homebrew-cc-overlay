@@ -146,7 +146,7 @@ final class UpdateService {
         await performCheck(presentsErrors: true)
     }
 
-    /// Install an update without depending on the PATH inherited by the menu bar app.
+    /// Install an update without depending on the PATH inherited by the accessory app.
     func installUpdate() {
         guard case .updateAvailable(let version) = updateState else { return }
         updateState = .installing

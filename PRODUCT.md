@@ -2,65 +2,44 @@
 
 ## Register
 
-Pet-first local developer companion
+Local-first system capacity overlay for AI-assisted macOS development.
 
 ## Users
 
-The initial ICP is a macOS developer who uses Codex regularly, sometimes keeps
-Claude Code available as a fallback, and does enough AI-assisted work to want a
-small sense of visible progress during a normal week. They want delight that
-does not take focus away from their editor. This is not yet a product for every
-developer or for team administrators.
+CC-Overlay serves an individual macOS developer who runs Codex and/or Claude Code, notices performance pressure during intensive work, and needs a fast answer to two questions: “Is my Mac ready for this run?” and “Which AI provider still has usable capacity?” It is not a team monitoring or fleet-management product.
 
-## Product Purpose
+## Product purpose
 
-CC-Overlay exists first to give a developer a companion they want to return to.
-Only newly observed developer-tool activity becomes durable companion progress:
-token milestones earn adoption tickets and unlock the roster, while optional
-clicks earn treats for a per-companion care loop. Headroom, reset, and provider
-signals are supporting guardrails—they keep the companion experience truthful
-and help a developer decide whether now is a calm time to continue.
+CC-Overlay makes system capacity and AI work capacity legible without opening a dashboard. The floating bar works independently of provider authentication, while local provider integrations add rate limits and reset information when available.
 
 ### Product hierarchy
 
-1. **Companion return:** Patch and the roster create a small, earned reason to
-   come back on another coding day.
-2. **Truthful progress:** earned progress is explainable, local, permanent, and
-   never manufactured by clicks or historical backfill.
-3. **Quiet guardrails:** usage status and recommendations protect flow without
-   becoming a second dashboard or pretending to know more than local evidence.
+1. **Immediate system clarity:** CPU, memory pressure, network, storage, power, and thermal state are visible at a glance.
+2. **Actionable AI capacity:** Codex and Claude Code headroom, resets, and pacing share the same surface as system conditions.
+3. **Trustworthy local behavior:** System metrics remain in memory only; provider access stays explicit and transparent.
+4. **Calm, controllable presentation:** The overlay is compact, optional, accessible, and stays out of the way of coding work.
 
 ### Validation hypotheses
 
 | Hypothesis | Evidence required before scaling |
 |---|---|
-| The companion earns repeat use | In a consented cohort, 25% of activated users return on three distinct days in week four. |
-| The guardrail preserves trust | Fewer than 10% of recorded “likely fits” runs end in a limit hit, with at least 30 comparable outcomes. |
-| The ICP is specific enough | 10 of 15 interviews describe the same weekly use case without being prompted by a feature list. |
-| Delight does not distract | Fewer than 2 of 10 interviewees ask to hide or reduce the companion after their first week. |
+| The compact bar answers a pre-run capacity question quickly | 12 of 15 target users can identify both system and AI constraint within 10 seconds. |
+| Combined capacity prevents unnecessary context switching | At least 8 of 15 target users report fewer separate checks of Activity Monitor and provider pages in a week. |
+| The default overlay stays respectful | Fewer than 2 of 10 target users change away from the default after a week because it blocks work. |
+| Local-only system collection earns trust | No participant expects their system metrics to leave the Mac after reading onboarding and Settings copy. |
 
-## Brand Personality
+## Brand personality
 
-Playful, pixel-crafted, considerate. The companion has collectible-game appeal
-without the overwhelming scale of a monster catalogue, while the surrounding
-status UI remains calm and trustworthy.
+Technical, calm, and precise. The visual language should feel like a well-made instrument panel: compact enough for daily use, clear enough under pressure, and never theatrical.
 
-## Anti-references
+## Design principles
 
-Avoid generic terrarium decoration, photorealistic assets, noisy casino-style
-reward loops, and visual effects that make a small desktop overlay flicker or
-compete with coding work.
+1. Show the constraint before the decoration.
+2. Keep system monitoring useful even when no AI provider is configured.
+3. Make unavailable or first-sample values explicit rather than guessed.
+4. Reserve alerts for actionable capacity risks.
+5. Respect pointer input, screen boundaries, full-screen apps, and Reduce Motion.
 
-## Design Principles
+## Accessibility and inclusion
 
-1. Make companion progress the primary moment; usage facts support it.
-2. Make earned progress explainable, permanent, and separate from clicking.
-3. Let one well-timed companion reaction validate an action.
-4. Treat pixel assets as a coherent, high-quality collection.
-5. Keep the overlay compact, optional, and respectful of editor space.
-
-## Accessibility & Inclusion
-
-Respect macOS Reduce Motion with short, non-moving feedback. Preserve clear
-textual state and never make animation the only indication that a reward or
-care action succeeded.
+Respect macOS Reduce Motion, preserve clear text labels for every visual state, and do not rely on color or animation alone to communicate a constrained system or provider limit.

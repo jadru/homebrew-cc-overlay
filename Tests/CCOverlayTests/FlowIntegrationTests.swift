@@ -11,7 +11,7 @@ final class TestFlowEventSink: DebugFlowEventSink {
     }
 }
 
-final class MockNotificationCenter: CostNotificationCenter {
+final class MockNotificationCenter: CapacityNotificationCenter {
     let initialStatus: UNAuthorizationStatus
     let shouldGrantOnRequest: Bool
     private(set) var requestedAuthorizationCount = 0
@@ -90,7 +90,7 @@ final class FlowIntegrationTests: XCTestCase {
         let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
         let delivered = expectation(description: "notification delivered")
         notificationCenter.onNotificationDelivered = { delivered.fulfill() }
-        let manager = CostAlertManager(notificationCenterProvider: {
+        let manager = CapacityAlertManager(notificationCenterProvider: {
             providerCallCount += 1
             return notificationCenter
         })
@@ -117,7 +117,7 @@ final class FlowIntegrationTests: XCTestCase {
         let delivered = expectation(description: "threshold notifications delivered")
         delivered.expectedFulfillmentCount = 2
         notificationCenter.onNotificationDelivered = { delivered.fulfill() }
-        let manager = CostAlertManager(notificationCenter: notificationCenter)
+        let manager = CapacityAlertManager(notificationCenter: notificationCenter)
         let settings = AppSettings()
         settings.costAlertEnabled = true
         settings.alertWarningThreshold = 70
@@ -140,6 +140,28 @@ final class FlowIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testAlertFlow_LabelsAndTracksThresholdsPerProvider() async throws {
+        let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
+        let delivered = expectation(description: "provider alerts delivered")
+        delivered.expectedFulfillmentCount = 2
+        notificationCenter.onNotificationDelivered = { delivered.fulfill() }
+        let manager = CapacityAlertManager(notificationCenter: notificationCenter)
+        let settings = AppSettings()
+        settings.costAlertEnabled = true
+        settings.alertWarningThreshold = 70
+        settings.alertCriticalThreshold = 90
+
+        manager.check(usedPercentage: 70, provider: .codex, settings: settings)
+        manager.check(usedPercentage: 70, provider: .claudeCode, settings: settings)
+
+        await fulfillment(of: [delivered], timeout: 1)
+        XCTAssertEqual(
+            Set(notificationCenter.deliveredRequests.map(\.content.title)),
+            ["Codex Usage Alert", "Claude Code Usage Alert"]
+        )
+    }
+
+    @MainActor
     func testAlertFlow_RequestAuthorizationWhenUnknownStatus() async {
         let notificationCenter = MockNotificationCenter(
             initialStatus: .notDetermined,
@@ -148,7 +170,7 @@ final class FlowIntegrationTests: XCTestCase {
         let delivered = expectation(description: "authorized notifications delivered")
         delivered.expectedFulfillmentCount = 2
         notificationCenter.onNotificationDelivered = { delivered.fulfill() }
-        let manager = CostAlertManager(notificationCenter: notificationCenter)
+        let manager = CapacityAlertManager(notificationCenter: notificationCenter)
         let settings = AppSettings()
         settings.costAlertEnabled = true
         settings.alertWarningThreshold = 70
@@ -166,7 +188,7 @@ final class FlowIntegrationTests: XCTestCase {
     @MainActor
     func testAlertFlow_DoesNotWarnWhenDisabled() {
         let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
-        let manager = CostAlertManager(notificationCenter: notificationCenter)
+        let manager = CapacityAlertManager(notificationCenter: notificationCenter)
         let settings = AppSettings()
         settings.costAlertEnabled = false
         settings.alertWarningThreshold = 70
@@ -180,11 +202,33 @@ final class FlowIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testAlertFlow_SystemAlertsAreDeduplicatedAndRearmedAfterRecovery() async {
+        let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
+        let delivered = expectation(description: "system notifications delivered")
+        delivered.expectedFulfillmentCount = 5
+        notificationCenter.onNotificationDelivered = { delivered.fulfill() }
+        let manager = CapacityAlertManager(notificationCenter: notificationCenter)
+
+        manager.checkSystem(sample: systemSample(pressure: .warning, thermal: .nominal))
+        manager.checkSystem(sample: systemSample(pressure: .warning, thermal: .nominal))
+        manager.checkSystem(sample: systemSample(pressure: .critical, thermal: .nominal))
+        manager.checkSystem(sample: systemSample(pressure: .normal, thermal: .nominal))
+        manager.checkSystem(sample: systemSample(pressure: .warning, thermal: .nominal))
+        manager.checkSystem(sample: systemSample(pressure: .normal, thermal: .serious))
+        manager.checkSystem(sample: systemSample(pressure: .normal, thermal: .serious))
+        manager.checkSystem(sample: systemSample(pressure: .normal, thermal: .fair))
+        manager.checkSystem(sample: systemSample(pressure: .normal, thermal: .serious))
+
+        await fulfillment(of: [delivered], timeout: 1)
+        XCTAssertEqual(notificationCenter.deliveredRequests.count, 5)
+    }
+
+    @MainActor
     func testAlertFlow_SchedulesProviderResetReminder() async throws {
         let notificationCenter = MockNotificationCenter(initialStatus: .authorized)
         let delivered = expectation(description: "reset reminder scheduled")
         notificationCenter.onNotificationDelivered = { delivered.fulfill() }
-        let manager = CostAlertManager(notificationCenter: notificationCenter)
+        let manager = CapacityAlertManager(notificationCenter: notificationCenter)
 
         manager.scheduleResetNotification(
             at: Date().addingTimeInterval(600),
@@ -218,7 +262,7 @@ final class FlowIntegrationTests: XCTestCase {
         )
     }
 
-    func testMenuBarAndOverlayDisplayStateByUsageCondition() {
+    func testDashboardAndOverlayDisplayStateByUsageCondition() {
         let now = Date()
         let usageMap: [CLIProvider: ProviderUsageData] = [
             .claudeCode: ProviderUsageData(
@@ -263,24 +307,26 @@ final class FlowIntegrationTests: XCTestCase {
         XCTAssertTrue(hasDualProviders)
     }
 
-    @MainActor
-    func testMenuBarLabelHidesUnavailableProviders() {
-        let usageMap: [CLIProvider: ProviderUsageData] = [
-            .claudeCode: .empty(for: .claudeCode),
-            .codex: ProviderUsageData(
-                provider: .codex,
-                isAvailable: true,
-                usedPercentage: 93,
-                remainingPercentage: 7,
-                primaryWindowLabel: "Daily"
+    private func systemSample(
+        pressure: SystemMemoryPressure,
+        thermal: SystemThermalState
+    ) -> SystemMetricsSample {
+        SystemMetricsSample(
+            timestamp: Date(),
+            cpuUsagePercentage: nil,
+            memory: SystemMemoryMetrics(
+                usedBytes: 0,
+                totalBytes: 0,
+                swapUsedBytes: nil,
+                pressure: pressure
             ),
-        ]
-
-        let visibleProviders = MenuBarLabel.visibleProviders(
-            from: [.claudeCode, .codex],
-            usageData: { usageMap[$0] ?? .empty(for: $0) }
+            network: SystemNetworkMetrics(
+                receivedBytesPerSecond: nil,
+                sentBytesPerSecond: nil
+            ),
+            storage: SystemStorageMetrics(availableBytes: nil, totalBytes: nil),
+            battery: nil,
+            thermalState: thermal
         )
-
-        XCTAssertEqual(visibleProviders, [.codex])
     }
 }

@@ -57,7 +57,7 @@ function InstallCommand({ location = "page" }) {
 
 function Meter({ label, segments }) {
   return (
-    <div className="meter" aria-label={`${label} usage headroom`}>
+    <div className="meter" aria-label={`${label} capacity preview`}>
       <span className="meter__label">{label}</span>
       <span className="meter__track" aria-hidden="true">
         {segments.map((tone, index) => (
@@ -77,15 +77,15 @@ function StatusRail() {
         <span className="window-dot window-dot--green" />
       </div>
       <div className="status-reading">
-        <strong>72%</strong>
-        <span>left</span>
+        <strong>42%</strong>
+        <span>CPU</span>
       </div>
       <div className="status-reset">
-        <span>Resets in</span>
-        <strong>2h 18m</strong>
+        <span>Memory</span>
+        <strong>61%</strong>
       </div>
-      <Meter label="5h" segments={["on", "on", "on", "on", "on", "off", "off", "off", "off"]} />
-      <Meter label="7d" segments={["on", "on", "on", "on", "on", "warn", "danger", "off", "off"]} />
+      <Meter label="Network" segments={["on", "on", "on", "off", "off", "off", "off", "off", "off"]} />
+      <Meter label="Codex · 72% left" segments={["on", "on", "on", "on", "on", "on", "off", "off", "off"]} />
     </section>
   );
 }
@@ -119,10 +119,10 @@ export function App() {
           <CrosshairSimple className="hero-mark hero-mark--right" weight="thin" aria-hidden="true" />
 
           <div className="hero-copy">
-            <p className="eyebrow">YOUR CODING COMPANION / CC-OVRLY-01</p>
-            <h1>Let your work<br />wake them up.</h1>
+            <p className="eyebrow">SYSTEM + AI CAPACITY / CC-OVRLY-01</p>
+            <h1>Know your room<br />before the run.</h1>
             <div className="hero-action-block">
-              <p>Newly observed Codex work earns Patch progress.<br />Claude Code headroom stays a quiet guardrail.</p>
+              <p>One compact view for your Mac's live capacity<br />and Codex or Claude Code headroom.</p>
               <a
                 className="primary-button"
                 href={releaseUrl}
@@ -141,7 +141,7 @@ export function App() {
           <div className="hero-side-note" aria-hidden="true">
             <span>CC-OVERLAY</span>
             <span>//</span>
-            <span>EARNED PROGRESS</span>
+            <span>LOCAL CAPACITY</span>
             <span>CURRENT / RELEASES</span>
           </div>
 
@@ -157,38 +157,48 @@ export function App() {
 
         <section className="product-proof shell" aria-labelledby="product-proof-title">
           <div className="product-proof__copy">
-          <span className="section-kicker">01 / EARNED COMPANION</span>
-          <h2 id="product-proof-title">A companion,<br />not a counter.</h2>
-          <p>This is the actual floating overlay: Patch makes newly observed work tangible while reset time, freshness, and pace stay available without becoming another dashboard.</p>
+          <span className="section-kicker">01 / ONE CAPACITY SURFACE</span>
+          <h2 id="product-proof-title">System health,<br />AI headroom.</h2>
+          <p>The compact overlay stays useful with no provider connected. Expand it for a 60-minute system view, accessible top processes, and rate-limit detail when Codex or Claude Code is available.</p>
           </div>
-          <figure className="product-shot">
-            <img
-              src="/cc-overlay-product.png"
-              alt="CC-Overlay expanded above a coding workspace, showing 89 percent Codex weekly headroom and an on-pace signal"
-              width="600"
-              height="225"
-            />
-            <figcaption>ACTUAL CAPTURE / EARNED PROGRESS / LOCAL-FIRST</figcaption>
+          <figure className="product-shot system-preview">
+            <div className="system-preview__window" aria-label="Example expanded system capacity overlay">
+              <div className="system-preview__header">
+                <span>System capacity</span>
+                <span>Thermal · Normal</span>
+              </div>
+              <div className="system-preview__metrics">
+                <span><small>CPU</small><strong>42%</strong><em>overall load</em></span>
+                <span><small>Memory</small><strong>61%</strong><em>swap 1.2 GB</em></span>
+                <span><small>Network</small><strong>↓ 1.8 MB/s</strong><em>↑ 240 KB/s</em></span>
+                <span><small>Storage</small><strong>184 GB</strong><em>free space</em></span>
+              </div>
+              <div className="system-preview__usage">
+                <span>Codex</span><b>72% left</b><i aria-hidden="true" />
+                <span>Claude Code</span><b>48% left</b><i className="system-preview__usage--warning" aria-hidden="true" />
+              </div>
+            </div>
+            <figcaption>EXPANDED SYSTEM MONITOR / LOCAL-FIRST</figcaption>
           </figure>
         </section>
 
         <section className="story shell" aria-labelledby="story-title">
           <div className="section-title-block">
           <span className="section-kicker">02 / PURPOSE</span>
-          <h2 id="story-title">Why you<br />return</h2>
+          <h2 id="story-title">One glance.<br />Better calls.</h2>
           </div>
           <div className="story-copy">
             <article>
-              <h3>Your work earns it.</h3>
-              <p>Patch grows only from newly observed work. Clicks can care for a companion, but never manufacture progress.</p>
+              <h3>Mac capacity first.</h3>
+              <p>CPU, memory pressure, network, storage, power, and thermal state explain whether the machine is ready for the next demanding task.</p>
             </article>
             <article>
               <h3>Always nearby.</h3>
-              <p>A native macOS companion floats above your work and stays out of the editor until you want a small check-in.</p>
+              <p>A native macOS overlay stays compact above your work, opens focused details on demand, and can be limited to developer tools.</p>
             </article>
             <article>
-              <h3>Quiet when it matters.</h3>
-              <p>Codex and Claude Code headroom help you protect the next run, including when a banked Full Reset should be used before it expires.</p>
+              <h3>AI capacity in context.</h3>
+              <p>Codex and Claude Code headroom, reset timing, and pace live beside system conditions instead of in a separate dashboard.</p>
             </article>
           </div>
           <CrosshairSimple className="story-mark" weight="thin" aria-hidden="true" />

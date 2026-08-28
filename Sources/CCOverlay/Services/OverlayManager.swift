@@ -3,23 +3,103 @@ import SwiftUI
 
 enum OverlayVisibilityPolicy {
     static func canPresent(
-        presentation: OverlayPresentation,
-        hasAvailableProviders: Bool,
-        companionAlwaysVisible: Bool
+        visibilityMode: OverlayVisibilityMode
     ) -> Bool {
-        hasAvailableProviders
-            || (presentation == .companion && companionAlwaysVisible)
+        true
     }
 
     static func shouldShowForActiveApplication(
-        presentation: OverlayPresentation,
-        companionAlwaysVisible: Bool,
+        visibilityMode: OverlayVisibilityMode,
         isSelfApplication: Bool,
         isWhitelistedDeveloperTool: Bool
     ) -> Bool {
-        isSelfApplication
-            || isWhitelistedDeveloperTool
-            || (presentation == .companion && companionAlwaysVisible)
+        switch visibilityMode {
+        case .always: true
+        case .developerToolsOnly: isSelfApplication || isWhitelistedDeveloperTool
+        }
+    }
+}
+
+enum OverlayScreenPolicy {
+    static func visibleFrame(
+        for overlayFrame: NSRect,
+        availableScreenFrames: [NSRect],
+        fallback: NSRect
+    ) -> NSRect {
+        let overlappingFrames = availableScreenFrames.compactMap { frame -> (frame: NSRect, area: CGFloat)? in
+            let intersection = frame.intersection(overlayFrame)
+            let area = intersection.width * intersection.height
+            return area > 0 ? (frame, area) : nil
+        }
+        return overlappingFrames.max(by: { $0.area < $1.area })?.frame ?? fallback
+    }
+
+    static func screenAtPointer() -> NSScreen? {
+        let pointer = NSEvent.mouseLocation
+        return NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
+    }
+
+    static func visibleFrame(for overlayFrame: NSRect) -> NSRect {
+        let fallback = NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        return visibleFrame(
+            for: overlayFrame,
+            availableScreenFrames: NSScreen.screens.map(\.visibleFrame),
+            fallback: fallback
+        )
+    }
+}
+
+enum OverlayResizePlacementPolicy {
+    static func resizedFrame(
+        from frame: NSRect,
+        to size: CGSize,
+        visibleFrame: NSRect,
+        preservesTrailingEdge: Bool,
+        margin: CGFloat = 0
+    ) -> NSRect {
+        var resizedFrame = frame
+        let minX = visibleFrame.minX + margin
+        let maxX = visibleFrame.maxX - size.width - margin
+        let minY = visibleFrame.minY + margin
+        let maxY = visibleFrame.maxY - size.height - margin
+
+        if preservesTrailingEdge {
+            let oldRight = min(frame.maxX, visibleFrame.maxX - margin)
+            let oldTop = min(frame.maxY, visibleFrame.maxY - margin)
+            resizedFrame.origin.x = oldRight - size.width
+            resizedFrame.origin.y = oldTop - size.height
+        }
+
+        resizedFrame.size = size
+        resizedFrame.origin.x = minX <= maxX
+            ? min(max(resizedFrame.origin.x, minX), maxX)
+            : visibleFrame.minX
+        resizedFrame.origin.y = minY <= maxY
+            ? min(max(resizedFrame.origin.y, minY), maxY)
+            : visibleFrame.minY
+        return resizedFrame
+    }
+}
+
+@MainActor
+private final class OverlayWindowPlacementState {
+    private let initialVisibleFrame: NSRect
+    private var needsInitialPlacement = true
+    private(set) var preservesTrailingEdge = true
+
+    init(initialVisibleFrame: NSRect) {
+        self.initialVisibleFrame = initialVisibleFrame
+    }
+
+    func visibleFrame(for overlayFrame: NSRect) -> NSRect {
+        defer { needsInitialPlacement = false }
+        if needsInitialPlacement { return initialVisibleFrame }
+        return OverlayScreenPolicy.visibleFrame(for: overlayFrame)
+    }
+
+    func markUserPositioned() {
+        preservesTrailingEdge = false
     }
 }
 
@@ -27,6 +107,7 @@ enum OverlayVisibilityPolicy {
 private final class MovableOverlayPanel: NSPanel {
     private let interactionState: OverlayInteractionState
     private let allowsContentDrag: Bool
+    private let onDragBegan: (() -> Void)?
     private var dragStartScreenPoint: NSPoint?
     private var dragStartFrame: NSRect?
 
@@ -36,10 +117,12 @@ private final class MovableOverlayPanel: NSPanel {
         backing: NSWindow.BackingStoreType,
         defer flag: Bool,
         interactionState: OverlayInteractionState,
-        allowsContentDrag: Bool = false
+        allowsContentDrag: Bool = false,
+        onDragBegan: (() -> Void)? = nil
     ) {
         self.interactionState = interactionState
         self.allowsContentDrag = allowsContentDrag
+        self.onDragBegan = onDragBegan
         super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
     }
 
@@ -67,7 +150,10 @@ private final class MovableOverlayPanel: NSPanel {
                 deltaY: deltaY
             ) else { return }
 
-            interactionState.beginWindowDrag()
+            if !interactionState.isDraggingWindow {
+                interactionState.beginWindowDrag()
+                onDragBegan?()
+            }
             var nextFrame = dragStartFrame.offsetBy(dx: deltaX, dy: deltaY)
             nextFrame.origin = rubberBandedOrigin(for: nextFrame)
             setFrame(nextFrame, display: true)
@@ -84,7 +170,7 @@ private final class MovableOverlayPanel: NSPanel {
         }
     }
 
-    /// The companion remains recoverable even when it is dragged to a screen
+    /// The floating overlay remains recoverable even when it is dragged to a screen
     /// edge: at least a 52-point grab area is always visible.
     private func settleFrameInsideVisibleArea() {
         var settledFrame = frame
@@ -95,7 +181,7 @@ private final class MovableOverlayPanel: NSPanel {
         setFrame(
             settledFrame,
             display: true,
-            animate: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            animate: false
         )
     }
 
@@ -129,9 +215,7 @@ private final class MovableOverlayPanel: NSPanel {
     }
 
     private func dragBounds(for frame: NSRect) -> (minX: CGFloat, maxX: CGFloat, minY: CGFloat, maxY: CGFloat) {
-        let visibleFrame = screen?.visibleFrame
-            ?? NSScreen.main?.visibleFrame
-            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let visibleFrame = OverlayScreenPolicy.visibleFrame(for: frame)
         let visibleGrabArea: CGFloat = 52
         let minX = visibleFrame.minX - frame.width + visibleGrabArea
         let maxX = visibleFrame.maxX - visibleGrabArea
@@ -162,27 +246,42 @@ private final class MovableOverlayPanel: NSPanel {
     }
 }
 
-/// Manages the floating usage pill or interactive Patch companion window.
+/// Manages the floating system-capacity overlay.
 @MainActor
 final class OverlayManager {
     private var window: NSPanel?
-    private var hostingView: NSHostingView<AnyView>?
+    private var hostingView: NSHostingView<SystemOverlayView>?
     private let settings: AppSettings
     private let multiService: MultiProviderUsageService
-    private let patchProgress: PatchProgressStore
+    private let systemMetrics: SystemMetricsService
+    private let dockerStorage: DockerStorageService
+    private let onShowDashboard: (NSRect) -> Void
+    private let onOverlayDisabled: () -> Void
     private var focusObserver: Any?
+    private var outsideClickMonitor: Any?
+    private var interactionState: OverlayInteractionState?
 
     init(
         settings: AppSettings,
         multiService: MultiProviderUsageService,
-        patchProgress: PatchProgressStore
+        systemMetrics: SystemMetricsService,
+        dockerStorage: DockerStorageService,
+        onShowDashboard: @escaping (NSRect) -> Void = { _ in },
+        onOverlayDisabled: @escaping () -> Void = {}
     ) {
         self.settings = settings
         self.multiService = multiService
-        self.patchProgress = patchProgress
+        self.systemMetrics = systemMetrics
+        self.dockerStorage = dockerStorage
+        self.onShowDashboard = onShowDashboard
+        self.onOverlayDisabled = onOverlayDisabled
     }
 
     // MARK: - Public API
+
+    var overlayFrame: NSRect? {
+        window?.frame
+    }
 
     func showOverlay() {
         AppLogger.ui.debug("showOverlay called, window exists: \(self.window != nil)")
@@ -192,27 +291,41 @@ final class OverlayManager {
             details: ["alreadyVisible": "\(window != nil)"]
         )
         guard OverlayVisibilityPolicy.canPresent(
-            presentation: settings.overlayPresentation,
-            hasAvailableProviders: !multiService.availableProviders.isEmpty,
-            companionAlwaysVisible: settings.companionAlwaysVisible
+            visibilityMode: settings.overlayVisibilityMode
         ) else {
             hideOverlay()
             return
         }
+        guard shouldShowForFrontmostApplication() else {
+            // Keep observing application activation while developer-tools-only
+            // mode is hidden, so the next eligible app can reveal the overlay.
+            window?.orderOut(nil)
+            startFocusMonitoring()
+            return
+        }
         if window != nil {
             startFocusMonitoring()
+            startOutsideClickMonitoring()
             window?.orderFront(nil)
             return
         }
         createWindow()
         startFocusMonitoring()
+        startOutsideClickMonitoring()
         AppLogger.ui.debug("Window created at: \(self.window?.frame.debugDescription ?? "nil")")
     }
 
     func hideOverlay() {
         DebugFlowLogger.shared.log(stage: .display, message: "overlay.hide")
         stopFocusMonitoring()
+        stopOutsideClickMonitoring()
         window?.orderOut(nil)
+    }
+
+    func disableOverlay() {
+        settings.showOverlay = false
+        hideOverlay()
+        onOverlayDisabled()
     }
 
     func toggleOverlay() {
@@ -230,9 +343,11 @@ final class OverlayManager {
 
     func closeOverlay() {
         stopFocusMonitoring()
+        stopOutsideClickMonitoring()
         window?.close()
         window = nil
         hostingView = nil
+        interactionState = nil
     }
 
     func refreshOverlay() {
@@ -247,9 +362,7 @@ final class OverlayManager {
     func updateUsageVisibility() {
         guard settings.showOverlay,
               OverlayVisibilityPolicy.canPresent(
-                presentation: settings.overlayPresentation,
-                hasAvailableProviders: !multiService.availableProviders.isEmpty,
-                companionAlwaysVisible: settings.companionAlwaysVisible
+                visibilityMode: settings.overlayVisibilityMode
               )
         else {
             hideOverlay()
@@ -261,17 +374,15 @@ final class OverlayManager {
     // MARK: - Window Creation
 
     private func createWindow() {
-        switch settings.overlayPresentation {
-        case .companion:
-            createCompanionWindow()
-        case .usagePill:
-            createUsagePillWindow()
-        }
+        createSystemMonitorWindow()
     }
 
-    private func createUsagePillWindow() {
-        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let initialSize = CGSize(width: 120, height: 30)
+    private func createSystemMonitorWindow() {
+        let screen = OverlayScreenPolicy.screenAtPointer()?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let initialSize = CGSize(width: 222, height: 40)
+        let placementState = OverlayWindowPlacementState(initialVisibleFrame: screen)
         let originX = screen.maxX - initialSize.width
         let originY = screen.maxY - initialSize.height
 
@@ -281,7 +392,9 @@ final class OverlayManager {
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false,
-            interactionState: interactionState
+            interactionState: interactionState,
+            allowsContentDrag: true,
+            onDragBegan: { placementState.markUserPositioned() }
         )
 
         panel.isFloatingPanel = true
@@ -293,41 +406,47 @@ final class OverlayManager {
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = true
+        // Handle movement from `MovableOverlayPanel` so the frame follows the
+        // pointer delta exactly and a drag cannot also become a metric click.
+        panel.isMovableByWindowBackground = false
+        panel.isMovable = false
 
-        // Build pill content
-        let pillView = PillView(
+        let overlayView = SystemOverlayView(
             multiService: multiService,
+            systemMetrics: systemMetrics,
+            dockerStorage: dockerStorage,
             settings: settings,
             interactionState: interactionState,
+            onHideOverlay: { [weak self] in
+                self?.disableOverlay()
+            },
+            onQuitApplication: {
+                NSApplication.shared.terminate(nil)
+            },
+            onShowDashboard: { [weak self] in
+                guard let self else { return }
+                self.onShowDashboard(self.window?.frame ?? .zero)
+            },
             onSizeChange: { [weak panel] size in
                 Task { @MainActor in
                     guard let panel, size.width > 0, size.height > 0 else { return }
-                    var frame = panel.frame
-                    let visibleFrame = panel.screen?.visibleFrame
-                        ?? NSScreen.main?.visibleFrame
-                        ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-                    let margin: CGFloat = 0
-                    let oldRight = min(frame.maxX, visibleFrame.maxX - margin)
-                    let oldTop = min(frame.maxY, visibleFrame.maxY - margin)
-                    frame.size = size
-                    let minX = visibleFrame.minX + margin
-                    let maxX = visibleFrame.maxX - size.width - margin
-                    let minY = visibleFrame.minY + margin
-                    let maxY = visibleFrame.maxY - size.height - margin
-                    frame.origin.x = minX <= maxX ? min(max(oldRight - size.width, minX), maxX) : visibleFrame.minX
-                    frame.origin.y = oldTop - size.height
-                    frame.origin.y = minY <= maxY ? min(max(frame.origin.y, minY), maxY) : visibleFrame.minY
+                    let visibleFrame = placementState.visibleFrame(for: panel.frame)
+                    let frame = OverlayResizePlacementPolicy.resizedFrame(
+                        from: panel.frame,
+                        to: size,
+                        visibleFrame: visibleFrame,
+                        preservesTrailingEdge: placementState.preservesTrailingEdge
+                    )
                     panel.setFrame(
                         frame,
                         display: true,
-                        animate: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+                        animate: false
                     )
                 }
             }
         )
 
-        let hosting = NSHostingView(rootView: AnyView(pillView))
+        let hosting = NSHostingView(rootView: overlayView)
         hosting.sizingOptions = []
         panel.contentView = hosting
 
@@ -337,69 +456,18 @@ final class OverlayManager {
         panel.orderFront(nil)
         self.window = panel
         self.hostingView = hosting
+        self.interactionState = interactionState
         DebugFlowLogger.shared.log(
             stage: .display,
             message: "overlay.window.created",
-            details: ["presentation": "usagePill", "size": "\(initialSize.width)x\(initialSize.height)"]
-        )
-    }
-
-    private func createCompanionWindow() {
-        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let initialSize = PatchInteraction.overlaySize
-        let margin: CGFloat = 24
-        let originX = screen.maxX - initialSize.width - margin
-        let originY = screen.minY + margin
-
-        let interactionState = OverlayInteractionState()
-        let panel = MovableOverlayPanel(
-            contentRect: NSRect(x: originX, y: originY, width: initialSize.width, height: initialSize.height),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView],
-            backing: .buffered,
-            defer: false,
-            interactionState: interactionState,
-            allowsContentDrag: true
-        )
-
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = false
-        panel.ignoresMouseEvents = false
-
-        let hosting = NSHostingView(
-            rootView: AnyView(
-                PatchOverlayView(
-                    multiService: multiService,
-                    settings: settings,
-                    progress: patchProgress,
-                    interactionState: interactionState
-                )
-            )
-        )
-        hosting.sizingOptions = []
-        panel.contentView = hosting
-
-        panel.orderFront(nil)
-        self.window = panel
-        self.hostingView = hosting
-        DebugFlowLogger.shared.log(
-            stage: .display,
-            message: "overlay.window.created",
-            details: ["presentation": "patchCompanion", "size": "\(initialSize.width)x\(initialSize.height)"]
+            details: ["presentation": "systemMonitor", "size": "\(initialSize.width)x\(initialSize.height)"]
         )
     }
 
     // MARK: - Settings Observation
 
     func updateFromSettings() {
-        window?.ignoresMouseEvents = settings.overlayPresentation == .usagePill && settings.pillClickThrough
+        window?.ignoresMouseEvents = settings.pillClickThrough
         updateUsageVisibility()
     }
 
@@ -428,6 +496,27 @@ final class OverlayManager {
         }
     }
 
+    /// `NSPanel` is non-activating so a SwiftUI popover does not consistently
+    /// receive a focus-loss dismissal when the user clicks another app or
+    /// display. The monitor only asks SwiftUI to clear its selected detail.
+    private func startOutsideClickMonitoring() {
+        guard outsideClickMonitor == nil else { return }
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.interactionState?.dismissDetailPopoverForExternalClick()
+            }
+        }
+    }
+
+    private func stopOutsideClickMonitoring() {
+        if let outsideClickMonitor {
+            NSEvent.removeMonitor(outsideClickMonitor)
+            self.outsideClickMonitor = nil
+        }
+    }
+
     private func handleAppActivation(bundleId: String?, pid: pid_t) {
         guard settings.showOverlay else {
             window?.orderOut(nil)
@@ -437,9 +526,12 @@ final class OverlayManager {
         let isSelfApplication = pid == ProcessInfo.processInfo.processIdentifier
         let isWhitelistedDeveloperTool = bundleId.map(DevToolDetector.isWhitelisted) ?? false
 
+        if !isSelfApplication {
+            interactionState?.dismissDetailPopoverForExternalClick()
+        }
+
         if OverlayVisibilityPolicy.shouldShowForActiveApplication(
-            presentation: settings.overlayPresentation,
-            companionAlwaysVisible: settings.companionAlwaysVisible,
+            visibilityMode: settings.overlayVisibilityMode,
             isSelfApplication: isSelfApplication,
             isWhitelistedDeveloperTool: isWhitelistedDeveloperTool
         ) {
@@ -461,6 +553,15 @@ final class OverlayManager {
             stage: .display,
             message: "overlay.appActivation",
             details: ["bundle": bundleId ?? "unknown", "action": "hide"]
+        )
+    }
+
+    private func shouldShowForFrontmostApplication() -> Bool {
+        let app = NSWorkspace.shared.frontmostApplication
+        return OverlayVisibilityPolicy.shouldShowForActiveApplication(
+            visibilityMode: settings.overlayVisibilityMode,
+            isSelfApplication: app?.processIdentifier == ProcessInfo.processInfo.processIdentifier,
+            isWhitelistedDeveloperTool: app.flatMap(\.bundleIdentifier).map(DevToolDetector.isWhitelisted) ?? false
         )
     }
 }

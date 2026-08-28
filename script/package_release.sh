@@ -58,11 +58,17 @@ fi
 
 export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-$ROOT_DIR/.build/module-cache}"
 
+# Package from isolated build directories so deleted resources cannot survive in
+# SwiftPM's normal incremental bundle output and leak into a release archive.
+SCRATCH_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cc-overlay-release.XXXXXX")"
+trap 'rm -rf "$SCRATCH_ROOT"' EXIT
+
 declare -a binaries=()
 resource_bundle=""
 for arch in $ARCHS; do
-  swift build -c release --arch "$arch" --disable-sandbox
-  build_dir="$(swift build -c release --arch "$arch" --disable-sandbox --show-bin-path)"
+  scratch_path="$SCRATCH_ROOT/$arch"
+  swift build -c release --arch "$arch" --disable-sandbox --scratch-path "$scratch_path"
+  build_dir="$(swift build -c release --arch "$arch" --disable-sandbox --scratch-path "$scratch_path" --show-bin-path)"
   binaries+=("$build_dir/$EXECUTABLE_NAME")
   if [[ -z "$resource_bundle" && -d "$build_dir/CC-Overlay_CCOverlay.bundle" ]]; then
     resource_bundle="$build_dir/CC-Overlay_CCOverlay.bundle"

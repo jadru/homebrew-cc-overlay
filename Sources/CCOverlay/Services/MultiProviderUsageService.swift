@@ -346,7 +346,7 @@ final class MultiProviderUsageService {
         100.0 - usedPercentage
     }
 
-    /// Claude-specific: needed for CostAlertManager backward compat.
+    /// Claude-specific: needed for CapacityAlertManager backward compat.
     var claudeOAuthUsage: ProviderUsageData {
         (services[.claudeCode] as? ClaudeCodeProviderService)?.usageData ?? .empty(for: .claudeCode)
     }

@@ -240,6 +240,7 @@ final class ClaudeCodeProviderService: BaseProviderService, ProviderServiceProto
             planName: effectivePlanName,
             estimatedCost: cost,
             tokenBreakdown: tokenData,
+            tokenCount: tokenData.usage.rawTokens,
             enterpriseQuota: oauth.enterpriseQuota,
             exhaustionPrediction: exhaustionPrediction,
             lastActivityAt: agg.currentSession?.lastTimestamp,

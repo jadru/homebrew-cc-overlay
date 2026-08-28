@@ -9,13 +9,13 @@
   `ProviderServiceProtocol`을 명시적으로 준수해 `fetchUsage()`를 구현하도록 변경됨.
 
 ### 6) VoiceOver 접근성 전수 점검
-- 현재 상태: `MenuBarLabel`, `PillView`, refresh 버튼 외에 provider 오류 배지와
+- 현재 상태: `DashboardPanelView`, `SystemOverlayView`, refresh 버튼 외에 provider 오류 배지와
   detail sheet 닫기 버튼의 명시적 접근성 문구를 추가함. provider 전환은 숫자키,
   `R`, 방향키로도 가능.
 - 남은 작업: 실제 VoiceOver 사용자가 전체 카드/배지/상태 아이콘을 수동 검증하고
   누락 라벨·값·힌트를 보강.
 - 대상 파일:
-  - `Sources/CCOverlay/Views/MenuBar/*.swift`
+  - `Sources/CCOverlay/Views/Dashboard/*.swift`
   - `Sources/CCOverlay/Views/Panels/Content/*.swift`
   - `Sources/CCOverlay/Views/Components/*.swift`
 
@@ -41,7 +41,7 @@
 - 프로젝트별 비용 카드 추가
 
 ### 8) CSV 내보내기 UI
-- 완료: 로컬 Claude transcript 항목이 있을 때 menu bar overflow에
+- 완료: 로컬 Claude transcript 항목이 있을 때 대시보드 더보기 메뉴에
   **Export local usage CSV**를 노출. 사용자 제스처로만 저장 패널을 엶.
 
 ## Nice to Have 미진행
