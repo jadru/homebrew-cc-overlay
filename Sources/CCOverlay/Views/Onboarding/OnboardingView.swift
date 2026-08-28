@@ -3,7 +3,6 @@ import SwiftUI
 struct OnboardingView: View {
     @Bindable var settings: AppSettings
     let multiService: MultiProviderUsageService
-    let patchProgress: PatchProgressStore
     let onComplete: () -> Void
 
     @State private var step = 0
@@ -91,7 +90,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Know before you run")
                     .font(.system(size: 29, weight: .bold, design: .rounded))
-                Text("CC-Overlay puts Codex headroom and Full Reset expiry first, then uses Claude Code as a safe fallback when Codex cannot fit the run.")
+                Text("CC-Overlay keeps your Mac's system capacity and Codex or Claude Code headroom visible before an intensive run.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -150,38 +149,21 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Make it yours")
                     .font(.system(size: 25, weight: .bold, design: .rounded))
-                Text("Your desktop companion follows live headroom. Finish setup now; the first duplicate-free ticket unlocks from developer tokens observed while CC-Overlay is open.")
+                Text("The compact bar stays visible while you work. Click a metric for quick details, or use its dashboard button for the full system and AI view.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
 
-            Picker("Floating overlay", selection: $settings.overlayPresentation) {
-                ForEach(OverlayPresentation.allCases) { presentation in
-                    Text(presentation.label).tag(presentation)
+            Picker("Show overlay", selection: $settings.overlayVisibilityMode) {
+                ForEach(OverlayVisibilityMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
                 }
             }
-            Toggle(
-                settings.overlayPresentation == .companion ? "Show companion" : "Show usage pill",
-                isOn: $settings.showOverlay
-            )
-            if settings.overlayPresentation == .usagePill {
-                Toggle("Start overlay expanded", isOn: $settings.pillAlwaysExpanded)
-                    .disabled(!settings.showOverlay)
-            } else {
-                Picker("Companion background", selection: $settings.companionBackground) {
-                    ForEach(CompanionBackground.allCases) { background in
-                        Text(background.label).tag(background)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Label("Move over your companion to get a reaction; click to collect a treat once one joins you.", systemImage: "pawprint.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Toggle("Show floating overlay", isOn: $settings.showOverlay)
+            Toggle("Click through", isOn: $settings.pillClickThrough)
+                .disabled(!settings.showOverlay)
 
-            CompanionAdoptionProgressView(progress: patchProgress)
-
-            Text("You can choose a companion from the Collection after a ticket is ready. Alerts, terminal behavior, and other preferences stay in Settings so setup remains focused.")
+            Text("System samples stay on your Mac. Alerts, provider access, terminal behavior, and other preferences remain in Settings.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

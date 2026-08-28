@@ -8,9 +8,9 @@ struct RatePillView: View {
     var size: Size = .regular
 
     enum Size {
-        case compact  // For PillView (8pt font)
+        case compact  // For compact overlay rate windows (8pt font)
         case regular  // For ClaudeUsagePanelView (9pt font)
-        case large    // For MenuBarView (10pt font)
+        case large    // For DashboardPanelView (10pt font)
 
         var labelFont: Font {
             switch self {

@@ -8,6 +8,9 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
     private var oauthSnapshot: CodexOAuthService.UsageSnapshot?
     private let appServerService = CodexAppServerService()
     private var codexBinaryPath: String?
+    private var transcriptTokenCount: Int?
+    @ObservationIgnored private var transcriptFileStates: [String: CodexTranscriptTokenScanner.FileState] = [:]
+    @ObservationIgnored private var transcriptScanTask: Task<Void, Never>?
 
     init() {
         super.init(provider: .codex)
@@ -51,6 +54,7 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
             return
         }
         let codexHome = AppConstants.codexConfigPath
+        refreshTranscriptTokenCount(codexHome: codexHome)
 
         guard canAttemptNetworkRefresh() else { return }
 
@@ -85,6 +89,21 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
 
     override var usageData: ProviderUsageData {
         guard isAuthenticated, let snapshot = oauthSnapshot, snapshot.primaryWindow != nil else {
+            if let transcriptTokenCount, transcriptTokenCount > 0 {
+                return ProviderUsageData(
+                    provider: .codex,
+                    isAvailable: true,
+                    isEstimated: true,
+                    usedPercentage: 0,
+                    remainingPercentage: 100,
+                    primaryWindowLabel: "Tokens",
+                    tokenCount: transcriptTokenCount,
+                    lastActivityAt: lastActivityAt,
+                    error: error,
+                    lastRefresh: lastRefresh,
+                    isLoading: isLoading
+                )
+            }
             return .empty(for: .codex, error: error, lastRefresh: lastRefresh, isLoading: isLoading)
         }
 
@@ -223,6 +242,7 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
             resetsAt: resetsAt,
             rateLimitBuckets: buckets,
             planName: planName,
+            tokenCount: transcriptTokenCount,
             creditsInfo: creditsDisplay,
             detailedRateWindows: detailedWindows,
             lastActivityAt: lastActivityAt,
@@ -230,6 +250,31 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
             lastRefresh: lastRefresh,
             isLoading: isLoading
         )
+    }
+
+    override func stopMonitoring() {
+        super.stopMonitoring()
+        transcriptScanTask?.cancel()
+        transcriptScanTask = nil
+    }
+
+    private func refreshTranscriptTokenCount(codexHome: String) {
+        guard transcriptScanTask == nil else { return }
+        let previousStates = transcriptFileStates
+        transcriptScanTask = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                try? CodexTranscriptTokenScanner.scan(
+                    codexHome: codexHome,
+                    previousStates: previousStates
+                )
+            }.value
+
+            guard let self, !Task.isCancelled else { return }
+            self.transcriptScanTask = nil
+            guard let result else { return }
+            self.transcriptFileStates = result.fileStates
+            self.transcriptTokenCount = result.hasTokenData ? result.cumulativeTokens : nil
+        }
     }
 
     nonisolated static func normalizedWindowLabel(windowSeconds: Int, fallback: String) -> String {

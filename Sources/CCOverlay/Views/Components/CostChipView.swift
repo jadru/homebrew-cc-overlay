@@ -9,7 +9,7 @@ struct CostChipView: View {
 
     enum Size {
         case compact  // For ClaudeUsagePanelView (8pt font)
-        case regular  // For MenuBarView (9pt font)
+        case regular  // For DashboardPanelView (9pt font)
 
         var dotSize: CGFloat {
             switch self {

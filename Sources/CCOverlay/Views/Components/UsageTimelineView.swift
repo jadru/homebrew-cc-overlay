@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A scan-friendly view of the primary rate-limit windows for the menu bar panel.
+/// A scan-friendly view of the primary rate-limit windows for the dashboard panel.
 struct UsageTimelineView: View {
     let data: ProviderUsageData
 

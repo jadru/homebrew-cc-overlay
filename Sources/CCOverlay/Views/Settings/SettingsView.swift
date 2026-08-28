@@ -6,6 +6,7 @@ struct SettingsView: View {
     let multiService: MultiProviderUsageService
     let updateService: UpdateService
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var fallbackExpanded = false
     @State private var launchAtLoginStatus: SMAppService.Status = .notRegistered
     @State private var launchAtLoginError: String?
@@ -26,7 +27,7 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
 
             overlayTab
-                .tabItem { Label("Overlay", systemImage: "pawprint.fill") }
+                .tabItem { Label("Overlay", systemImage: "gauge.with.dots.needle.50percent") }
 
             notificationsTab
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
@@ -97,48 +98,19 @@ struct SettingsView: View {
     private var overlayTab: some View {
         Form {
             Section("Floating overlay") {
-                Picker("Style", selection: $settings.overlayPresentation) {
-                    ForEach(OverlayPresentation.allCases) { presentation in
-                        Text(presentation.label).tag(presentation)
+                Picker("Show", selection: $settings.overlayVisibilityMode) {
+                    ForEach(OverlayVisibilityMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
                     }
                 }
 
-                Text(settings.overlayPresentation.detail)
+                Text(settings.overlayVisibilityMode.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Toggle(
-                    settings.overlayPresentation == .companion ? "Show companion" : "Show usage pill",
-                    isOn: $settings.showOverlay
-                )
-
-                if settings.overlayPresentation == .companion {
-                    Picker("Companion background", selection: $settings.companionBackground) {
-                        ForEach(CompanionBackground.allCases) { background in
-                            Text(background.label).tag(background)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    Text(settings.companionBackground.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Toggle("Show companion in every app", isOn: $settings.companionAlwaysVisible)
-
-                    Text("Keeps the companion on screen outside recognised AI and developer apps.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Label("Move over your companion to get a reaction; click to collect treats. Developer tokens earn gear and future adoption tickets.", systemImage: "pawprint.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Toggle("Start expanded", isOn: $settings.pillAlwaysExpanded)
-                        .disabled(!settings.showOverlay)
-                    Toggle("Click through", isOn: $settings.pillClickThrough)
-                        .disabled(!settings.showOverlay)
-                }
+                Toggle("Show floating overlay", isOn: $settings.showOverlay)
+                Toggle("Click through", isOn: $settings.pillClickThrough)
+                    .disabled(!settings.showOverlay)
             }
 
             Section("Shortcut") {
@@ -240,11 +212,12 @@ struct SettingsView: View {
                         diagnosticsCopied = false
                     }
                 } label: {
-                    Label(
-                        diagnosticsCopied ? "Diagnostics copied" : "Copy safe diagnostics",
-                        systemImage: diagnosticsCopied ? "checkmark" : "doc.on.doc"
-                    )
+                    diagnosticsCopyLabel
                 }
+                .animation(
+                    reduceMotion ? DesignTokens.Animation.reducedFeedback : DesignTokens.Animation.press,
+                    value: diagnosticsCopied
+                )
 
                 Button {
                     NSWorkspace.shared.open(SupportDiagnosticsService.issuesURL)
@@ -264,6 +237,26 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var diagnosticsCopyLabel: some View {
+        if diagnosticsCopied {
+            Label("Diagnostics copied", systemImage: "checkmark")
+                .id("copied")
+                .transition(copyFeedbackTransition)
+        } else {
+            Label("Copy safe diagnostics", systemImage: "doc.on.doc")
+                .id("copy")
+                .transition(copyFeedbackTransition)
+        }
+    }
+
+    private var copyFeedbackTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .opacity.combined(with: .scale(scale: 0.97))
     }
 
     private func providerStatusRow(for provider: CLIProvider) -> some View {

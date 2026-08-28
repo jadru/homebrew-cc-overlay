@@ -1,57 +1,28 @@
 # CC-Overlay
 
-> [한국어](README_KO.md) | [Release Notes](RELEASE_NOTES.md) ([한국어](RELEASE_NOTES_KO.md)) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
+> [한국어](README_KO.md) · [Release notes](RELEASE_NOTES.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
-Pet-first macOS menu-bar companion for **Codex** and **Claude Code** users. Newly observed work earns durable companion progress; usage signals are quiet guardrails for the next run.
+**A local-first macOS capacity overlay for Codex and Claude Code work.**
 
-**Website:** [cc-overlay.jadru.com](https://cc-overlay.jadru.com)
+CC-Overlay keeps the Mac resources that affect an intensive coding run in one small surface: CPU, memory pressure and swap, network traffic, free storage, power, thermal state, and Codex or Claude Code rate-limit headroom. It is an independent open-source utility, not affiliated with Anthropic or OpenAI.
 
-CC-Overlay is an independent, open-source utility distributed directly through GitHub Releases and Homebrew. It is not affiliated with, endorsed by, or supported by Anthropic or OpenAI.
+## What it shows
 
-## Features
+- A compact, always-available bar with CPU, RAM, network, SSD free space, and the most constrained available AI provider.
+- Click any compact-bar metric for a focused detail popover. The trailing dashboard button opens an on-demand panel with 60 minutes of CPU and memory trends, a seven-day AI headroom graph, top accessible processes, storage, battery when present, and thermal state.
+- Codex and Claude Code usage windows, reset timing, and pace information when each provider is locally configured.
 
-- **Earned companion progression** — Newly observed token activity unlocks companion growth, gear, and adoption tickets; clicks never manufacture work rewards
-- **Multi-provider monitoring** — Track Claude Code and OpenAI Codex CLI usage simultaneously
-- **Codex-first routing** — Prefer Codex whenever the planned task safely fits, with Claude Code as an automatic headroom fallback
-- **Authenticated-only display** — Unconfigured providers never appear as misleading setup or usage indicators
-- **Live rate-limit windows** — 5-hour and 7-day rate-limit data from Claude Code and Codex OAuth
-- **Codex companion signal** — Read newly observed local token activity from the standard Codex home to advance the companion without treating tokens as an allowance
-- **Local fallback, clearly labeled** — Claude JSONL estimates are marked with `~` and "local estimate"
-- **Floating Liquid Glass overlay** — A compact, screen-bounded status surface that expands on hover
-- **Pacing signals** — 5H and 7D timelines distinguish fast burn, on-pace, and plenty-left states
-- **Actionable recommendation** — Combines connected providers into a confidence-rated Run, Wait, Switch, or Refresh signal
-- **Guided Run / Switch** — Launch the recommended CLI in Terminal or iTerm2 at the active project, with a safe copy fallback
-- **Explainable recommendations** — Inspect the headroom, task-fit, data-quality, and alternative signals behind each decision
-- **Expiry-aware Codex Full Resets** — Shows each known reset expiry and prioritizes an applicable reset before it becomes stranded
-- **Private history and forecast** — Review seven-day local headroom trends and an active-pace estimate to the next limit
-- **Activation and provider health** — Diagnose install, sign-in, stale-data, response-change, latency, and repeated-failure states
-- **Provider switcher** — A compact selector appears only when both providers have usable data
-- **Cost threshold alerts** — macOS notifications at 70% and 90% usage
-- **Global hotkey** — Toggle overlay with `Cmd+Shift+A`
+System samples refresh every two seconds, or every five seconds in Low Power Mode. The app retains only the latest 60 minutes in memory; it does not persist or transmit system metrics.
 
-## Distribution and Trust
+## Display and alerts
 
-Tagged releases are built as universal Apple Silicon and Intel app bundles, signed with a Developer ID Application certificate using the hardened runtime, notarized by Apple, and stapled before publication. The release workflow also validates the app signature, bundle contents, clean archive, and SHA-256 checksum.
+The default is a compact overlay in every app. Settings also provides a **Developer tools only** mode. Click a metric for its details, or use the trailing dashboard button for the full view. The existing shortcut, `Cmd+Shift+A`, toggles the overlay. Screen-bound dragging, click-through, full-screen support, and Reduce Motion support are preserved.
 
-Homebrew installs the signed `CC-Overlay.app` bundle without re-signing it. Verify an installed release with:
+If you choose **Hide Overlay** from the context menu, CC-Overlay appears in the Dock with **Overlay → Show Overlay** available for recovery. Showing the overlay again returns the app to its usual accessory mode.
 
-```bash
-APP="$(brew --prefix cc-overlay)/CC-Overlay.app"
-codesign --verify --deep --strict --verbose=2 "$APP"
-spctl --assess --type execute --verbose=4 "$APP"
-```
-
-For a manual GitHub Release download, verify the published checksum before opening the archive:
-
-```bash
-shasum -a 256 -c CC-Overlay-vX.Y.Z-macos.zip.sha256
-```
-
-Local builds created with `script/build_and_run.sh` are ad-hoc signed for development. They are not release artifacts.
+macOS alerts are limited to configured AI-usage thresholds, elevated or critical memory pressure, and serious or critical thermal state. A repeated state does not notify again until the Mac has returned to normal.
 
 ## Install
-
-### Homebrew
 
 ```bash
 brew tap jadru/cc-overlay
@@ -59,119 +30,62 @@ brew install cc-overlay
 cc-overlay
 ```
 
-Enable **Launch at login** from the app's Settings when you want it to start with macOS. CC-Overlay deliberately does not install a Homebrew background service, so it has one app process and one login-start mechanism.
+Enable **Launch at login** in Settings when you want it to start with macOS. CC-Overlay deliberately does not install a Homebrew background service.
 
-If you upgraded from `0.8.x`, remove its legacy Homebrew service once:
-
-```bash
-launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist 2>/dev/null || true
-rm -f ~/Library/LaunchAgents/homebrew.mxcl.cc-overlay.plist
-brew upgrade cc-overlay
-```
-
-### Uninstall
-
-Turn off **Launch at login** in Settings first, then remove the app:
+To remove it, disable Launch at login and run:
 
 ```bash
 brew uninstall cc-overlay
 ```
 
-### Build from source
+## Build and verify
 
-Requires **Swift 6.0+** and **macOS 15+** (Sequoia) SDK.
+Requires Swift 6.0+ and the macOS 15+ SDK.
 
 ```bash
 git clone https://github.com/jadru/homebrew-cc-overlay.git
 cd homebrew-cc-overlay
 ./script/build_and_run.sh
+swift test
 ```
 
-To exercise the same universal packaging checks used by CI without notarization:
+Run the universal packaging checks without notarization:
 
 ```bash
 VERSION=0.0.0 BUILD_NUMBER=0 SIGN_IDENTITY=- NOTARIZE=0 ARCHS="arm64 x86_64" ./script/package_release.sh
 ```
 
-For a distributable build, use `NOTARIZE=1` with the configured notary profile and
-set `SIGN_IDENTITY` to one unique `Developer ID Application` SHA-1 identity hash
-(shown by `security find-identity -v -p codesigning`). This avoids an ambiguous
-certificate display name and is required for Gatekeeper acceptance.
+Tagged releases are signed, notarized universal app bundles. Verify a Homebrew installation with:
 
-## Usage
+```bash
+APP="$(brew --prefix cc-overlay)/CC-Overlay.app"
+codesign --verify --deep --strict --verbose=2 "$APP"
+spctl --assess --type execute --verbose=4 "$APP"
+```
 
-Run `cc-overlay` — the app lives in the menu bar. Click the menu bar icon to see detailed usage or open Settings.
+## Data and privacy
 
-### Data sources
+| Data | Purpose | Storage |
+|---|---|---|
+| CPU, memory, network, storage, power, thermal state | Local system capacity display | Latest 60 minutes in memory only |
+| Codex OAuth, app-server metadata, and recent rollout token counters | Codex headroom, reset details, and token fallback | Credentials remain in Codex/macOS storage; token counters are processed in memory |
+| Claude OAuth or local JSONL | Claude Code headroom | Local processing; OAuth access requires opt-in |
+| Provider usage history and preferences | Existing usage features and app configuration | Local Mac |
 
-| Source | Provider | How it works |
-|--------|----------|-------------|
-| **Anthropic OAuth** | Claude Code | Claude Code Keychain credentials — live 5-hour and 7-day buckets |
-| **Codex OAuth** | Codex CLI | ChatGPT login stored by Codex in `~/.codex/auth.json` |
-| **Codex app-server** | Codex / ChatGPT app | Reads Full Reset `expiresAt` details when supported |
-| **Codex local rollout journals** | Codex CLI | Recent journals under the standard `~/.codex` home, used only for companion progression |
-| **Local JSONL** | Claude Code | `~/.claude/projects/*/*.jsonl` fallback — clearly marked token-based estimate |
-
-## Privacy and Provider Access
-
-CC-Overlay has no developer-operated backend and does not upload usage history or OAuth credentials to the project maintainer. It communicates only with provider-owned services needed for usage metadata and with GitHub Releases when update checks are enabled.
-
-- CC-Overlay reads cumulative token counters from recent local rollout journals under the standard `~/.codex` home for companion progression. It does not upload journal contents or award past work when the app starts.
-- Claude transcript estimates read recent local JSONL files. Claude OAuth rate-limit access is off by default and requires an explicit Settings opt-in.
-- Usage history, settings, and diagnostic logs stay on the local Mac.
-
-Provider tokens are sensitive. Review the source and use a release you trust before enabling a provider. This project is an unofficial integration and provider APIs, limits, and authentication formats may change without notice.
-
-### Menu bar dropdown
-
-The dropdown shows the selected provider's usage timeline. When both providers have
-data, a compact provider switcher is shown above it. Each primary window presents
-used and remaining capacity, reset timing, and a pace assessment.
-
-### Floating pill
-
-The overlay shows the most constrained provider. It stays inside the active screen
-when expanded and shows 5H/7D pace meters. A local estimate is prefixed with `~`.
+CC-Overlay has no developer-operated backend. It contacts provider-owned services only for requested usage metadata and GitHub Releases when automatic update checks are enabled. Review the source and use a release you trust before enabling a provider.
 
 ## Configuration
 
-All settings persist via `UserDefaults` and are accessible from the Settings window (menu bar > Settings).
-
 | Setting | Default | Description |
-|---------|---------|-------------|
-| Show overlay | On | Toggle floating pill |
-| Show companion in every app | Off | Keep the companion visible outside recognised AI and developer apps |
-| Always expanded | Off | Keep pill expanded without hover |
-| Click-through | Off | Mouse events pass through overlay |
-| Global hotkey | On | `Cmd+Shift+A` to toggle overlay |
-| Cost alerts | On | Notify at 70%/90% usage |
-| Plan tier | Pro | For local JSONL mode (Pro/Max/Enterprise/Custom) |
-| Claude OAuth rate limits | Off | Read Claude Keychain credentials only after explicit opt-in |
-| Refresh interval | 1 min | How often usage data is refreshed |
-| Run in | Terminal | Terminal or iTerm2 for guided Run / Switch actions |
-| Provider priority | Codex first | Prefer Codex when the task safely fits, otherwise use the provider with enough headroom |
-| Full Reset policy | Balanced | Balance reset use, save the last reset, or prefer reset before switching |
-| Launch at login | Off | Start with macOS |
+|---|---:|---|
+| Overlay visibility | Every app | Every app or developer tools only |
+| Show floating overlay | On | Shows or hides the floating system monitor |
+| Click-through | Off | Passes pointer input to the app underneath |
+| Global hotkey | On | Toggles the overlay with `Cmd+Shift+A` |
+| Usage threshold alerts | On | Alerts at the configured provider-usage thresholds |
+| Claude OAuth rate limits | Off | Reads Claude Keychain credentials only after explicit opt-in |
+| Launch at login | Off | Starts CC-Overlay with macOS |
 
-### Model pricing
+## License and feedback
 
-Cost estimates use the following per-MTok rates:
-
-| Model | Input | Output | Cache Write | Cache Read |
-|-------|------:|-------:|------------:|-----------:|
-| Fable 5 | $10 | $50 | $12.50 | $1.00 |
-| Opus 4.5-4.8 | $5 | $25 | $6.25 | $0.50 |
-| Opus 4.0/4.1 | $15 | $75 | $18.75 | $1.50 |
-| Sonnet 5 / 4.x | $3 | $15 | $3.75 | $0.30 |
-| Haiku 4.5 | $1 | $5 | $1.25 | $0.10 |
-| Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
-
-## License
-
-[MIT](LICENSE)
-
-## Feedback
-
-Use the in-app **Settings → Advanced → Share product feedback** action or open a [product feedback issue](https://github.com/jadru/homebrew-cc-overlay/issues/new?template=user_feedback.yml). Safe diagnostics can be copied from the same Settings section without credentials, project names, usage history, or local paths.
-
-Provider names and marks are the property of their respective owners. Their use here is solely to identify compatible tools.
+[MIT](LICENSE). Use **Settings → Advanced → Share product feedback** or open a [feedback issue](https://github.com/jadru/homebrew-cc-overlay/issues/new?template=user_feedback.yml). Safe diagnostics exclude credentials, project names, usage history, and local paths.

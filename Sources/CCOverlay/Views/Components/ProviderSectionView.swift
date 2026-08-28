@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A focused provider usage view for the menu bar panel.
+/// A focused provider usage view for the dashboard panel.
 struct ProviderSectionView: View {
     let data: ProviderUsageData
 

@@ -19,6 +19,12 @@ enum NumberFormatting {
         "\(Int(value.rounded()))%"
     }
 
+    /// `ps` reports process CPU as a percentage of one logical core, so a
+    /// process using multiple cores may legitimately exceed 100 percent.
+    static func formatCoreUsage(_ percentage: Double) -> String {
+        String(format: "%.1f cores", percentage / 100)
+    }
+
     /// Format weighted cost units (Double). Same display logic as token count.
     static func formatWeightedCost(_ cost: Double) -> String {
         formatTokenCount(Int(cost.rounded()))
@@ -41,5 +47,18 @@ enum NumberFormatting {
             return String(format: "%.0f¢", amount * 100)
         }
         return String(format: "$%.2f", amount)
+    }
+
+    static func formatBytes(_ bytes: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .memory)
+    }
+
+    static func formatBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    static func formatRate(_ bytesPerSecond: Double?) -> String {
+        guard let bytesPerSecond else { return "—" }
+        return "\(formatBytes(UInt64(max(bytesPerSecond, 0))))/s"
     }
 }

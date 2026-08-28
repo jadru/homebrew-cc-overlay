@@ -1,6 +1,6 @@
 # Contributing
 
-CC-Overlay welcomes focused bug fixes, tests, documentation improvements, and design changes that preserve the app's quiet menu bar workflow.
+CC-Overlay welcomes focused bug fixes, tests, documentation improvements, and design changes that preserve the app's quiet overlay workflow.
 
 ## Development
 

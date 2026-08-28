@@ -147,7 +147,7 @@ final class ProviderServiceNormalizationTests: XCTestCase {
             ]
         )
 
-        let buckets = PillView.overlayWindowBuckets(for: data)
+        let buckets = OverlayUsagePresentation.windowBuckets(for: data)
 
         XCTAssertEqual(buckets.map(\.label), ["5H", "7D"])
         XCTAssertEqual(buckets.map(\.percentage), [95, 14])
@@ -204,13 +204,49 @@ final class ProviderServiceNormalizationTests: XCTestCase {
             ),
         ]
 
-        let providers = PillView.visibleOverlayProviders(
+        let providers = OverlayUsagePresentation.visibleProviders(
             activeProviders: [.claudeCode, .codex],
             recentlyActiveProviders: [.claudeCode],
             usageData: { usageMap[$0] ?? .empty(for: $0) }
         )
 
         XCTAssertEqual(providers, [.codex])
+    }
+
+    func testCompactOverlaySeparatesProvidersAndUsesTokenCountsWhenCapacityIsIrrelevant() {
+        let tokenUsage = TokenUsage(
+            inputTokens: 12_000,
+            outputTokens: 300,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 5_000
+        )
+        let usageMap: [CLIProvider: ProviderUsageData] = [
+            .claudeCode: ProviderUsageData(
+                provider: .claudeCode,
+                isAvailable: true,
+                isEstimated: true,
+                usedPercentage: 40,
+                remainingPercentage: 60,
+                primaryWindowLabel: "5h",
+                tokenBreakdown: TokenBreakdownData(title: "5-Hour Tokens", usage: tokenUsage)
+            ),
+            .codex: ProviderUsageData(
+                provider: .codex,
+                isAvailable: true,
+                usedPercentage: 55,
+                remainingPercentage: 45,
+                primaryWindowLabel: "5h"
+            ),
+        ]
+
+        let providers = OverlayUsagePresentation.compactProviders(
+            activeProviders: [.claudeCode, .codex],
+            usageData: { usageMap[$0] ?? .empty(for: $0) }
+        )
+
+        XCTAssertEqual(providers.map(\.provider), [.codex, .claudeCode])
+        XCTAssertEqual(providers.map(\.value.displayText), ["45%", "12.3K"])
+        XCTAssertEqual(providers[1].value.accessibilityText, "12.3K tokens")
     }
 
     @MainActor

@@ -17,8 +17,6 @@ let package = Package(
             exclude: ["Info.plist", "cc-overlay.entitlements"],
             resources: [
                 .copy("Resources/ProviderIcons"),
-                .copy("Resources/PatchAssets"),
-                .copy("Resources/CompanionAssets"),
             ],
             linkerSettings: [
                 .unsafeFlags([
