@@ -90,14 +90,16 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 @MainActor
 private final class DelayedCountingProviderService: BaseProviderService, ProviderServiceProtocol {
     private(set) var fetchCount = 0
+    private let delay: Duration
 
-    init() {
+    init(delay: Duration = .milliseconds(30)) {
+        self.delay = delay
         super.init(provider: .codex)
     }
 
     func fetchUsage() async {
         fetchCount += 1
-        try? await Task.sleep(for: .milliseconds(30))
+        try? await Task.sleep(for: delay)
         markRefreshed()
     }
 }
@@ -175,21 +177,23 @@ final class NetworkStressTests: XCTestCase {
 
     @MainActor
     func testRapidRefreshStormCoalescesIntoOneInFlightRequest() async {
-        let service = DelayedCountingProviderService()
+        // Use a comfortably long in-flight interval so executor scheduling jitter on
+        // loaded CI runners cannot complete the request before the assertion.
+        let service = DelayedCountingProviderService(delay: .milliseconds(250))
         service.refresh(forceNetwork: true)
         for _ in 0..<1_000 {
             service.refresh(forceNetwork: true)
         }
 
-        try? await Task.sleep(for: .milliseconds(5))
+        try? await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(service.fetchCount, 1)
         XCTAssertTrue(service.isLoading)
 
-        try? await Task.sleep(for: .milliseconds(40))
+        try? await Task.sleep(for: .milliseconds(300))
         XCTAssertFalse(service.isLoading)
 
         service.refresh(forceNetwork: true)
-        try? await Task.sleep(for: .milliseconds(5))
+        try? await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(service.fetchCount, 2)
         service.stopMonitoring()
     }
