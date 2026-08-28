@@ -21,7 +21,31 @@ enum OverlayVisibilityPolicy {
 }
 
 enum OverlayScreenPolicy {
+    static func screenFrame(
+        for overlayFrame: NSRect,
+        availableScreenFrames: [NSRect],
+        fallback: NSRect
+    ) -> NSRect {
+        matchingFrame(
+            for: overlayFrame,
+            availableScreenFrames: availableScreenFrames,
+            fallback: fallback
+        )
+    }
+
     static func visibleFrame(
+        for overlayFrame: NSRect,
+        availableScreenFrames: [NSRect],
+        fallback: NSRect
+    ) -> NSRect {
+        matchingFrame(
+            for: overlayFrame,
+            availableScreenFrames: availableScreenFrames,
+            fallback: fallback
+        )
+    }
+
+    private static func matchingFrame(
         for overlayFrame: NSRect,
         availableScreenFrames: [NSRect],
         fallback: NSRect
@@ -39,6 +63,16 @@ enum OverlayScreenPolicy {
         return NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
     }
 
+    static func screenFrame(for overlayFrame: NSRect) -> NSRect {
+        let fallback = NSScreen.main?.frame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        return screenFrame(
+            for: overlayFrame,
+            availableScreenFrames: NSScreen.screens.map(\.frame),
+            fallback: fallback
+        )
+    }
+
     static func visibleFrame(for overlayFrame: NSRect) -> NSRect {
         let fallback = NSScreen.main?.visibleFrame
             ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -54,19 +88,19 @@ enum OverlayResizePlacementPolicy {
     static func resizedFrame(
         from frame: NSRect,
         to size: CGSize,
-        visibleFrame: NSRect,
+        screenFrame: NSRect,
         preservesTrailingEdge: Bool,
         margin: CGFloat = 0
     ) -> NSRect {
         var resizedFrame = frame
-        let minX = visibleFrame.minX + margin
-        let maxX = visibleFrame.maxX - size.width - margin
-        let minY = visibleFrame.minY + margin
-        let maxY = visibleFrame.maxY - size.height - margin
+        let minX = screenFrame.minX + margin
+        let maxX = screenFrame.maxX - size.width - margin
+        let minY = screenFrame.minY + margin
+        let maxY = screenFrame.maxY - size.height - margin
 
         if preservesTrailingEdge {
-            let oldRight = min(frame.maxX, visibleFrame.maxX - margin)
-            let oldTop = min(frame.maxY, visibleFrame.maxY - margin)
+            let oldRight = min(frame.maxX, screenFrame.maxX - margin)
+            let oldTop = min(frame.maxY, screenFrame.maxY - margin)
             resizedFrame.origin.x = oldRight - size.width
             resizedFrame.origin.y = oldTop - size.height
         }
@@ -74,28 +108,39 @@ enum OverlayResizePlacementPolicy {
         resizedFrame.size = size
         resizedFrame.origin.x = minX <= maxX
             ? min(max(resizedFrame.origin.x, minX), maxX)
-            : visibleFrame.minX
+            : screenFrame.minX
         resizedFrame.origin.y = minY <= maxY
             ? min(max(resizedFrame.origin.y, minY), maxY)
-            : visibleFrame.minY
+            : screenFrame.minY
         return resizedFrame
+    }
+}
+
+enum OverlayDragPlacementPolicy {
+    static func bounds(for frame: NSRect, screenFrame: NSRect) -> (minX: CGFloat, maxX: CGFloat, minY: CGFloat, maxY: CGFloat) {
+        (
+            minX: screenFrame.minX,
+            maxX: screenFrame.maxX - frame.width,
+            minY: screenFrame.minY,
+            maxY: screenFrame.maxY - frame.height
+        )
     }
 }
 
 @MainActor
 private final class OverlayWindowPlacementState {
-    private let initialVisibleFrame: NSRect
+    private let initialScreenFrame: NSRect
     private var needsInitialPlacement = true
     private(set) var preservesTrailingEdge = true
 
-    init(initialVisibleFrame: NSRect) {
-        self.initialVisibleFrame = initialVisibleFrame
+    init(initialScreenFrame: NSRect) {
+        self.initialScreenFrame = initialScreenFrame
     }
 
-    func visibleFrame(for overlayFrame: NSRect) -> NSRect {
+    func screenFrame(for overlayFrame: NSRect) -> NSRect {
         defer { needsInitialPlacement = false }
-        if needsInitialPlacement { return initialVisibleFrame }
-        return OverlayScreenPolicy.visibleFrame(for: overlayFrame)
+        if needsInitialPlacement { return initialScreenFrame }
+        return OverlayScreenPolicy.screenFrame(for: overlayFrame)
     }
 
     func markUserPositioned() {
@@ -160,7 +205,7 @@ private final class MovableOverlayPanel: NSPanel {
 
         case .leftMouseUp:
             super.sendEvent(event)
-            settleFrameInsideVisibleArea()
+            settleFrameInsideScreen()
             interactionState.endPointerSequence()
             dragStartScreenPoint = nil
             dragStartFrame = nil
@@ -170,9 +215,9 @@ private final class MovableOverlayPanel: NSPanel {
         }
     }
 
-    /// The floating overlay remains recoverable even when it is dragged to a screen
-    /// edge: at least a 52-point grab area is always visible.
-    private func settleFrameInsideVisibleArea() {
+    /// Keep the entire overlay visible while allowing it to align exactly with a
+    /// physical screen edge, including the areas occupied by the Dock and menu bar.
+    private func settleFrameInsideScreen() {
         var settledFrame = frame
         let settledOrigin = boundedOrigin(for: settledFrame)
         guard settledOrigin != settledFrame.origin else { return }
@@ -215,14 +260,10 @@ private final class MovableOverlayPanel: NSPanel {
     }
 
     private func dragBounds(for frame: NSRect) -> (minX: CGFloat, maxX: CGFloat, minY: CGFloat, maxY: CGFloat) {
-        let visibleFrame = OverlayScreenPolicy.visibleFrame(for: frame)
-        let visibleGrabArea: CGFloat = 52
-        let minX = visibleFrame.minX - frame.width + visibleGrabArea
-        let maxX = visibleFrame.maxX - visibleGrabArea
-        let minY = visibleFrame.minY - frame.height + visibleGrabArea
-        let maxY = visibleFrame.maxY - visibleGrabArea
-
-        return (minX, maxX, minY, maxY)
+        OverlayDragPlacementPolicy.bounds(
+            for: frame,
+            screenFrame: OverlayScreenPolicy.screenFrame(for: frame)
+        )
     }
 
     private func rubberBanded(
@@ -378,11 +419,11 @@ final class OverlayManager {
     }
 
     private func createSystemMonitorWindow() {
-        let screen = OverlayScreenPolicy.screenAtPointer()?.visibleFrame
-            ?? NSScreen.main?.visibleFrame
+        let screen = OverlayScreenPolicy.screenAtPointer()?.frame
+            ?? NSScreen.main?.frame
             ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let initialSize = CGSize(width: 222, height: 40)
-        let placementState = OverlayWindowPlacementState(initialVisibleFrame: screen)
+        let placementState = OverlayWindowPlacementState(initialScreenFrame: screen)
         let originX = screen.maxX - initialSize.width
         let originY = screen.maxY - initialSize.height
 
@@ -430,11 +471,11 @@ final class OverlayManager {
             onSizeChange: { [weak panel] size in
                 Task { @MainActor in
                     guard let panel, size.width > 0, size.height > 0 else { return }
-                    let visibleFrame = placementState.visibleFrame(for: panel.frame)
+                    let screenFrame = placementState.screenFrame(for: panel.frame)
                     let frame = OverlayResizePlacementPolicy.resizedFrame(
                         from: panel.frame,
                         to: size,
-                        visibleFrame: visibleFrame,
+                        screenFrame: screenFrame,
                         preservesTrailingEdge: placementState.preservesTrailingEdge
                     )
                     panel.setFrame(

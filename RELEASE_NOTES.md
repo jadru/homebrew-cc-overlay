@@ -1,3 +1,14 @@
+# v1.0.1
+
+## Edge-to-Edge Overlay Placement
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+- **Physical display boundaries** — The floating overlay now aligns with every edge of the actual display, rather than stopping at the Dock or menu-bar safe area.
+- **Stable edge alignment** — Dragging and size changes preserve an edge-aligned position while keeping the full overlay visible on its current display.
+
+---
+
 # v1.0.0
 
 ## System Capacity Overlay

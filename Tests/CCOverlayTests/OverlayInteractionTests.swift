@@ -72,11 +72,34 @@ final class OverlayInteractionTests: XCTestCase {
         )
     }
 
+    func testOverlayUsesPhysicalScreenBoundsInsteadOfVisibleArea() {
+        let physicalScreen = NSRect(x: 0, y: 0, width: 1_920, height: 1_080)
+        let overlayFrame = NSRect(x: 1_698, y: 1_040, width: 222, height: 40)
+
+        XCTAssertEqual(
+            OverlayScreenPolicy.screenFrame(
+                for: overlayFrame,
+                availableScreenFrames: [physicalScreen],
+                fallback: .zero
+            ),
+            physicalScreen
+        )
+
+        let bounds = OverlayDragPlacementPolicy.bounds(
+            for: overlayFrame,
+            screenFrame: physicalScreen
+        )
+        XCTAssertEqual(bounds.minX, 0)
+        XCTAssertEqual(bounds.maxX, 1_698)
+        XCTAssertEqual(bounds.minY, 0)
+        XCTAssertEqual(bounds.maxY, 1_040)
+    }
+
     func testUserPositionedResizePreservesDroppedOrigin() {
         let resized = OverlayResizePlacementPolicy.resizedFrame(
             from: NSRect(x: 800, y: 500, width: 220, height: 40),
             to: CGSize(width: 280, height: 40),
-            visibleFrame: NSRect(x: 0, y: 0, width: 1_920, height: 1_080),
+            screenFrame: NSRect(x: 0, y: 0, width: 1_920, height: 1_080),
             preservesTrailingEdge: false
         )
 
@@ -86,14 +109,14 @@ final class OverlayInteractionTests: XCTestCase {
 
     func testInitialResizeKeepsOverlayAnchoredToTrailingEdge() {
         let resized = OverlayResizePlacementPolicy.resizedFrame(
-            from: NSRect(x: 1_700, y: 1_000, width: 220, height: 40),
+            from: NSRect(x: 1_700, y: 1_040, width: 220, height: 40),
             to: CGSize(width: 280, height: 40),
-            visibleFrame: NSRect(x: 0, y: 0, width: 1_920, height: 1_080),
+            screenFrame: NSRect(x: 0, y: 0, width: 1_920, height: 1_080),
             preservesTrailingEdge: true
         )
 
         XCTAssertEqual(resized.maxX, 1_920)
-        XCTAssertEqual(resized.maxY, 1_040)
+        XCTAssertEqual(resized.maxY, 1_080)
     }
 
     @MainActor
