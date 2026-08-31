@@ -11,7 +11,6 @@ final class DashboardPanelController: NSObject, NSWindowDelegate {
     private let systemMetrics: SystemMetricsService
     private let dockerStorage: DockerStorageService
     private let updateService: UpdateService
-    private let onOpenSettings: () -> Void
     private var panel: NSPanel?
     private var anchorFrame: NSRect?
     private var outsideClickMonitor: Any?
@@ -21,15 +20,13 @@ final class DashboardPanelController: NSObject, NSWindowDelegate {
         settings: AppSettings,
         systemMetrics: SystemMetricsService,
         dockerStorage: DockerStorageService,
-        updateService: UpdateService,
-        onOpenSettings: @escaping () -> Void
+        updateService: UpdateService
     ) {
         self.multiService = multiService
         self.settings = settings
         self.systemMetrics = systemMetrics
         self.dockerStorage = dockerStorage
         self.updateService = updateService
-        self.onOpenSettings = onOpenSettings
     }
 
     func show(near overlayFrame: NSRect?) {
@@ -86,7 +83,6 @@ final class DashboardPanelController: NSObject, NSWindowDelegate {
             systemMetrics: systemMetrics,
             dockerStorage: dockerStorage,
             updateService: updateService,
-            onOpenSettings: onOpenSettings,
             onSizeChange: { [weak self] size in
                 self?.resizePanel(to: size, animated: false)
             }
