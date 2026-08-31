@@ -100,6 +100,12 @@ final class SystemMetricsServiceTests: XCTestCase {
         XCTAssertEqual(NumberFormatting.formatCoreUsage(503), "5.0 cores")
     }
 
+    func testOverlayRateKeepsTransferUnitsOnOneLine() {
+        XCTAssertEqual(NumberFormatting.formatOverlayRate(183_000), "183KB/s")
+        XCTAssertEqual(NumberFormatting.formatOverlayRate(1_250_000), "1.2MB/s")
+        XCTAssertEqual(NumberFormatting.formatOverlayRate(nil), "—")
+    }
+
     func testMemoryPressureTransitionRefreshesCurrentSample() {
         let collector = SequenceSystemMetricsCollector([raw(at: Date()), raw(at: Date().addingTimeInterval(2))])
         let service = SystemMetricsService(
@@ -177,7 +183,7 @@ final class SystemMetricsServiceTests: XCTestCase {
         XCTAssertTrue(settings.claudeOAuthEnabled)
         XCTAssertTrue(settings.autoUpdateEnabled)
         XCTAssertTrue(settings.launchAtLogin)
-        XCTAssertEqual(settings.overlayPresentation, .systemMonitor)
+        XCTAssertEqual(settings.overlayPresentation, .horizontal)
         XCTAssertEqual(settings.overlayVisibilityMode, .always)
     }
 
@@ -192,6 +198,20 @@ final class SystemMetricsServiceTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
 
         XCTAssertEqual(settings.overlayVisibilityMode, .always)
+    }
+
+    func testLegacySystemMonitorLayoutMigratesToHorizontal() throws {
+        let suiteName = "OverlayLayoutMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set("systemMonitorV1", forKey: "systemMonitorMigration")
+        defaults.set("systemMonitor", forKey: "overlayPresentation")
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.overlayPresentation, .horizontal)
+        XCTAssertEqual(defaults.string(forKey: "overlayPresentation"), OverlayPresentation.horizontal.rawValue)
     }
 
     private func raw(

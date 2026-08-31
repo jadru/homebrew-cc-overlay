@@ -11,6 +11,11 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
     private var transcriptTokenCount: Int?
     @ObservationIgnored private var transcriptFileStates: [String: CodexTranscriptTokenScanner.FileState] = [:]
     @ObservationIgnored private var transcriptScanTask: Task<Void, Never>?
+    @ObservationIgnored private var projectUsageFileStates: [String: CodexProjectUsageScanner.FileState] = [:]
+    @ObservationIgnored private var projectUsageScanTask: Task<Void, Never>?
+    private var scannedProjectUsageEntries: [ProjectUsageEntry] = []
+    private var hasSkippedProjectUsageFiles = false
+    private var hasProjectUsageSchemaIssue = false
 
     init() {
         super.init(provider: .codex)
@@ -49,12 +54,17 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
 
     func fetchUsage() async {
         // Codex owns token refresh. This process only re-reads and uses its current auth file.
-        guard await detect(), let oauthService else {
+        let isAuthenticated = await detect()
+        let codexHome = AppConstants.codexConfigPath
+        // Rollouts are local-only and remain useful for project cards even when
+        // a user has signed out of the rate-limit endpoint.
+        refreshTranscriptTokenCount(codexHome: codexHome)
+        refreshProjectUsage(codexHome: codexHome)
+
+        guard isAuthenticated, let oauthService else {
             setError("Codex CLI authentication is unavailable. Run 'codex --login'.")
             return
         }
-        let codexHome = AppConstants.codexConfigPath
-        refreshTranscriptTokenCount(codexHome: codexHome)
 
         guard canAttemptNetworkRefresh() else { return }
 
@@ -256,6 +266,22 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
         super.stopMonitoring()
         transcriptScanTask?.cancel()
         transcriptScanTask = nil
+        projectUsageScanTask?.cancel()
+        projectUsageScanTask = nil
+    }
+
+    override var projectUsageEntries: [ProjectUsageEntry] {
+        scannedProjectUsageEntries
+    }
+
+    override var projectUsageNotice: String? {
+        if hasSkippedProjectUsageFiles {
+            return "Some Codex journals were skipped because they exceeded the safe local read limit."
+        }
+        if hasProjectUsageSchemaIssue {
+            return "Some Codex project activity is unavailable because its local journal format changed."
+        }
+        return nil
     }
 
     private func refreshTranscriptTokenCount(codexHome: String) {
@@ -274,6 +300,27 @@ final class CodexProviderService: BaseProviderService, ProviderServiceProtocol {
             guard let result else { return }
             self.transcriptFileStates = result.fileStates
             self.transcriptTokenCount = result.hasTokenData ? result.cumulativeTokens : nil
+        }
+    }
+
+    private func refreshProjectUsage(codexHome: String) {
+        guard projectUsageScanTask == nil else { return }
+        let previousStates = projectUsageFileStates
+        projectUsageScanTask = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                try? CodexProjectUsageScanner.scan(
+                    codexHome: codexHome,
+                    previousStates: previousStates
+                )
+            }.value
+
+            guard let self, !Task.isCancelled else { return }
+            self.projectUsageScanTask = nil
+            guard let result else { return }
+            self.projectUsageFileStates = result.fileStates
+            self.scannedProjectUsageEntries = result.entries
+            self.hasSkippedProjectUsageFiles = result.hasSkippedFiles
+            self.hasProjectUsageSchemaIssue = result.hasSchemaIssue
         }
     }
 

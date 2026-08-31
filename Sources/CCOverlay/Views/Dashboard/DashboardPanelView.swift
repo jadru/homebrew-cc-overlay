@@ -113,12 +113,20 @@ struct DashboardPanelView: View {
     @ViewBuilder
     private var panelContent: some View {
         menuHeader
+        CapacityActionCardView(decision: capacityDecision)
         SystemCapacityDashboardView(
             systemMetrics: systemMetrics,
             multiService: multiService,
             dockerStorage: dockerStorage,
             onOpenUsage: { activeSheet = .usage },
             onRefresh: refreshData
+        )
+    }
+
+    private var capacityDecision: CapacityDecision {
+        CapacityDecisionEngine.decide(
+            providerDecision: multiService.usageDecision,
+            sample: systemMetrics.currentSample
         )
     }
 
@@ -160,6 +168,8 @@ struct DashboardPanelView: View {
             points: multiService.usageHistory(for: provider),
             forecast: multiService.headroomForecast(for: provider)
         )
+        let projectInsight = multiService.projectUsageInsight()
+        ProjectUsageCardView(projects: projectInsight.summaries, notice: projectInsight.notice)
     }
 
     @ViewBuilder

@@ -48,6 +48,17 @@ final class MultiProviderUsageService {
         services[provider]?.usageExportEntries ?? []
     }
 
+    func projectUsageInsight(now: Date = Date()) -> ProjectUsageInsight {
+        let activeServices = activeProviders.compactMap { services[$0] }
+        return ProjectUsageInsight(
+            summaries: UsageCalculator.aggregateProjectUsage(
+                entries: activeServices.flatMap(\.projectUsageEntries),
+                now: now
+            ),
+            notice: activeServices.compactMap(\.projectUsageNotice).first
+        )
+    }
+
     /// Providers with usage data ready for display.
     var availableProviders: [CLIProvider] {
         let available = activeProviders.filter { usageData(for: $0).isAvailable }

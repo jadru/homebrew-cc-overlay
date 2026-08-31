@@ -39,6 +39,10 @@ class BaseProviderService {
     /// Providers without local transcript entries simply do not offer CSV export.
     var usageExportEntries: [ParsedUsageEntry] { [] }
 
+    /// Providers without local project metadata simply omit project insights.
+    var projectUsageEntries: [ProjectUsageEntry] { [] }
+    var projectUsageNotice: String? { nil }
+
     // MARK: - Monitoring
 
     func startMonitoring(interval: TimeInterval = AppConstants.defaultRefreshInterval) {
