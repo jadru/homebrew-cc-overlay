@@ -422,7 +422,7 @@ final class OverlayManager {
         let screen = OverlayScreenPolicy.screenAtPointer()?.frame
             ?? NSScreen.main?.frame
             ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let initialSize = CGSize(width: 222, height: 40)
+        let initialSize = settings.overlayPresentation.initialSize
         let placementState = OverlayWindowPlacementState(initialScreenFrame: screen)
         let originX = screen.maxX - initialSize.width
         let originY = screen.maxY - initialSize.height
@@ -501,7 +501,10 @@ final class OverlayManager {
         DebugFlowLogger.shared.log(
             stage: .display,
             message: "overlay.window.created",
-            details: ["presentation": "systemMonitor", "size": "\(initialSize.width)x\(initialSize.height)"]
+            details: [
+                "presentation": settings.overlayPresentation.rawValue,
+                "size": "\(initialSize.width)x\(initialSize.height)",
+            ]
         )
     }
 

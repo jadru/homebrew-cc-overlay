@@ -56,22 +56,76 @@ struct UsageCalculator: Sendable {
         )
     }
 
-    /// Group entries by project and compute per-project cost summaries.
-    static func aggregateByProject(entries: [ParsedUsageEntry], now: Date = Date()) -> [ProjectCostSummary] {
-        let dailyEntries = todayEntries(from: entries, now: now)
-        let grouped = Dictionary(grouping: dailyEntries) { $0.projectName ?? "unknown" }
+    static func claudeProjectEntries(from entries: [ParsedUsageEntry]) -> [ProjectUsageEntry] {
+        entries.compactMap { entry in
+            guard let projectName = entry.projectName?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !projectName.isEmpty
+            else {
+                return nil
+            }
 
-        return grouped.map { name, projectEntries in
-            let tokens = sumTokens(projectEntries)
-            let cost = CostCalculator.cost(for: projectEntries)
-            let sessionIds = Set(projectEntries.map(\.sessionId))
-            return ProjectCostSummary(
-                projectName: name,
-                tokenUsage: tokens,
-                cost: cost,
-                sessionCount: sessionIds.count
+            return ProjectUsageEntry(
+                provider: .claudeCode,
+                source: .claudeLocalEstimate,
+                sessionId: entry.sessionId,
+                projectName: projectName,
+                model: entry.model,
+                timestamp: entry.timestamp,
+                tokenUsage: TokenUsage(
+                    inputTokens: entry.inputTokens,
+                    outputTokens: entry.outputTokens,
+                    cacheCreationInputTokens: entry.cacheCreationTokens,
+                    cacheReadInputTokens: entry.cacheReadTokens
+                ),
+                claudeEstimatedCost: CostCalculator.cost(for: entry)
             )
         }
-        .sorted { $0.cost.totalCost > $1.cost.totalCost }
+    }
+
+    /// Creates compact cross-provider project cards for the last 24 hours.
+    static func aggregateProjectUsage(
+        entries: [ProjectUsageEntry],
+        now: Date = Date()
+    ) -> [ProjectUsageSummary] {
+        let cutoff = now.addingTimeInterval(-24 * 60 * 60)
+        let recentEntries = entries.filter { $0.timestamp >= cutoff }
+        let grouped = Dictionary(grouping: recentEntries, by: \.projectName)
+
+        return grouped.map { projectName, projectEntries in
+            let tokenUsage = sumProjectTokens(projectEntries)
+            let providers = CLIProvider.productOrder.filter { provider in
+                projectEntries.contains { $0.provider == provider }
+            }
+            let sources = [ProjectUsageSource.claudeLocalEstimate, .codexLocalTokens].filter { source in
+                projectEntries.contains { $0.source == source }
+            }
+            let claudeCosts = projectEntries.compactMap(\.claudeEstimatedCost)
+            let sessionIDs = Set(projectEntries.map { "\($0.provider.rawValue):\($0.sessionId)" })
+
+            return ProjectUsageSummary(
+                projectName: projectName,
+                tokenUsage: tokenUsage,
+                sessionCount: sessionIDs.count,
+                providers: providers,
+                sources: sources,
+                claudeEstimatedCost: claudeCosts.isEmpty ? nil : claudeCosts.reduce(.zero, +)
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.tokenUsage.totalTokens != rhs.tokenUsage.totalTokens {
+                return lhs.tokenUsage.totalTokens > rhs.tokenUsage.totalTokens
+            }
+            return lhs.projectName.localizedStandardCompare(rhs.projectName) == .orderedAscending
+        }
+    }
+
+    private static func sumProjectTokens(_ entries: [ProjectUsageEntry]) -> TokenUsage {
+        TokenUsage(
+            inputTokens: entries.reduce(0) { $0 + $1.tokenUsage.inputTokens },
+            outputTokens: entries.reduce(0) { $0 + $1.tokenUsage.outputTokens },
+            cacheCreationInputTokens: entries.reduce(0) { $0 + $1.tokenUsage.cacheCreationInputTokens },
+            cacheReadInputTokens: entries.reduce(0) { $0 + $1.tokenUsage.cacheReadInputTokens }
+        )
     }
 }

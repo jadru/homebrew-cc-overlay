@@ -24,6 +24,7 @@ final class AppSettings {
         static let legacyAlwaysExpanded = "pillAlwaysExpanded"
         static let pillClickThrough = "pillClickThrough"
         static let overlayPresentation = "overlayPresentation"
+        static let overlayLayoutMigration = "overlayLayoutMigration"
         static let overlayVisibilityMode = "overlayVisibilityMode"
         static let systemMonitorMigration = "systemMonitorMigration"
         static let legacyOverlayPresentationMigration = "overlayPresentationMigration"
@@ -162,7 +163,9 @@ final class AppSettings {
     var overlayPresentation: OverlayPresentation {
         get {
             access(keyPath: \.overlayPresentation)
-            return .systemMonitor
+            let rawValue = userDefaults.string(forKey: Key.overlayPresentation)
+            if rawValue == "systemMonitor" { return .horizontal }
+            return OverlayPresentation(rawValue: rawValue ?? "") ?? .horizontal
         }
         set {
             withMutation(keyPath: \.overlayPresentation) {
@@ -311,9 +314,16 @@ final class AppSettings {
             defaults.removeObject(forKey: Key.legacyRetiredBackground)
             defaults.removeObject(forKey: Key.legacyRetiredVisibility)
             defaults.removeObject(forKey: Key.legacyOverlayPresentationMigration)
-            defaults.set(OverlayPresentation.systemMonitor.rawValue, forKey: Key.overlayPresentation)
+            defaults.set(OverlayPresentation.horizontal.rawValue, forKey: Key.overlayPresentation)
             defaults.set(OverlayVisibilityMode.always.rawValue, forKey: Key.overlayVisibilityMode)
             defaults.set("systemMonitorV1", forKey: Key.systemMonitorMigration)
+        }
+        if defaults.string(forKey: Key.overlayLayoutMigration) != "overlayLayoutV2" {
+            let existingLayout = defaults.string(forKey: Key.overlayPresentation)
+            if existingLayout == nil || existingLayout == "systemMonitor" {
+                defaults.set(OverlayPresentation.horizontal.rawValue, forKey: Key.overlayPresentation)
+            }
+            defaults.set("overlayLayoutV2", forKey: Key.overlayLayoutMigration)
         }
         defaults.removeObject(forKey: Key.legacyAlwaysExpanded)
 
@@ -327,7 +337,7 @@ final class AppSettings {
             Key.alertCriticalThreshold: AppConstants.defaultCriticalThresholdPct,
             Key.globalHotkeyEnabled: true,
             Key.pillClickThrough: false,
-            Key.overlayPresentation: OverlayPresentation.systemMonitor.rawValue,
+            Key.overlayPresentation: OverlayPresentation.horizontal.rawValue,
             Key.overlayVisibilityMode: OverlayVisibilityMode.always.rawValue,
             Key.autoUpdateEnabled: true,
             Key.hasCompletedOnboarding: false,

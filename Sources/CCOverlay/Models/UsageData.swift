@@ -70,12 +70,46 @@ struct ParsedUsageEntry: Sendable {
     var projectName: String? = nil
 }
 
-struct ProjectCostSummary: Identifiable, Sendable {
+enum ProjectUsageSource: String, Sendable, Hashable {
+    case claudeLocalEstimate
+    case codexLocalTokens
+
+    var label: String {
+        switch self {
+        case .claudeLocalEstimate: "Claude local API-equivalent estimate"
+        case .codexLocalTokens: "Codex local tokens"
+        }
+    }
+}
+
+/// An in-memory local-activity record. It intentionally excludes source paths
+/// and transcript content so project insights never broaden diagnostic storage.
+struct ProjectUsageEntry: Sendable {
+    let provider: CLIProvider
+    let source: ProjectUsageSource
+    let sessionId: String
+    let projectName: String
+    let model: String?
+    let timestamp: Date
+    let tokenUsage: TokenUsage
+    let claudeEstimatedCost: CostBreakdown?
+}
+
+struct ProjectUsageSummary: Identifiable, Sendable {
     var id: String { projectName }
     let projectName: String
     let tokenUsage: TokenUsage
-    let cost: CostBreakdown
     let sessionCount: Int
+    let providers: [CLIProvider]
+    let sources: [ProjectUsageSource]
+    /// Present only for Claude local API-equivalent estimates. Codex data never
+    /// becomes a dollar amount because the local rollout does not expose billing.
+    let claudeEstimatedCost: CostBreakdown?
+}
+
+struct ProjectUsageInsight: Sendable {
+    let summaries: [ProjectUsageSummary]
+    let notice: String?
 }
 
 struct SessionUsage: Identifiable, Sendable {

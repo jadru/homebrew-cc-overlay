@@ -254,6 +254,10 @@ final class ClaudeCodeProviderService: BaseProviderService, ProviderServiceProto
         scannedUsageEntries
     }
 
+    override var projectUsageEntries: [ProjectUsageEntry] {
+        UsageCalculator.claudeProjectEntries(from: scannedUsageEntries)
+    }
+
     /// Whether we're using API-backed usage data.
     var hasAPIData: Bool {
         oauthUsage.isAvailable

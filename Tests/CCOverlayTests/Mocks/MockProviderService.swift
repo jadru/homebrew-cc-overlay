@@ -19,6 +19,8 @@ final class MockProviderService: ProviderServiceProtocol {
     var isAvailable: Bool
     var usageData: ProviderUsageData
     var usageExportEntries: [ParsedUsageEntry] = []
+    var projectUsageEntries: [ProjectUsageEntry] = []
+    var projectUsageNotice: String?
 
     // Tracking for verification in tests
     var startMonitoringCallCount = 0

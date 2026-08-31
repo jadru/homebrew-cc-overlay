@@ -119,6 +119,14 @@ final class OverlayInteractionTests: XCTestCase {
         XCTAssertEqual(resized.maxY, 1_080)
     }
 
+    func testEveryOverlayLayoutProvidesAPositiveInitialSize() {
+        for layout in OverlayPresentation.allCases {
+            XCTAssertGreaterThan(layout.initialSize.width, 0)
+            XCTAssertGreaterThan(layout.initialSize.height, 0)
+        }
+        XCTAssertEqual(OverlayPresentation.horizontal.initialSize, CGSize(width: 222, height: 40))
+    }
+
     @MainActor
     func testSecondInstanceCannotClaimTheSharedOverlayLock() {
         let lockURL = FileManager.default.temporaryDirectory
