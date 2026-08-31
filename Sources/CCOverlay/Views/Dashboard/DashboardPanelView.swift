@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct DashboardPanelView: View {
@@ -21,10 +20,8 @@ struct DashboardPanelView: View {
     let systemMetrics: SystemMetricsService
     let dockerStorage: DockerStorageService
     let updateService: UpdateService
-    var onOpenSettings: (() -> Void)?
     var onSizeChange: ((CGSize) -> Void)?
 
-    @Environment(\.openSettings) private var openSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var selectedProvider: CLIProvider?
@@ -137,14 +134,13 @@ struct DashboardPanelView: View {
 
             Spacer()
 
-            Button(action: showSettings) {
+            SettingsLink {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 30, height: 30)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PressableButtonStyle())
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
             .background {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.primary.opacity(0.07))
@@ -213,15 +209,6 @@ struct DashboardPanelView: View {
         }
     }
 
-    private func showSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let onOpenSettings {
-            onOpenSettings()
-        } else {
-            openSettings()
-        }
-    }
-
     // MARK: - Unavailable State
 
     private var unavailableContent: some View {
@@ -238,7 +225,7 @@ struct DashboardPanelView: View {
                 .controlSize(.small)
                 .disabled(panelState == .loading)
 
-                Button(action: showSettings) {
+                SettingsLink {
                     Label("Settings", systemImage: "gearshape")
                         .font(.system(size: 11, weight: .medium))
                 }
