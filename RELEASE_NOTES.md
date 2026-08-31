@@ -1,3 +1,36 @@
+# v1.1.1
+
+## Reliable Dashboard Settings
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+- **Native Settings entry point** — The dashboard gear and the unavailable-state Settings control now use SwiftUI's native Settings link instead of an inactive responder-chain selector.
+- **Reliable hit target** — The dashboard gear uses its full 44-point visual target, so opening Settings no longer depends on clicking precisely on the glyph.
+
+---
+
+# v1.1.0
+
+## Capacity Copilot and Flexible Overlay Layouts
+
+> [한국어](RELEASE_NOTES_KO.md)
+
+### Highlights
+
+- **Next action for every run** — The dashboard combines Mac readiness with provider capacity to recommend Run now, Run with caution, Refresh, Set up, Switch, Use reset, Wait for headroom, or Wait for Mac. It explains the reason, confidence, recommended provider, and next safe time when one is known.
+- **Mac-first safety order** — Critical memory pressure and thermal state take precedence over provider recommendations. Warning pressure, serious thermal state, CPU or memory at 90%+, and less than 10 GiB free storage surface as an explicit caution state.
+- **Three persistent layouts** — Choose horizontal, vertical, or two-column overlay layouts from the right-click Layout menu or Settings. Existing `systemMonitor` preferences migrate safely to horizontal, and the choice persists after restart.
+- **AI trend in the popover** — AI usage details now include the dashboard's shared 48-point, seven-day multi-provider headroom chart and a stable empty state while local history is building.
+- **Private project activity** — Usage details show the top three local projects in the last 24 hours and can reveal the full list. Codex uses positive local token-counter changes only and never displays a dollar cost. Claude estimates are labeled as local API-equivalent estimates.
+- **Safer compact network text** — Transfer units stay on one line in every layout, preventing the network metric from expanding or clipping the overlay.
+
+### Privacy boundary
+
+- Project labels use only the final directory name. Raw paths, conversation content, and token ledgers are not newly stored, added to safe diagnostics, or added to CSV exports.
+- A malformed local record or safe read-limit stop reports a non-blocking project-insight notice while provider limit monitoring continues.
+
+---
+
 # v1.0.1
 
 ## Edge-to-Edge Overlay Placement
