@@ -61,4 +61,24 @@ enum NumberFormatting {
         guard let bytesPerSecond else { return "—" }
         return "\(formatBytes(UInt64(max(bytesPerSecond, 0))))/s"
     }
+
+    /// A no-whitespace transfer rate for the constrained floating overlay.
+    /// Keeping the unit attached prevents the value from wrapping onto a second
+    /// line in the horizontal and two-column layouts.
+    static func formatOverlayRate(_ bytesPerSecond: Double?) -> String {
+        guard let bytesPerSecond else { return "—" }
+
+        let value = max(bytesPerSecond, 0)
+        let units: [(threshold: Double, suffix: String)] = [
+            (1_000_000_000, "GB/s"),
+            (1_000_000, "MB/s"),
+            (1_000, "KB/s"),
+        ]
+        for unit in units where value >= unit.threshold {
+            let scaled = value / unit.threshold
+            let precision = scaled < 10 ? "%.1f" : "%.0f"
+            return "\(String(format: precision, scaled))\(unit.suffix)"
+        }
+        return "\(Int(value.rounded()))B/s"
+    }
 }

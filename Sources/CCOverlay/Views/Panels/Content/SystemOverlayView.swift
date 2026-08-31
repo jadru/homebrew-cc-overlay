@@ -73,6 +73,55 @@ struct SystemOverlayView: View {
     }
 
     private var compactSurface: some View {
+        overlayLayout
+            .systemMonitorSurface(cornerRadius: 10, tint: overallTint.opacity(0.08))
+            .contextMenu {
+                Button(action: presentDashboard) {
+                    Label(OverlayContextMenuAction.showDashboard.title, systemImage: "rectangle.3.group")
+                }
+
+                Menu("Layout") {
+                    ForEach(OverlayPresentation.allCases) { presentation in
+                        Button {
+                            selectOverlayPresentation(presentation)
+                        } label: {
+                            Label(
+                                presentation.label,
+                                systemImage: settings.overlayPresentation == presentation
+                                    ? "checkmark"
+                                    : "rectangle"
+                            )
+                        }
+                    }
+                }
+
+                Divider()
+
+                Button(action: onHideOverlay) {
+                    Label(OverlayContextMenuAction.hideOverlay.title, systemImage: "eye.slash")
+                }
+
+                Divider()
+
+                Button(role: .destructive, action: onQuitApplication) {
+                    Label(OverlayContextMenuAction.quitApplication.title, systemImage: "power")
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var overlayLayout: some View {
+        switch settings.overlayPresentation {
+        case .horizontal:
+            horizontalLayout
+        case .vertical:
+            verticalLayout
+        case .twoColumn:
+            twoColumnLayout
+        }
+    }
+
+    private var horizontalLayout: some View {
         HStack(spacing: 9) {
             compactMetric(
                 .cpu, title: "CPU",
@@ -94,24 +143,52 @@ struct SystemOverlayView: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .systemMonitorSurface(cornerRadius: 10, tint: overallTint.opacity(0.08))
-        .contextMenu {
-            Button(action: presentDashboard) {
-                Label(OverlayContextMenuAction.showDashboard.title, systemImage: "rectangle.3.group")
-            }
+    }
 
+    private var verticalLayout: some View {
+        VStack(spacing: 0) {
+            rowMetric(.cpu, title: "CPU", value: sample?.cpuUsagePercentage.map(NumberFormatting.formatPercentage) ?? "—", tint: cpuTint)
             Divider()
-
-            Button(action: onHideOverlay) {
-                Label(OverlayContextMenuAction.hideOverlay.title, systemImage: "eye.slash")
-            }
-
+            rowMetric(.ram, title: "RAM", value: sample?.memory.usagePercentage.map(NumberFormatting.formatPercentage) ?? "—", tint: memoryTint)
             Divider()
+            rowMetric(.network, title: "Network", value: compactNetwork, tint: .blue)
+            Divider()
+            rowMetric(.ssd, title: "SSD", value: storageValue, tint: .indigo)
+            Divider()
+            rowAIUsage
+            Divider()
+            dashboardRowButton
+        }
+        .padding(7)
+    }
 
-            Button(role: .destructive, action: onQuitApplication) {
-                Label(OverlayContextMenuAction.quitApplication.title, systemImage: "power")
+    private var twoColumnLayout: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                compactMetric(.cpu, title: "CPU", value: sample?.cpuUsagePercentage.map(NumberFormatting.formatPercentage) ?? "—", tint: cpuTint)
+                    .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+                Divider().frame(height: 24)
+                compactMetric(.ram, title: "RAM", value: sample?.memory.usagePercentage.map(NumberFormatting.formatPercentage) ?? "—", tint: memoryTint)
+                    .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+            }
+            Divider()
+            HStack(spacing: 0) {
+                compactMetric(.network, title: "NET", value: compactNetwork, tint: .blue)
+                    .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+                Divider().frame(height: 24)
+                compactMetric(.ssd, title: "SSD", value: storageValue, tint: .indigo)
+                    .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+            }
+            Divider()
+            HStack(spacing: 0) {
+                compactAIUsage
+                    .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+                Divider().frame(height: 24)
+                dashboardButton
+                    .frame(maxWidth: .infinity, minHeight: 26)
             }
         }
+        .padding(7)
     }
 
     private var dashboardButton: some View {
@@ -179,6 +256,12 @@ struct SystemOverlayView: View {
         onShowDashboard()
     }
 
+    private func selectOverlayPresentation(_ presentation: OverlayPresentation) {
+        selectedDetail = nil
+        interactionState.setDetailPopoverPresented(false)
+        settings.overlayPresentation = presentation
+    }
+
     private func compactMetric(
         _ detail: SystemMetricDetail,
         title: String,
@@ -199,6 +282,9 @@ struct SystemOverlayView: View {
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(tint)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
             }
             .frame(minWidth: title == "NET" ? 38 : 30, alignment: .leading)
             .contentShape(Rectangle())
@@ -209,6 +295,89 @@ struct SystemOverlayView: View {
         .popover(isPresented: detailBinding(for: detail), arrowEdge: .bottom) {
             metricDetailPopover(detail)
         }
+    }
+
+    private func rowMetric(
+        _ detail: SystemMetricDetail,
+        title: String,
+        value: String,
+        tint: Color
+    ) -> some View {
+        Button {
+            guard !interactionState.consumeSuppressedPrimaryAction() else { return }
+            let nextDetail = selectedDetail == detail ? nil : detail
+            selectedDetail = nextDetail
+            interactionState.setDetailPopoverPresented(nextDetail != nil)
+        } label: {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                Spacer(minLength: 8)
+                Text(value)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(tint)
+                    .monospacedDigit()
+            }
+            .frame(minHeight: 22)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SystemOverlayMetricButtonStyle(interactionState: interactionState))
+        .accessibilityLabel("Show \(detail.title) details")
+        .accessibilityValue(value)
+        .popover(isPresented: detailBinding(for: detail), arrowEdge: .trailing) {
+            metricDetailPopover(detail)
+        }
+    }
+
+    private var rowAIUsage: some View {
+        Button {
+            guard !interactionState.consumeSuppressedPrimaryAction() else { return }
+            let nextDetail: SystemMetricDetail? = selectedDetail == .ai ? nil : .ai
+            selectedDetail = nextDetail
+            interactionState.setDetailPopoverPresented(nextDetail != nil)
+        } label: {
+            HStack(spacing: 8) {
+                Text("AI")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                Spacer(minLength: 8)
+                if compactAIProviders.isEmpty {
+                    Text("—")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(compactAIProviders) { providerUsage in
+                        Text("\(providerUsage.provider.shortLabel) \(providerUsage.value.displayText)")
+                            .foregroundStyle(compactAITint(for: providerUsage.value))
+                    }
+                }
+            }
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .frame(minHeight: 22)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SystemOverlayMetricButtonStyle(interactionState: interactionState))
+        .accessibilityLabel("Show AI usage details")
+        .accessibilityValue(compactAIAccessibilityValue)
+        .popover(isPresented: detailBinding(for: .ai), arrowEdge: .trailing) {
+            metricDetailPopover(.ai)
+        }
+    }
+
+    private var dashboardRowButton: some View {
+        Button {
+            guard !interactionState.consumeSuppressedPrimaryAction() else { return }
+            presentDashboard()
+        } label: {
+            Label("Dashboard", systemImage: "rectangle.3.group")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(SystemOverlayMetricButtonStyle(interactionState: interactionState))
+        .accessibilityLabel("Show system dashboard")
     }
 
     private func detailBinding(for detail: SystemMetricDetail) -> Binding<Bool> {
@@ -388,39 +557,49 @@ struct SystemOverlayView: View {
 
     @ViewBuilder
     private var agentUsage: some View {
-        if multiService.activeProviders.isEmpty {
+        if availableAIProviders.isEmpty {
             Text("No provider detected")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         } else {
-            ForEach(multiService.activeProviders, id: \.self) { provider in
+            ForEach(availableAIProviders, id: \.self) { provider in
                 let data = multiService.usageData(for: provider)
-                if data.isAvailable {
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 7) {
-                            ProviderIconView(provider: provider, size: 13)
-                            Text(provider.rawValue).font(.system(size: 10, weight: .medium))
-                            Spacer()
-                            Text("\(NumberFormatting.formatPercentage(data.remainingPercentage)) left")
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
-                        }
-                        ProgressView(value: min(max(data.remainingPercentage / 100, 0), 1))
-                            .tint(Color.usageTint(for: data.remainingPercentage))
-                        if let reset = data.resetsAt {
-                            Text(resetLabel(for: reset))
-                                .font(.system(size: 8))
-                                .foregroundStyle(.secondary)
-                        }
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 7) {
+                        ProviderIconView(provider: provider, size: 13)
+                        Text(provider.rawValue).font(.system(size: 10, weight: .medium))
+                        Spacer()
+                        Text("\(NumberFormatting.formatPercentage(data.remainingPercentage)) left")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.usageTint(for: data.remainingPercentage))
+                    }
+                    ProgressView(value: min(max(data.remainingPercentage / 100, 0), 1))
+                        .tint(Color.usageTint(for: data.remainingPercentage))
+                    if let reset = data.resetsAt {
+                        Text(resetLabel(for: reset))
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
+
+            AIUsageTrendChart(series: aiUsageHistory)
+        }
+    }
+
+    private var availableAIProviders: [CLIProvider] {
+        multiService.activeProviders.filter { multiService.usageData(for: $0).isAvailable }
+    }
+
+    private var aiUsageHistory: [AIUsageHistorySeries] {
+        availableAIProviders.map {
+            AIUsageHistorySeries(provider: $0, points: multiService.usageHistory(for: $0))
         }
     }
 
     private var compactNetwork: String {
         guard let network = sample?.network else { return "—" }
-        return "↓\(NumberFormatting.formatRate(network.receivedBytesPerSecond))"
+        return "↓\(NumberFormatting.formatOverlayRate(network.receivedBytesPerSecond))"
     }
 
     private var storageValue: String {

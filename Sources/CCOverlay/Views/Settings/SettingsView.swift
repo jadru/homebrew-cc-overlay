@@ -98,6 +98,16 @@ struct SettingsView: View {
     private var overlayTab: some View {
         Form {
             Section("Floating overlay") {
+                Picker("Layout", selection: $settings.overlayPresentation) {
+                    ForEach(OverlayPresentation.allCases) { presentation in
+                        Text(presentation.label).tag(presentation)
+                    }
+                }
+
+                Text(settings.overlayPresentation.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("Show", selection: $settings.overlayVisibilityMode) {
                     ForEach(OverlayVisibilityMode.allCases) { mode in
                         Text(mode.label).tag(mode)

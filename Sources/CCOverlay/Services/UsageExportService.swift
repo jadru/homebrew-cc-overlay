@@ -6,10 +6,7 @@ enum UsageExportService {
 
     // MARK: - Markdown Summary
 
-    static func markdownSummary(
-        data: ProviderUsageData,
-        projects: [ProjectCostSummary]? = nil
-    ) -> String {
+    static func markdownSummary(data: ProviderUsageData) -> String {
         var lines: [String] = []
         lines.append("## CC-Overlay Usage Summary")
         lines.append("**Provider**: \(data.provider.rawValue)")
@@ -31,14 +28,6 @@ enum UsageExportService {
             lines.append("- Output: \(NumberFormatting.formatTokenCount(tokens.usage.outputTokens))")
             lines.append("- Cache Write: \(NumberFormatting.formatTokenCount(tokens.usage.cacheCreationInputTokens))")
             lines.append("- Cache Read: \(NumberFormatting.formatTokenCount(tokens.usage.cacheReadInputTokens))")
-        }
-
-        if let projects, !projects.isEmpty {
-            lines.append("")
-            lines.append("### Projects")
-            for project in projects {
-                lines.append("- \(project.projectName): \(NumberFormatting.formatDollarCost(project.cost.totalCost)) (\(project.sessionCount) sessions)")
-            }
         }
 
         return lines.joined(separator: "\n")

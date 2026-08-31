@@ -2,16 +2,37 @@ import Foundation
 
 /// The visual surface used when CC-Overlay is visible above another app.
 enum OverlayPresentation: String, CaseIterable, Identifiable, Sendable {
-    case systemMonitor
+    case horizontal
+    case vertical
+    case twoColumn
 
     var id: String { rawValue }
 
     var label: String {
-        "System monitor"
+        switch self {
+        case .horizontal: "Horizontal"
+        case .vertical: "Vertical"
+        case .twoColumn: "Two columns"
+        }
     }
 
     var detail: String {
-        "CPU, memory, network, system health, and AI usage in one compact overlay."
+        switch self {
+        case .horizontal:
+            "A compact single row for the smallest footprint."
+        case .vertical:
+            "A single column with one clear system reading per row."
+        case .twoColumn:
+            "A balanced grid for quick scanning in a narrower space."
+        }
+    }
+
+    var initialSize: CGSize {
+        switch self {
+        case .horizontal: CGSize(width: 222, height: 40)
+        case .vertical: CGSize(width: 132, height: 174)
+        case .twoColumn: CGSize(width: 178, height: 100)
+        }
     }
 }
 

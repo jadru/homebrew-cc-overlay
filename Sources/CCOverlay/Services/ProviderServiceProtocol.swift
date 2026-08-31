@@ -14,6 +14,8 @@ protocol ProviderServiceProtocol: AnyObject {
     var lastActivityAt: Date? { get }
     var usageData: ProviderUsageData { get }
     var usageExportEntries: [ParsedUsageEntry] { get }
+    var projectUsageEntries: [ProjectUsageEntry] { get }
+    var projectUsageNotice: String? { get }
 
     func fetchUsage() async
     func revalidate(settings: AppSettings?) async -> Bool
