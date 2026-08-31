@@ -75,7 +75,9 @@ final class DashboardPanelViewStateTests: XCTestCase {
 
         XCTAssertEqual(size.width, DesignTokens.Layout.dashboardPanelWidth, accuracy: 1)
         XCTAssertGreaterThan(size.height, 180)
-        XCTAssertLessThan(size.height, 320)
+        // The unified Next action card adds a compact, intrinsic header while
+        // the panel must remain within a practical popover height.
+        XCTAssertLessThan(size.height, 400)
 
     }
 
