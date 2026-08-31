@@ -111,10 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppRuntimeCoordinating
             settings: settings,
             systemMetrics: systemMetrics,
             dockerStorage: dockerStorage,
-            updateService: updateService,
-            onOpenSettings: { [weak self] in
-                self?.showSettings()
-            }
+            updateService: updateService
         )
         dashboardPanelController = controller
         controller.show(near: overlayFrame)
@@ -159,11 +156,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppRuntimeCoordinating
         settings.showOverlay = true
         NSApp.setActivationPolicy(.accessory)
         overlayManager?.showOverlay()
-    }
-
-    private func showSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     private func initializeApp() {
